@@ -1,0 +1,92 @@
+#configuration file
+[acoustic_network_params]
+init_scale : 0.01
+learning_rate : 1.0
+lr_decay_factor : 0.5
+grad_clip : 5
+
+# Number of layers
+# Recommanded value : 5 to 9 (see https://arxiv.org/pdf/1609.05935v2.pdf)
+num_layers : 3
+# Number of LSTM cell per layer
+# Recommended value : 1024 (see https://arxiv.org/pdf/1609.05935v2.pdf)
+hidden_size : 1024
+num_proj : 1024
+output_size : 4026
+# Dropout value during training
+# Those values define the probability to keep a cell active during training
+# Recommanded values are 0.8 for input (dropping 20%) and 0.5 for output (dropping 50%)
+# http://www.cs.toronto.edu/~rsalakhu/papers/srivastava14a.pdf
+dropout_input_keep_prob : 1.0
+dropout_output_keep_prob : 1.0
+# Number of training examples for one batch
+# You should find the greater value (between 2 and 50 probably) which allow your graphic
+# card time to be "optimized" (check that you GPU never go to 0% usage for example)
+batch_size : 16
+# Number of mini-batch inside a batch (gradient update will happen only between batchs)
+# Recommanded value is : batch_size x mini_batch_size = 32 or more (see https://arxiv.org/pdf/1609.05935v2.pdf)
+mini_batch_size : 3
+# Recommended learning_rate is 0.0003, higher values (0.001 for example) may give a faster
+# convergence at the beginning but usually ends up with the error rate oscillating
+# Signal processing mode, options are mfcc or fbank
+#  - mfcc is Mel Frequency Cepstral Coefficients (20-dim input)
+#  - fbank is mel filterbank (including delta and double-delta, 120-dim input)
+# mfcc is essentially fbank with an extra DCT (discrete cosine transformation) applied
+# delta and double-delta represent 'velocity' and 'acceleration' of the input signal
+# Recommanded value is fbank which give better training result
+signal_processing : fbank
+# Audio language. Currently supported : english
+language : chinese
+
+time_major : True
+forward_only : False
+Debug : True
+
+# The ratio to which the internal state of the RNN will be reset to 0. For example :
+#   1.0 mean the RNN internal state will be reset at the end of each batch
+#   0.25 mean there is 25% chances that the RNN internal state will be reset at the end of each batch
+rnn_state_reset_ratio : 0.25
+
+[general]
+# Whether to read config settings if pre-existing ones are found in checkpoint path
+use_config_file_if_checkpoint_exists : True
+# Frequency at which to save the model
+steps_per_checkpoint : 100
+# Frequency at which to evaluate on the test set. This must be a multiple of steps_per_checkpoint
+steps_per_evaluation : 1000
+checkpoint_dir : data_3/checkpoints/
+num_threads : 1
+queue_cache : 100
+
+[training]
+# max_input_seq_length is the maximum number of 0.01s chunks we allow in a single training (or test) example
+# max_target_seq_length is the maximum number of letters we allow in a single training (or test) example output
+#   Must be less than 65535 (int16 for reduced memory consumption)
+# Advices :
+#  - Those two values need to be consistent one with the other
+#  - These values depends on your dataset used for training
+#  - For reduced memory consumption it is possible to reduce batch_size
+# LibriSpeech or TEDLIUM training dataset : 3510 / 600
+# Shtooka training dataset : 350 / 40
+# Vystadial_2013 training dataset : 900 / 100
+max_input_seq_length : 1500
+max_target_seq_length : 600
+#scp_file : train-data/test-1
+scp_file : train-data/train.scp
+#label : train-data/merge_sort_tr.labels
+label : train-data/sort_tr.labels.4026.ce
+lcxt : 3
+rcxt : 3
+num_streams : 100
+num_frames_batch : 20
+skip_frame : 1
+restore_training : True
+
+# Apply batch normalization to the data during training (True / False)
+batch_normalization : False
+
+[logging]
+# Set a log file, if void then log messages will be outputed to the screen
+log_file : data_3/full_data.log
+# Set a log level : DEBUG, INFO, WARNING (default) , ERROR or CRITICAL
+log_level : INFO
