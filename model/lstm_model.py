@@ -105,7 +105,7 @@ class LSTM_Model(object):
             rnn_outputs, new_states = tf.nn.dynamic_rnn(cell=cell,
                     inputs=rnn_input,
                     sequence_length=seq_len,
-                    initial_state=None,
+                    initial_state=rnn_tuple_state,
                     dtype=tf.float32,
                     time_major=self.time_major)
 #        print("rnn_outputs:",rnn_outputs.shape[2])

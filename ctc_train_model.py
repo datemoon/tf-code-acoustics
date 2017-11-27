@@ -12,7 +12,6 @@ import logging
 
 from io_func import sparse_tuple_from
 from io_func.kaldi_io_parallel import KaldiDataReadParallel
-from util.parse_option import HyperParameterHandler
 from parse_args import parse_args
 from model.lstm_model import ProjConfig, LSTM_Model
 
@@ -59,8 +58,7 @@ class train_class(object):
         with tf.Graph().as_default():
             self.run_ops = []
             self.X = tf.placeholder(tf.float32, [None, None, self.input_dim], name='feature')
-            #self.Y = tf.sparse_placeholder(tf.int32, name="labels")
-            self.Y = tf.placeholder(tf.int32, [self.nnet_conf.batch_size, self.nnet_conf.num_frames_batch], name="labels")
+            self.Y = tf.sparse_placeholder(tf.int32, name="labels")
             self.seq_len = tf.placeholder(tf.int32,[None], name = 'seq_len')
 
             self.learning_rate_var = tf.Variable(float(self.nnet_conf.learning_rate), trainable=False, name='learning_rate')
@@ -74,7 +72,7 @@ class train_class(object):
                     initializer = tf.random_uniform_initializer(
                             -self.nnet_conf.init_scale, self.nnet_conf.init_scale)
                     model = LSTM_Model(self.nnet_conf)
-                    mean_loss, ce_loss , rnn_keep_state_op, rnn_state_zero_op ,label_error_rate = model.ce_train(self.X, self.Y, self.seq_len)
+                    mean_loss, ctc_loss , label_error_rate, decoded, softval = model.loss(self.X, self.Y, self.seq_len)
                     if self.use_sgd and self.use_normal:
                         tvars = tf.trainable_variables()
                         grads, _ = tf.clip_by_global_norm(tf.gradients(
@@ -87,12 +85,10 @@ class train_class(object):
 
                     run_op = {'train_op':train_op,
                             'mean_loss':mean_loss,
-                            'ce_loss':ce_loss,
-                            'rnn_keep_state_op':rnn_keep_state_op,
-                            'rnn_state_zero_op':rnn_state_zero_op,
-                            'label_error_rate':label_error_rate}
-                            #'decoded':decoded,
-                            #'softval':softval}
+                            'ctc_loss':ctc_loss,
+                            'label_error_rate':label_error_rate,
+                            'decoded':decoded,
+                            'softval':softval}
                     self.run_ops.append(run_op)
                     tf.get_variable_scope().reuse_variables()
 
@@ -108,7 +104,6 @@ class train_class(object):
                     logging.info("restore training")
                     self.saver.restore(self.sess, ckpt.model_checkpoint_path)
                     self.num_batch_total = self.get_num(ckpt.model_checkpoint_path)
-                    #self.decay_learning_rate(0.5)
                     logging.info('model:'+ckpt.model_checkpoint_path)
                     logging.info('restore learn_rate:'+str(self.sess.run(self.learning_rate_var)))
                     #print('*******************',self.num_batch_total)
@@ -133,38 +128,26 @@ class train_class(object):
         num_batch = 0
         while True:
             time1=time.time()
-            feat,label,length = self.get_feat_and_label()
+            feat,sparse_label,length = self.get_feat_and_label()
             if feat is None:
                 logging.info('train ok : %s\n' % thread_name)
                 break
             time2=time.time()
             print('******time:',time2-time1, thread_name)
-            self.sess.run(run_op['rnn_state_zero_op'])
-            for i in range(len(feat)):
-                feed_dict = {self.X : feat[i], self.Y : label[i], self.seq_len : length[i]}
-                run_need_op = {'train_op':run_op['train_op'],
-                        'mean_loss':run_op['mean_loss'],
-                        'ce_loss':run_op['ce_loss'],
-                        'rnn_keep_state_op':run_op['rnn_keep_state_op']}
-                time3 = time.time()
-                calculate_return = self.sess.run(run_need_op, feed_dict = feed_dict)
-                print('mean_loss:',calculate_return['mean_loss'])
-                #print('ce_loss:',calculate_return['ce_loss'])
-                #self.sess.run(run_op['rnn_keep_state_op'])
-                time4 = time.time()
-                print(num_batch," time:",time4-time3)
-            time5=time.time()
 
-            print(num_batch," time:",time2-time1,time5-time2)
-            #print('label_error_rate:',calculate_return['label_error_rate'])
+            feed_dict = {self.X : feat, self.Y : sparse_label, self.seq_len : length}
 
-#            if num_batch % 1000 == 0:
-#                if gpu_id == 0 :
-#                    logging.info('save model'+str(num_batch))
-#                    checkpoint_path = os.path.join(self.tf_async_model_prefix, 'model_'+str(num_batch)+'.ckpt')
-#                    self.saver.save(self.sess, checkpoint_path)
+            time3 = time.time()
+            calculate_return = self.sess.run(run_op, feed_dict = feed_dict)
+            time4 = time.time()
+
+            print(num_batch," time:",time2-time1,time3-time2,time4-time3,time4-time1)
+            print('label_error_rate:',calculate_return['label_error_rate'])
+            print('mean_loss:',calculate_return['mean_loss'])
+            print('ctc_loss:',calculate_return['ctc_loss'])
+
             num_batch += 1
-            #total_acc_error_rate += calculate_return['label_error_rate']
+            total_acc_error_rate += calculate_return['label_error_rate']
             self.acc_label_error_rate[gpu_id] = total_acc_error_rate / num_batch
         self.acc_label_error_rate[gpu_id] = total_acc_error_rate / num_batch
 
@@ -183,30 +166,15 @@ class train_class(object):
         print('total_batch_num**********',self.num_batch_total,'***********')
         return True
     
-    def input_ce_feat_and_label(self):
-        feat_array, label_array, length_array = self.kaldi_io_nstream.slice_load_next_nstreams()
-        if length_array is None:
-            return False
-        if len(label_array[0]) != self.nnet_conf.batch_size:
-            return False
-        #process feature
-        #sparse_label_array = []
-        #for lab in label:
-        #    sparse_label_array.append(sparse_tuple_from(lab))
-        self.input_queue.put((feat_array, label_array, length_array))
-        self.num_batch_total += 1
-        print('total_batch_num**********',self.num_batch_total,'***********')
-        return True
-
     def train_logic(self):
         train_thread = []
-#        for i in range(self.num_threads):
-#            self.acc_label_error_rate.append(1.0)
-#            train_thread.append(threading.Thread(group=None, target=self.train_function,
-#                args=(i, self.run_ops[i], 'thread_hubo_'+str(i)), name='thread_hubo_'+str(i)))
+        for i in range(self.num_threads):
+            self.acc_label_error_rate.append(1.0)
+            train_thread.append(threading.Thread(group=None, target=self.train_function,
+                args=(i, self.run_ops[i], 'thread_hubo_'+str(i)), name='thread_hubo_'+str(i)))
 
-#       for thr in train_thread:
-#            thr.start()
+        for thr in train_thread:
+            thr.start()
 
         logging.info('start thread ok.\n')
 
@@ -222,7 +190,7 @@ class train_class(object):
                     if self.input_queue.empty():
                         checkpoint_path = os.path.join(self.tf_async_model_prefix, str(self.num_batch_total)+'_model'+'.ckpt')
                         logging.info('save model: '+checkpoint_path+ 
-                                '\nlearn_tate: ' + 
+                                '\nlearn_rate: ' + 
                                 str(self.sess.run(self.learning_rate_var)))
                         self.saver.save(self.sess, checkpoint_path)
 
@@ -236,11 +204,10 @@ class train_class(object):
                                 all_lab_err_rate[len(all_lab_err_rate)-1] = curr_lab_err_rate
                                 break
                             if i == len(all_lab_err_rate)-1:
-                                train_logic.decay_learning_rate(0.8)
+                                train_logic.decay_learning_rate(0.5)
+                                all_lab_err_rate[len(all_lab_err_rate)-1] = curr_lab_err_rate
                         break
-            if self.input_ce_feat_and_label():
-                i=0
-                self.train_function(i, self.run_ops[i], 'thread_hubo_'+str(i))
+            if self.input_feat_and_label():
                 continue
             break
         time.sleep(1)
@@ -249,8 +216,8 @@ class train_class(object):
         '''
             end train
         '''
-#        for thr in train_thread:
-#            self.input_queue.put((None, None, None))
+        for thr in train_thread:
+            self.input_queue.put((None, None, None))
 
         while True:
             if self.input_queue.empty():
@@ -262,9 +229,9 @@ class train_class(object):
             train is end
         '''
         logging.info('train is end.\n')
-#        for thr in train_thread:
-#            thr.join()
-#            logging.info('join thread %s\n' % thr.name)
+        for thr in train_thread:
+            thr.join()
+            logging.info('join thread %s\n' % thr.name)
 
         return self.get_avergae_label_error_rate()
 
@@ -290,15 +257,22 @@ class train_class(object):
 
 if __name__ == "__main__":
     #first read parameters
-    args = parse_args()
-    conf_file = args['config_file']
     # read config file
-    conf_args = HyperParameterHandler(conf_file)
-    conf_dict = conf_args.get_hyper_params()
-    logging.info(conf_args.__repr__())
-
-    conf_dict['num_threads'] = args['num_threads']
+    conf_dict = parse_args(sys.argv[1:])
     
+    # Create checkpoint dir if needed
+    if not os.path.exists(conf_dict["checkpoint_dir"]):
+        os.makedirs(conf_dict["checkpoint_dir"])
+
+    # Set logging framework
+    if conf_dict["log_file"] is not None:
+        logging.basicConfig(filename = conf_dict["log_file"])
+        logging.getLogger().setLevel(conf_dict["log_level"])
+    else:
+        raise 'no log file in config file'
+
+    logging.info(conf_dict)
+
     train_logic = train_class(conf_dict)
     train_logic.construct_graph()
     iter = 0
@@ -318,7 +292,7 @@ if __name__ == "__main__":
         if err_rate > (tmp_err_rate + 0.01):
             err_rate = tmp_err_rate
         else:
-            train_logic.decay_learning_rate(0.8)
+            train_logic.decay_learning_rate(0.5)
         #time.sleep(5)
     logging.info('end\n')
 

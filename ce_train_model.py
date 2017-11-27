@@ -12,7 +12,6 @@ import logging
 
 from io_func import sparse_tuple_from
 from io_func.kaldi_io_parallel import KaldiDataReadParallel
-#from util.parse_option import HyperParameterHandler
 from parse_args import parse_args
 from model.lstm_model import ProjConfig, LSTM_Model
 
@@ -91,7 +90,6 @@ class train_class(object):
                             'rnn_keep_state_op':rnn_keep_state_op,
                             'rnn_state_zero_op':rnn_state_zero_op,
                             'label_error_rate':label_error_rate}
-                            #'decoded':decoded,
                             #'softval':softval}
                     self.run_ops.append(run_op)
                     tf.get_variable_scope().reuse_variables()
@@ -108,7 +106,6 @@ class train_class(object):
                     logging.info("restore training")
                     self.saver.restore(self.sess, ckpt.model_checkpoint_path)
                     self.num_batch_total = self.get_num(ckpt.model_checkpoint_path)
-                    #self.decay_learning_rate(0.5)
                     logging.info('model:'+ckpt.model_checkpoint_path)
                     logging.info('restore learn_rate:'+str(self.sess.run(self.learning_rate_var)))
                     #print('*******************',self.num_batch_total)
@@ -162,11 +159,6 @@ class train_class(object):
 
             print(num_batch," time:",time2-time1,time5-time2)
 
-#            if num_batch % 1000 == 0:
-#                if gpu_id == 0 :
-#                    logging.info('save model'+str(num_batch))
-#                    checkpoint_path = os.path.join(self.tf_async_model_prefix, 'model_'+str(num_batch)+'.ckpt')
-#                    self.saver.save(self.sess, checkpoint_path)
             num_batch += 1
             #total_acc_error_rate += calculate_return['label_error_rate']
             self.acc_label_error_rate[gpu_id] = total_acc_error_rate / num_bptt
@@ -293,6 +285,7 @@ class train_class(object):
 
 if __name__ == "__main__":
     #first read parameters
+    # read config file
     conf_dict = parse_args(sys.argv[1:])
     
     # Create checkpoint dir if needed
