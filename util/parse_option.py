@@ -145,8 +145,8 @@ class HyperParameterHandler(object):
 
     def __repr__(self):
         pri = '{\nHyperParameterHandler:\n'
-        for key in self.hyper_params.keys():
-            pri += key + ':\t' + str(self.hyper_params[key]) +'\n'
+        for key,value in self.hyper_params.iteritems():
+            pri += key + ':\t' + str(value) +'\n'
         pri += '}'
         return pri
 

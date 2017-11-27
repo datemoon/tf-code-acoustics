@@ -12,7 +12,7 @@ import logging
 
 from io_func import sparse_tuple_from
 from io_func.kaldi_io_parallel import KaldiDataReadParallel
-from util.parse_option import HyperParameterHandler
+#from util.parse_option import HyperParameterHandler
 from parse_args import parse_args
 from model.lstm_model import ProjConfig, LSTM_Model
 
@@ -226,7 +226,7 @@ class train_class(object):
                     if self.input_queue.empty():
                         checkpoint_path = os.path.join(self.tf_async_model_prefix, str(self.num_batch_total)+'_model'+'.ckpt')
                         logging.info('save model: '+checkpoint_path+ 
-                                '\nlearn_tate: ' + 
+                                '\nlearn_rate: ' + 
                                 str(self.sess.run(self.learning_rate_var)))
                         self.saver.save(self.sess, checkpoint_path)
 
@@ -293,15 +293,21 @@ class train_class(object):
 
 if __name__ == "__main__":
     #first read parameters
-    args = parse_args()
-    conf_file = args['config_file']
-    # read config file
-    conf_args = HyperParameterHandler(conf_file)
-    conf_dict = conf_args.get_hyper_params()
-    logging.info(conf_args.__repr__())
-
-    conf_dict['num_threads'] = args['num_threads']
+    conf_dict = parse_args(sys.argv[1:])
     
+    # Create checkpoint dir if needed
+    if not os.path.exists(conf_dict["checkpoint_dir"]):
+        os.makedirs(conf_dict["checkpoint_dir"])
+
+    # Set logging framework
+    if conf_dict["log_file"] is not None:
+        logging.basicConfig(filename = conf_dict["log_file"])
+        logging.getLogger().setLevel(conf_dict["log_level"])
+    else:
+        raise 'no log file in config file'
+
+    logging.info(conf_dict)
+
     train_logic = train_class(conf_dict)
     train_logic.construct_graph()
     iter = 0

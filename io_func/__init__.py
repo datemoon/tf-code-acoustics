@@ -74,6 +74,17 @@ def skip_frame(feature, skip):
 
     return numpy.vstack(skip_feature)
 
+# block_num = (feature_dim - block_size)/block_skip + 1
+# block_size = 8
+def grid_block(feature, block_size, block_skip=1):
+    block_num = (feature.shape[-1] - block_size) / block_skip + 1
+    block_feat = []
+    for i in range(feature.shape[0]):
+        one_block = []
+        for b in range(0, block_num, block_skip):
+            one_block.append(feature[i][b : b+block_size])
+        block_feat.append(numpy.hstack(one_block))
+    return numpy.vstack(block_feat)
 
 def nstream_feature(kaldireader, num_streams):
     nfeature = []

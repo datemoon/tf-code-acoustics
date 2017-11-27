@@ -2,5 +2,13 @@
 
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 
-CUDA_VISIBLE_DEVICES="1" python ce_train_model.py --train --config conf/config.ini_2 --num_threads 1
+if [ $1 == clean ]
+then
+	find -name "*.pyc" |xargs rm -f
+	exit 0
+fi
+
+CUDA_VISIBLE_DEVICES="1" python ce_train_model.py --config=conf/config.ini-2 --num_threads=1
+
+
 

@@ -14,7 +14,7 @@ class ProjConfig(object):
         self.grad_clip = 5
         self.num_layers = 3
         self.hidden_size =  1024
-        self.num_proj = 1024 # NOTE HERE
+        self.proj_dim = 1024 # NOTE HERE
         self.dropout_input_keep_prob = 1.0
         self.dropout_output_keep_prob = 1.0
         self.lr_decay_factor = 0.5
@@ -42,7 +42,7 @@ class LSTM_Model(object):
     def __init__(self, config): #initializer=tf.contrib.layers.xavier_initializer()):
         self.num_layers = config.num_layers
         self.hidden_size = config.hidden_size #512
-        self.num_proj = config.num_proj       #256
+        self.proj_dim = config.proj_dim       #256
         self.batch_size = config.batch_size
         self.num_frames_batch = config.num_frames_batch #20
 #        self.input_dim = config.input_dim
@@ -56,7 +56,7 @@ class LSTM_Model(object):
         self.Debug = config.Debug
         
         with tf.variable_scope('Softmax_layer'):
-            self.W = tf.get_variable('softmax_w', [self.num_proj, self.output_size], dtype=tf.float32, 
+            self.W = tf.get_variable('softmax_w', [self.proj_dim, self.output_size], dtype=tf.float32, 
                     initializer=tf.contrib.layers.xavier_initializer())
             self.bias = tf.get_variable('softmax_b', [self.output_size], dtype=tf.float32, 
                     initializer=tf.contrib.layers.xavier_initializer())
@@ -68,11 +68,11 @@ class LSTM_Model(object):
         # Define cells of acoustic model
         with tf.variable_scope('LSTM'):
             def lstm_cell():
-                if self.num_proj == self.hidden_size:
+                if self.proj_dim == self.hidden_size:
                     return tf.contrib.rnn.LSTMCell(
                             self.hidden_size, state_is_tuple=True, reuse=tf.get_variable_scope().reuse)
                 else:
-                    return tf.contrib.rnn.LSTMCell(self.hidden_size, use_peepholes=True, num_proj=self.num_proj, 
+                    return tf.contrib.rnn.LSTMCell(self.hidden_size, use_peepholes=True, proj_dim=self.proj_dim, 
                             forget_bias=0.0, state_is_tuple=True, reuse=tf.get_variable_scope().reuse)
 
             layers_list = []
@@ -135,8 +135,8 @@ class LSTM_Model(object):
             rnn_outputs = tf.transpose(rnn_outputs, [1, 0, 2]) # [time, batch_size, cell_outdim]
         
         batch_size = self.batch_size
-        print(batch_size,self.num_proj,self.output_size,seq_len.shape)
-        rnn_outputs = tf.reshape(rnn_outputs, [-1, self.num_proj])
+        print(batch_size,self.proj_dim,self.output_size,seq_len.shape)
+        rnn_outputs = tf.reshape(rnn_outputs, [-1, self.proj_dim])
         logits = tf.matmul(rnn_outputs, self.W) + self.bias
         logits = tf.reshape(logits, [-1, batch_size, self.output_size])
         #output_log = tf.nn.softmax(logits)

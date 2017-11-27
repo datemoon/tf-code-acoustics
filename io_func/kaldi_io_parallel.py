@@ -32,8 +32,8 @@ class KaldiDataReadParallel(object):
         self.max_input_seq_length = 1500
         self.lcxt = 0
         self.rcxt = 0
-        self.num_streams = 1
-        self.num_batch = 20
+        self.batch_size = 1
+        self.num_frames_batch = 20
         self.skip_frame = 1
         self.ali_provided = False
         self.scp_file_read = None
@@ -124,14 +124,14 @@ class KaldiDataReadParallel(object):
     def reset_read(self):
         self.scp_file_read = smart_open(self.scp_file, 'r')
     
-    # load num_streams features and labels
+    # load batch_size features and labels
     def load_next_nstreams(self):
         length = []
         feat_mat = []
         label = []
         nstreams = 0
         max_frame_num = 0
-        while nstreams < self.num_streams:
+        while nstreams < self.batch_size:
             utt_id,utt_mat = self.read_next_utt()
             if utt_mat is None:
                 self.end_reading = True
@@ -191,7 +191,7 @@ class KaldiDataReadParallel(object):
         label = []
         nstreams = 0
         max_frame_num = 0
-        while nstreams < self.num_streams:
+        while nstreams < self.batch_size:
             utt_id,utt_mat = self.read_next_utt()
             if utt_mat is None:
                 self.end_reading = True
@@ -221,8 +221,8 @@ class KaldiDataReadParallel(object):
                 max_frame_num = length[nstreams]
             nstreams += 1
 
-        if max_frame_num % self.num_batch != 0:
-            max_frame_num = self.num_batch * (max_frame_num / self.num_batch + 1)
+        if max_frame_num % self.num_frames_batch != 0:
+            max_frame_num = self.num_frames_batch * (max_frame_num / self.num_frames_batch + 1)
         # zero fill
         i = 0
         while i < nstreams:
@@ -236,18 +236,18 @@ class KaldiDataReadParallel(object):
             feat_mat_nstream = numpy.hstack(feat_mat).reshape(-1, nstreams, self.feat_dim)
             #feat_mat_nstream = numpy.vstack(feat_mat).reshape(nstreams, -1, self.original_feat_dim)
             np_length = numpy.vstack(length).reshape(-1)
-            array_feat = numpy.split(feat_mat_nstream, max_frame_num / self.num_batch)
+            array_feat = numpy.split(feat_mat_nstream, max_frame_num / self.num_frames_batch)
             array_label = []
             array_length = []
-            for nbatch in range(max_frame_num / self.num_batch):
+            for nbatch in range(max_frame_num / self.num_frames_batch):
                 array_label.append([])
                 tmp_length = []
-                offset_n = nbatch * self.num_batch
+                offset_n = nbatch * self.num_frames_batch
                 # every sentence cut
                 for i in range(len(label)):
                     tmp_label = []
                     j = 0
-                    while j < self.num_batch :
+                    while j < self.num_frames_batch :
                         if j < len(label[i])-offset_n:
                             tmp_label.append(label[i][j+offset_n])
                         else:
