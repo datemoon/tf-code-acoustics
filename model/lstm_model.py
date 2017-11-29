@@ -90,7 +90,7 @@ class LSTM_Model(object):
     def gridlstm_def(self, rnn_input, seq_len):
         with tf.variable_scope('GridLSTM'):
             def gridlstm_cell():
-                return tf.contrib.rnn.GridLSTMCell(config.use_gridlstm,
+                return tf.contrib.rnn.GridLSTMCell(self.grid_num_units,
                         use_peepholes=False,
                         feature_size=self.grid_feature_size,
                         frequency_skip=self.grid_frequency_skip,
