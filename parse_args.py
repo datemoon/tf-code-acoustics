@@ -193,10 +193,15 @@ def parse_args(args_list):
     train_lstm_opt = parser.add_argument_group(title='train_lstm_opt', 
             description='training lstm option relation parameters')
 
+    train_lstm_opt.add_argument('--use-gridlstm',dest='use_gridlstm',
+            type=bool, default=False,
+            help='First layer wether use gridlstm'
+            ' (bool, default = False)')
+
     train_lstm_opt.add_argument('--frame-num-limit',dest='frame_num_limit',
             type=int, default=1500,
             help='Sentence max number of frames' 
-            ' (double, default = 1500)')
+            ' (int, default = 1500)')
     train_lstm_opt.add_argument('--num-layers', dest='num_layers', type=int,
             default = 3,
             help='Nnet number layers'

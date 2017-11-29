@@ -17,7 +17,7 @@ fi
 
 if [ $1 == ce ]
 then
-	CUDA_VISIBLE_DEVICES="1" python ce_train_model.py --config=conf/config.ini --num_threads=1
+	CUDA_VISIBLE_DEVICES="0" python ce_train_model.py --config=conf/config.ini --num_threads=1
 elif [ $1 == ctc ]
 then
 	CUDA_VISIBLE_DEVICES="1" python ctc_train_model.py --config=conf/config.ini-ctc --num_threads=1

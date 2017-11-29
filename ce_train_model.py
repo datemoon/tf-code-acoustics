@@ -57,7 +57,8 @@ class train_class(object):
     def construct_graph(self):
         with tf.Graph().as_default():
             self.run_ops = []
-            self.X = tf.placeholder(tf.float32, [None, None, self.input_dim], name='feature')
+            #self.X = tf.placeholder(tf.float32, [None, None, self.input_dim], name='feature')
+            self.X = tf.placeholder(tf.float32, [self.nnet_conf.num_frames_batch, self.nnet_conf.batch_size, self.input_dim], name='feature')
             #self.Y = tf.sparse_placeholder(tf.int32, name="labels")
             self.Y = tf.placeholder(tf.int32, [self.nnet_conf.batch_size, self.nnet_conf.num_frames_batch], name="labels")
             self.seq_len = tf.placeholder(tf.int32,[None], name = 'seq_len')
