@@ -24,6 +24,10 @@ import numpy
 #from model_io import log
 from io_func import smart_open, preprocess_feature_and_label, shuffle_feature_and_label, make_context, skip_frame
 import logging
+sys.path.append("../")
+
+from feat_process.feature_transform import FeatureTransform
+
 
 class KaldiDataReadParallel(object):
     def __init__(self):
@@ -42,6 +46,9 @@ class KaldiDataReadParallel(object):
         self.feat_dim = 0
         self.alignment = {}
         self.random = False
+
+        self.feature_transfile = None
+        self.feature_transform = None
 
         # store features and labels for each data partition
 
@@ -109,6 +116,11 @@ class KaldiDataReadParallel(object):
     def initialize_read(self, conf_dict = None, first_time_reading = False, scp_file = None, label = None):
         # first initial configure
         self.initialize(conf_dict, scp_file, label)
+
+        if self.feature_transfile != None:
+            self.feature_transform = FeatureTransform()
+            self.feature_transform.LoadTransform(self.feature_transfile)
+
         self.scp_file_read = smart_open(self.scp_file, 'r')
         if first_time_reading:
             utt_id, utt_mat = self.read_next_utt()
@@ -144,6 +156,9 @@ class KaldiDataReadParallel(object):
             if self.ali_provided and (self.alignment.has_key(utt_id) is False):
                 continue
             
+            if self.feature_transform != None:
+                utt_mat = self.feature_transform.Propagate(utt_mat)
+
             # delete too length feature
             if (len(utt_mat)/self.skip_frame + 1) > self.max_input_seq_length:
                 continue
