@@ -63,6 +63,14 @@ def parse_args(args_list):
             default=None,
             help='train label file' '(str, default= None)')
 
+    parser.add_argument('--cv-scp', dest='cv_scp', type=str,
+            default=None,
+            help='cv scp file' '(str, default = None)')
+
+    parser.add_argument('--cv-label', dest='cv_label', type=str,
+            default=None,
+            help='cv label file' '(str, default= None)')
+    
     parser.add_argument('--restore-training', dest='restore_training', type=bool,
             default=False,
             help='restore training' '(bool, default = False)')
@@ -185,6 +193,10 @@ def parse_args(args_list):
             help='only calculate forward'
             '(bool, default = False)')
 
+    train_common_opt.add_argument('--print-trainable-variables', dest='print_trainable_variables',
+            type=bool, default=False,
+            help='print trainable variables'
+            '(bool, default = False)')
 
 
     '''
@@ -196,6 +208,11 @@ def parse_args(args_list):
     train_lstm_opt.add_argument('--use-gridlstm',dest='use_gridlstm',
             type=bool, default=False,
             help='First layer wether use gridlstm'
+            ' (bool, default = False)')
+
+    train_lstm_opt.add_argument('--use-peepholes',dest='use_peepholes',
+            type=bool, default=False,
+            help='use peepholes'
             ' (bool, default = False)')
 
     train_lstm_opt.add_argument('--frame-num-limit',dest='frame_num_limit',

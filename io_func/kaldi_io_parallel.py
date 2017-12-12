@@ -90,10 +90,14 @@ class KaldiDataReadParallel(object):
     def is_finish(self):
         return self.end_reading
 
-    def initialize(self, conf_dict):
+    def initialize(self, conf_dict, scp_file = None, label = None):
         for key in self.__dict__:
             if key in conf_dict.keys():
                 self.__dict__[key] = conf_dict[key]
+        if scp_file != None:
+            self.scp_file = scp_file
+        if label != None:
+            self.label = label
         if not os.path.exists(self.scp_file):
             raise 'no scp file'
         if not os.path.exists(self.label):
@@ -102,9 +106,9 @@ class KaldiDataReadParallel(object):
             self.ali_provided = True
 
 
-    def initialize_read(self, conf_dict = None, first_time_reading = False):
+    def initialize_read(self, conf_dict = None, first_time_reading = False, scp_file = None, label = None):
         # first initial configure
-        self.initialize(conf_dict)
+        self.initialize(conf_dict, scp_file, label)
         self.scp_file_read = smart_open(self.scp_file, 'r')
         if first_time_reading:
             utt_id, utt_mat = self.read_next_utt()
@@ -123,6 +127,7 @@ class KaldiDataReadParallel(object):
 
     def reset_read(self):
         self.scp_file_read = smart_open(self.scp_file, 'r')
+        self.end_reading = False
     
     # load batch_size features and labels
     def load_next_nstreams(self):

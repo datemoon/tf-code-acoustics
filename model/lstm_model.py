@@ -25,6 +25,7 @@ class ProjConfig(object):
         self.forward_only = False
         self.Debug = True
         self.use_gridlstm = False
+        self.use_peepholes = False
     def initial(self, config_dict):
         for key in self.__dict__:
             if key in config_dict.keys():
@@ -57,6 +58,7 @@ class LSTM_Model(object):
         self.Debug = config.Debug
         self.use_gridlstm = config.use_gridlstm
         self.state_is_tuple = True
+        self.use_peepholes = config.use_peepholes
 
         if config.use_gridlstm:
             self.input_size = 40
@@ -91,7 +93,7 @@ class LSTM_Model(object):
         with tf.variable_scope('GridLSTM'):
             def gridlstm_cell():
                 return tf.contrib.rnn.GridLSTMCell(self.grid_num_units,
-                        use_peepholes=False,
+                        use_peepholes=self.use_peepholes,
                         feature_size=self.grid_feature_size,
                         frequency_skip=self.grid_frequency_skip,
                         num_frequency_blocks=[self.num_frequency_blocks],
@@ -160,10 +162,14 @@ class LSTM_Model(object):
             def lstm_cell():
                 if self.proj_dim == self.hidden_size:
                     return tf.contrib.rnn.LSTMCell(
-                            self.hidden_size, state_is_tuple=self.state_is_tuple, reuse=tf.get_variable_scope().reuse)
+                            self.hidden_size, use_peepholes=self.use_peepholes,
+                            forget_bias = 1.0,
+                            state_is_tuple=self.state_is_tuple, reuse=tf.get_variable_scope().reuse)
                 else:
-                    return tf.contrib.rnn.LSTMCell(self.hidden_size, use_peepholes=True, proj_dim=self.proj_dim, 
-                            forget_bias=0.0, state_is_tuple=self.state_is_tuple, reuse=tf.get_variable_scope().reuse)
+                    return tf.contrib.rnn.LSTMCell(
+                            self.hidden_size, use_peepholes=self.use_peepholes, 
+                            num_proj=self.proj_dim, forget_bias=0.0, 
+                            state_is_tuple=self.state_is_tuple, reuse=tf.get_variable_scope().reuse)
 
             layers_list = []
             for n in range(self.num_layers):
