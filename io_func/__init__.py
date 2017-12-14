@@ -62,14 +62,14 @@ def make_context(feature, left, right):
         feature.append(numpy.vstack((feature[-1][1:], feature[-1][-1])))
     return numpy.hstack(feature)
 
-def skip_frame(feature, skip):
+def skip_frame(feature, skip, offset = 0):
     '''
     '''
     if skip == 1 or skip == 0:
         return feature
     skip_feature=[]
     for i in range(feature.shape[0]):
-        if i % skip == 0:
+        if i % skip == offset:
             skip_feature.append(feature[i])
 
     return numpy.vstack(skip_feature)

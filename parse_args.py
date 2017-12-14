@@ -89,6 +89,11 @@ def parse_args(args_list):
     feature_opt = parser.add_argument_group(title='feature_opt', 
             description='feature option relation parameters')
 
+    feature_opt.add_argument('--feature-transfile', dest='feature_transfile',
+            type=str, default=None,
+            help='Feature transform in front of main network (in nnet format)'
+            ' (str, defalut = None)')
+
     feature_opt.add_argument('--right-context', '--rcxt', dest='rcxt',
             type=int, default=0,
             help='right context frame number'

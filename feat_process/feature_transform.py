@@ -9,10 +9,6 @@ import time
 import logging
 import numpy as np
 
-sys.path.append("../")
-
-from io_func.kaldi_io_parallel import KaldiDataReadParallel
-
 token_dict = {'<Nnet>': 1, '</Nnet>': 2, '<!EndOfComponent>': 3,
         '<Splice>': 102, '<AddShift>': 103, '<Rescale>' : 104,
         '<LearnRateCoef>': 11 }
@@ -23,7 +19,7 @@ def GetToken(key_str):
     except KeyError:
         return None
 
-def ReadData(fp):
+def ReadData(fp, dtype=np.float32):
     for line in fp:
         line_list = line.rstrip().split()
         flag = 0
@@ -39,7 +35,40 @@ def ReadData(fp):
             if flag == 1:
                 data.append(key)
 #        print(data)
-        return np.array(data, dtype=np.float32)
+        return np.array(data, dtype=dtype)
+
+class Splice(object):
+    def __init__(self):
+        self.data_ = None
+        self.key_ = None
+
+    def Propagate(self, input_data):
+        feature = input_data
+        splice_feature = []
+        for offset in self.data_:
+            feat = []
+            i = offset
+            if i < 0:
+                while True:
+                    feat.append(feature[0])
+                    i += 1
+                    if i >= 0 :
+                        break
+                feat.append(feature[:offset])
+            elif i == 0:
+                feat.append(feature)
+            elif i > 0:
+                feat.append(feature[offset:])
+                while True:
+                    feat.append(feature[-1])
+                    i -= 1
+                    if i <= 0:
+                        break
+            splice_feature.append(np.vstack(feat))
+        return np.hstack(splice_feature)
+
+    def Read(self, fp):
+        self.data_ = ReadData(fp, dtype=np.int32 )
 
 class AddShift(object):
     def __init__(self):
@@ -81,6 +110,10 @@ class FeatureTransform(object):
                         rsl = Rescale()
                         rsl.Read(fp)
                         self.trans_.append(rsl)
+                    elif key == '<Splice>':
+                        spl = Splice()
+                        spl.Read(fp)
+                        self.trans_.append(spl)
                     elif key == '<Nnet>':
                         continue
                     elif key == '</Nnet>':
@@ -97,20 +130,21 @@ class FeatureTransform(object):
             print(t.data_)
 
 if __name__ == "__main__":
-    file = sys.argv[1]
+    #file = sys.argv[1]
+    file = 'transdir/new_final.feature_transform'
     feat_trans = FeatureTransform()
     feat_trans.LoadTransform(file)
 
     feat_trans.Print()
+    fp = open('transdir/test.txt.ark','r')
+    for line in fp:
+        if '[' in line:
+            mat = []
+            for mat_line in fp:
+                mat.append(mat_line.rstrip().split()[0:40])
+                if ']' in mat_line:
+                    break
+            value = np.array(mat,dtype=np.float32)
+            trans_res = feat_trans.Propagate(value)
+            print(trans_res)
 
-    readkaldi = KaldiDataReadParallel()
-    readkaldi.scp_file = 'transdir/test.scp'
-    readkaldi.reset_read()
-
-    while True:
-        key , value = readkaldi.read_next_utt()
-        if key == '':
-            break
-        trans_res = feat_trans.Propagate(value)
-
-        print(trans_res)

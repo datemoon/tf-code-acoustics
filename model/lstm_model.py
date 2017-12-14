@@ -163,7 +163,7 @@ class LSTM_Model(object):
                 if self.proj_dim == self.hidden_size:
                     return tf.contrib.rnn.LSTMCell(
                             self.hidden_size, use_peepholes=self.use_peepholes,
-                            forget_bias = 1.0,
+                            forget_bias = 0.0,
                             state_is_tuple=self.state_is_tuple, reuse=tf.get_variable_scope().reuse)
                 else:
                     return tf.contrib.rnn.LSTMCell(

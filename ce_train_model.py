@@ -155,7 +155,7 @@ class train_class(object):
             time1=time.time()
             feat,label,length = self.get_feat_and_label()
             if feat is None:
-                logging.info('train ok : %s\n' % thread_name)
+                logging.info('thread ok: %s\n' % thread_name)
                 break
             time2=time.time()
             print('******time:',time2-time1, thread_name)
@@ -299,7 +299,7 @@ class train_class(object):
 
         all_lab_err_rate = []
         for i in range(5):
-            all_lab_err_rate.append(1.0)
+            all_lab_err_rate.append(1.1)
 
         while True:
             # save model

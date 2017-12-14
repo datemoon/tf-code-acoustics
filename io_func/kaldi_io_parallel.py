@@ -39,6 +39,7 @@ class KaldiDataReadParallel(object):
         self.batch_size = 1
         self.num_frames_batch = 20
         self.skip_frame = 1
+        self.skip_offset = 0
         self.ali_provided = False
         self.scp_file_read = None
         # feature information
@@ -137,9 +138,12 @@ class KaldiDataReadParallel(object):
         self.end_reading = False
         return self.feat_dim
 
-    def reset_read(self):
+    def reset_read(self, reset_offset = True):
         self.scp_file_read = smart_open(self.scp_file, 'r')
         self.end_reading = False
+        if reset_offset:
+            self.skip_offset = (self.skip_offset+1)%self.skip_frame
+        
     
     # load batch_size features and labels
     def load_next_nstreams(self):
@@ -173,7 +177,8 @@ class KaldiDataReadParallel(object):
                     feat_mat.append(make_context(utt_mat, self.read_opts['lcxt'], self.read_opts['rcxt']))
                 else:
                     feat_mat.append(utt_mat)'''
-                feat_mat.append(skip_frame(make_context(utt_mat, self.lcxt, self.rcxt),self.skip_frame))
+                #feat_mat.append(skip_frame(make_context(utt_mat, self.lcxt, self.rcxt),self.skip_frame))
+                feat_mat.append(skip_frame(utt_mat ,self.skip_frame, self.skip_offset))
                 length.append(len(feat_mat[nstreams]))
             else:
                 continue
@@ -219,6 +224,9 @@ class KaldiDataReadParallel(object):
             if self.ali_provided and (self.alignment.has_key(utt_id) is False):
                 continue
             
+            if self.feature_transform != None:
+                utt_mat = self.feature_transform.Propagate(utt_mat)
+            
             # delete too length feature
             if (len(utt_mat)/self.skip_frame + 1) > self.max_input_seq_length:
                 continue
@@ -233,7 +241,8 @@ class KaldiDataReadParallel(object):
                     feat_mat.append(make_context(utt_mat, self.read_opts['lcxt'], self.read_opts['rcxt']))
                 else:
                     feat_mat.append(utt_mat)'''
-                feat_mat.append(skip_frame(make_context(utt_mat, self.lcxt, self.rcxt),self.skip_frame))
+                #feat_mat.append(skip_frame(make_context(utt_mat, self.lcxt, self.rcxt),self.skip_frame))
+                feat_mat.append(skip_frame(utt_mat ,self.skip_frame, self.skip_offset))
                 length.append(len(feat_mat[nstreams]))
             else:
                 continue
