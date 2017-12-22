@@ -21,9 +21,10 @@ import glob
 import struct
 
 import numpy
+import logging
+import threading
 #from model_io import log
 from io_func import smart_open, preprocess_feature_and_label, shuffle_feature_and_label, make_context, skip_frame
-import logging
 sys.path.append("../")
 
 from feat_process.feature_transform import FeatureTransform
@@ -50,7 +51,7 @@ class KaldiDataReadParallel(object):
 
         self.feature_transfile = None
         self.feature_transform = None
-
+        self.read_lock = threading.Lock()
         # store features and labels for each data partition
 
     # read the alignment of all the utterances and keep the alignment in CPU memory.
@@ -70,7 +71,9 @@ class KaldiDataReadParallel(object):
     # read the feature matrix of the next utterance
     def read_next_utt(self):
 #        self.scp_cur_pos = self.scp_file_read.tell()
-        next_scp_line = self.scp_file_read.readline()
+        if self.read_lock.acquire():
+            next_scp_line = self.scp_file_read.readline()
+            self.read_lock.release()
         if next_scp_line == '' or next_scp_line == None:    # we are reaching the end of one epoch
             return '', None
         utt_id, path_pos = next_scp_line.replace('\n','').split(' ')
@@ -232,15 +235,13 @@ class KaldiDataReadParallel(object):
                 continue
             try:
                 ali_utt = self.alignment[utt_id]
+                if self.skip_frame > 1:
+                    ali_utt = ali_utt[self.skip_offset: len(ali_utt): self.skip_frame]
             except KeyError:
                 logging.info('no '+ utt_id + ' align')
                 continue
             if True: #(len(ali_utt) * 2 + 1) < len(utt_mat):
-                label.append(self.alignment[utt_id])
-                '''if self.read_opts['lcxt'] != 0 or self.read_opts['rcxt'] != 0:
-                    feat_mat.append(make_context(utt_mat, self.read_opts['lcxt'], self.read_opts['rcxt']))
-                else:
-                    feat_mat.append(utt_mat)'''
+                label.append(ali_utt)
                 #feat_mat.append(skip_frame(make_context(utt_mat, self.lcxt, self.rcxt),self.skip_frame))
                 feat_mat.append(skip_frame(utt_mat ,self.skip_frame, self.skip_offset))
                 length.append(len(feat_mat[nstreams]))
