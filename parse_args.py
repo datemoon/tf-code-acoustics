@@ -75,6 +75,10 @@ def parse_args(args_list):
             default=False,
             help='restore training' '(bool, default = False)')
 
+    parser.add_argument('--shuffle', dest='shuffle', type=bool,
+            default=False,
+            help='shuffle data' '(bool, default = False)')
+    
     parser.add_argument('--log-file', dest='log_file', type=str,
             default='log',
             help='log file' '(str, default = log)')

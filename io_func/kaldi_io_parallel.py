@@ -1,5 +1,4 @@
-# Copyright 2014    Yajie Miao    Carnegie Mellon University
-#           2015    Yun Wang      Carnegie Mellon University
+# Copyright 2017/12/25  hubo
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,87 +20,127 @@ import glob
 import struct
 
 import numpy
+import random
 import logging
 import threading
-#from model_io import log
-from io_func import smart_open, preprocess_feature_and_label, shuffle_feature_and_label, make_context, skip_frame
-sys.path.append("../")
+import time
 
+sys.path.append("../")
+from io_func import smart_open, skip_frame
 from feat_process.feature_transform import FeatureTransform
 
+# read the alignment of all the utterances and keep the alignment in CPU memory.
+def read_alignment(ali_file):
+    alignment = {}
+    f_read = smart_open(ali_file, 'r')
+    for line in f_read:
+        line = line.replace('\n','').strip()
+        if len(line) < 1: # this is an empty line, skip
+            continue
+        [utt_id, utt_ali] = line.split(' ', 1)
+        # this utterance has empty alignment, skip
+        if len(utt_ali) < 1:
+            continue
+        alignment[utt_id] = numpy.fromstring(utt_ali, dtype=numpy.int32, sep=' ')
+    f_read.close()
+    return alignment
+
+# read the feature matrix 
+def read_next_utt(next_scp_line):
+    # this shouldn't happen
+    if next_scp_line == '' or next_scp_line == None:    # we are reaching the end of one epoch
+        return '', None
+        
+    utt_id, path_pos = next_scp_line.replace('\n','').split(' ')
+    path, pos = path_pos.split(':')
+    
+    ark_read_buffer = smart_open(path, 'rb')
+    ark_read_buffer.seek(int(pos),0)
+
+    # now start to read the feature matrix into a numpy matrix
+    header = struct.unpack('<xcccc', ark_read_buffer.read(5))
+    if header[0] != "B":
+        print "Input .ark file is not binary"; exit(1)
+
+    rows = 0; cols= 0
+    m, rows = struct.unpack('<bi', ark_read_buffer.read(5))
+    n, cols = struct.unpack('<bi', ark_read_buffer.read(5))
+
+    tmp_mat = numpy.frombuffer(ark_read_buffer.read(rows * cols * 4), dtype=numpy.float32)
+    utt_mat = numpy.reshape(tmp_mat, (rows, cols))
+
+    ark_read_buffer.close()
+
+    return utt_id, utt_mat
+
+def PackageFeatAndAli(scp_file, ali_file, nstreams, skip_frame = 1,  max_input_seq_length = 1500, criterion = 'ce'):
+    all_package = []
+    # first read ali
+    alignment_dict = read_alignment(ali_file)
+
+    scp_list = []
+    ali_list = []
+    # second read feature scp file and package feature and ali
+    for line in open(scp_file, 'r'):
+        utt_id, utt_mat = read_next_utt(line)
+        logging.debug(utt_id + ' read ok.')
+        # overlength
+        if len(utt_mat)/skip_frame + 1 > max_input_seq_length:
+            continue
+
+        try:
+            ali_utt = alignment_dict[utt_id]
+        except KeyError:
+            logging.info('no '+ utt_id + ' align')
+            continue
+        if criterion == 'ce':
+            if len(utt_mat) != len(ali_utt):
+                logging.info(utt_id + ' feat and ali isn\'t equal length')
+                continue
+        elif criterion == 'ctc':
+            if len(utt_mat) < len(ali_utt) * 2 - 1:
+                logging.info(utt_id + ' feat < ali * 2 - 1 :%d < %d * 2 - 1' % (len(utt_mat), len(ali_utt)))
+                continue
+        scp_list.append(line)
+        ali_list.append(ali_utt)
+        if len(scp_list) == nstreams:
+            all_package.append([scp_list, ali_list])
+            scp_list = []
+            ali_list = []
+    if len(scp_list) != 0:
+        while len(scp_list) < nstreams:
+            scp_list.append(scp_list[0])
+            ali_list.append(ali_list[0])
+        all_package.append([scp_list, ali_list])
+
+    return all_package
 
 class KaldiDataReadParallel(object):
     def __init__(self):
-        self.scp_file = ''   # path to the .scp file
-        self.label = ''
+        self.scp_file = None   # path to the .scp file
+        self.label = None
         self.max_input_seq_length = 1500
-        self.lcxt = 0
-        self.rcxt = 0
         self.batch_size = 1
         self.num_frames_batch = 20
         self.skip_frame = 1
         self.skip_offset = 0
-        self.ali_provided = False
-        self.scp_file_read = None
+        self.shuffle = False
+        
         # feature information
-        self.original_feat_dim = 0
-        self.feat_dim = 0
-        self.alignment = {}
-        self.random = False
+        self.input_feat_dim = 0
+        self.output_feat_dim = 0
 
-        self.feature_transfile = None
+        # first read scp and ali to self.package_feat_ali 
+        # store features and labels for each data partition
+        self.package_feat_ali = []  # save format is [scp_line_list, ali_list]
+        self.read_offset = 0
+
+        self.shuffle = False
+
         self.feature_transform = None
         self.read_lock = threading.Lock()
-        # store features and labels for each data partition
 
-    # read the alignment of all the utterances and keep the alignment in CPU memory.
-    def read_alignment(self):
-        f_read = smart_open(self.label, 'r')
-        for line in f_read:
-            line = line.replace('\n','').strip()
-            if len(line) < 1: # this is an empty line, skip
-                continue
-            [utt_id, utt_ali] = line.split(' ', 1)
-            # this utterance has empty alignment, skip
-            if len(utt_ali) < 1:
-                continue
-            self.alignment[utt_id] = numpy.fromstring(utt_ali, dtype=numpy.int32, sep=' ')
-        f_read.close()
-
-    # read the feature matrix of the next utterance
-    def read_next_utt(self):
-#        self.scp_cur_pos = self.scp_file_read.tell()
-        if self.read_lock.acquire():
-            next_scp_line = self.scp_file_read.readline()
-            self.read_lock.release()
-        if next_scp_line == '' or next_scp_line == None:    # we are reaching the end of one epoch
-            return '', None
-        utt_id, path_pos = next_scp_line.replace('\n','').split(' ')
-        path, pos = path_pos.split(':')
-
-        ark_read_buffer = smart_open(path, 'rb')
-        ark_read_buffer.seek(int(pos),0)
-
-        # now start to read the feature matrix into a numpy matrix
-        header = struct.unpack('<xcccc', ark_read_buffer.read(5))
-        if header[0] != "B":
-            print "Input .ark file is not binary"; exit(1)
-
-        rows = 0; cols= 0
-        m, rows = struct.unpack('<bi', ark_read_buffer.read(5))
-        n, cols = struct.unpack('<bi', ark_read_buffer.read(5))
-
-        tmp_mat = numpy.frombuffer(ark_read_buffer.read(rows * cols * 4), dtype=numpy.float32)
-        utt_mat = numpy.reshape(tmp_mat, (rows, cols))
-
-        ark_read_buffer.close()
-
-        return utt_id, utt_mat
-
-    def is_finish(self):
-        return self.end_reading
-
-    def initialize(self, conf_dict, scp_file = None, label = None):
+    def Initialize(self, conf_dict = None, scp_file = None, label = None, feature_transform = None, criterion = 'ce'):
         for key in self.__dict__:
             if key in conf_dict.keys():
                 self.__dict__[key] = conf_dict[key]
@@ -113,158 +152,104 @@ class KaldiDataReadParallel(object):
             raise 'no scp file'
         if not os.path.exists(self.label):
             raise 'no label file'
+
+        # read feature transform parameter
+        if feature_transform != None:
+            self.feature_transform = feature_transform
+            self.input_feat_dim = self.feature_transform.GetInDim()
+            self.output_feat_dim = self.feature_transform.GetOutDim()
         else:
-            self.ali_provided = True
+            logging.info('no feature transform file.')
+            sys.exit(1)
+        start_package = time.time()
+        # prepare data
+        self.package_feat_ali = PackageFeatAndAli(scp_file, label, self.batch_size, self.skip_frame, self.max_input_seq_length, criterion)
+        end_package = time.time()
+        logging.info('package time is : %f s' % (end_package - start_package))
+        if self.shuffle == True:
+            random.shuffle(self.package_feat_ali)
+        if criterion == 'ce':
+            self.do_skip_lab = True
+        elif criterion == 'ctc':
+            self.do_skip_lab = False
+        return self.output_feat_dim
 
+    def Reset(self, shuffle = False, skip_offset = 0, ):
+        self.skip_offset = skip_offset % self.skip_frame
+        self.read_offset = 0
+        if shuffle == True or self.shuffle == True:
+            self.shuffle = True
+            random.shuffle(self.package_feat_ali)
 
-    def initialize_read(self, conf_dict = None, first_time_reading = False, scp_file = None, label = None):
-        # first initial configure
-        self.initialize(conf_dict, scp_file, label)
+    def LoadOnePackage(self):
+        if self.read_offset >= len(self.package_feat_ali):
+            return None, None, None, None
 
-        if self.feature_transfile != None:
-            self.feature_transform = FeatureTransform()
-            self.feature_transform.LoadTransform(self.feature_transfile)
-
-        self.scp_file_read = smart_open(self.scp_file, 'r')
-        if first_time_reading:
-            utt_id, utt_mat = self.read_next_utt()
-            self.original_feat_dim = utt_mat.shape[1]
-            self.scp_file_read.seek(0) 
-
-            # compute the feature dimension
-            self.feat_dim = (self.lcxt + 1 + self.rcxt) * self.original_feat_dim
-
-            # load alignment file
-            if self.ali_provided:
-                self.read_alignment()
-
-        self.end_reading = False
-        return self.feat_dim
-
-    def reset_read(self, reset_offset = True):
-        self.scp_file_read = smart_open(self.scp_file, 'r')
-        self.end_reading = False
-        if reset_offset:
-            self.skip_offset = (self.skip_offset+1)%self.skip_frame
+        package = self.package_feat_ali[self.read_offset]
+        self.read_offset += 1
         
-    
-    # load batch_size features and labels
-    def load_next_nstreams(self):
+        feat_scp = package[0]
+        label = package[1]
+        max_frame_num = 0
         length = []
         feat_mat = []
-        label = []
-        nstreams = 0
-        max_frame_num = 0
-        while nstreams < self.batch_size:
-            utt_id,utt_mat = self.read_next_utt()
-            if utt_mat is None:
-                self.end_reading = True
-                break;
-            if self.ali_provided and (self.alignment.has_key(utt_id) is False):
-                continue
-            
+        
+        for feat_line in feat_scp:
+            utt_id, utt_mat = read_next_utt(feat_line)
+            # do feature transform
             if self.feature_transform != None:
                 utt_mat = self.feature_transform.Propagate(utt_mat)
+                feat_mat.append(
+                        skip_frame(utt_mat ,self.skip_frame, self.skip_offset))
+            length.append(len(feat_mat[-1]))
+            if max_frame_num < length[-1]:
+                max_frame_num = length[-1]
 
-            # delete too length feature
-            if (len(utt_mat)/self.skip_frame + 1) > self.max_input_seq_length:
-                continue
-            try:
-                ali_utt = self.alignment[utt_id]
-            except KeyError:
-                logging.info('no '+ utt_id + ' align')
-                continue
-            if True: #(len(ali_utt) * 2 + 1) < len(utt_mat):
-                label.append(self.alignment[utt_id])
-                '''if self.read_opts['lcxt'] != 0 or self.read_opts['rcxt'] != 0:
-                    feat_mat.append(make_context(utt_mat, self.read_opts['lcxt'], self.read_opts['rcxt']))
-                else:
-                    feat_mat.append(utt_mat)'''
-                #feat_mat.append(skip_frame(make_context(utt_mat, self.lcxt, self.rcxt),self.skip_frame))
-                feat_mat.append(skip_frame(utt_mat ,self.skip_frame, self.skip_offset))
-                length.append(len(feat_mat[nstreams]))
-            else:
-                continue
-            if max_frame_num < length[nstreams]:
-                max_frame_num = length[nstreams]
-            nstreams += 1
+        if self.do_skip_lab and self.skip_frame > 1:
+            process_lab = []
+            for lab in label:
+           #     if self.skip_frame > 1:
+                process_lab.append(lab[self.skip_offset : len(lab) : self.skip_frame])
+            label = process_lab
 
+        return feat_mat, label, length, max_frame_num
+
+    # load batch_size features and labels
+    def LoadNestNstreams(self):
+        feat_mat, label, length, max_frame_num = self.LoadOnePackage()
+        if feat_mat == None:
+            return None, None, None
         # zero fill
         i = 0
-        while i < nstreams:
+        while i < self.batch_size:
             if max_frame_num != length[i]:
                 feat_mat[i] = numpy.vstack((feat_mat[i], numpy.zeros((max_frame_num-length[i], feat_mat[i].shape[1]),dtype=numpy.float32)))
             i += 1
-
-        if feat_mat.__len__():
-            #return feat_mat , label , length
-           # print('exchange')
-            feat_mat_nstream = numpy.hstack(feat_mat).reshape(-1, nstreams, self.feat_dim)
-            #feat_mat_nstream = numpy.vstack(feat_mat).reshape(nstreams, -1, self.original_feat_dim)
+        
+        if feat_mat.__len__() == self.batch_size:
+            feat_mat_nstream = numpy.hstack(feat_mat).reshape(-1, self.batch_size, self.output_feat_dim)
             np_length = numpy.vstack(length).reshape(-1)
             return feat_mat_nstream , label , np_length
         else:
-            return None,None,None
-    def __repr__(self):
-        pri = '{\nKaldiDataReadParallel parameters:\n'
-        for key in self.__dict__:
-            if key != 'alignment':
-                pri += key + ':\t' + str(self.__dict__[key]) +'\n'
-        pri += '}'
-        return pri
+            logging.info('It\'s shouldn\'t happen. feat is less then batch_size.')
+            return None, None, None
 
-    def slice_load_next_nstreams(self):
-        length = []
-        feat_mat = []
-        label = []
-        nstreams = 0
-        max_frame_num = 0
-        while nstreams < self.batch_size:
-            utt_id,utt_mat = self.read_next_utt()
-            if utt_mat is None:
-                self.end_reading = True
-                break;
-            if self.ali_provided and (self.alignment.has_key(utt_id) is False):
-                continue
-            
-            if self.feature_transform != None:
-                utt_mat = self.feature_transform.Propagate(utt_mat)
-            
-            # delete too length feature
-            if (len(utt_mat)/self.skip_frame + 1) > self.max_input_seq_length:
-                continue
-            try:
-                ali_utt = self.alignment[utt_id]
-                if self.skip_frame > 1:
-                    ali_utt = ali_utt[self.skip_offset: len(ali_utt): self.skip_frame]
-            except KeyError:
-                logging.info('no '+ utt_id + ' align')
-                continue
-            if True: #(len(ali_utt) * 2 + 1) < len(utt_mat):
-                label.append(ali_utt)
-                #feat_mat.append(skip_frame(make_context(utt_mat, self.lcxt, self.rcxt),self.skip_frame))
-                feat_mat.append(skip_frame(utt_mat ,self.skip_frame, self.skip_offset))
-                length.append(len(feat_mat[nstreams]))
-            else:
-                continue
-            if max_frame_num < length[nstreams]:
-                max_frame_num = length[nstreams]
-            nstreams += 1
-
+    def SliceLoadNextNstreams(self):
+        feat_mat, label, length, max_frame_num = self.LoadOnePackage()
+        if feat_mat == None:
+            return None, None, None
+        
         if max_frame_num % self.num_frames_batch != 0:
             max_frame_num = self.num_frames_batch * (max_frame_num / self.num_frames_batch + 1)
+
         # zero fill
         i = 0
-        while i < nstreams:
+        while i < self.batch_size:
             if max_frame_num != length[i]:
                 feat_mat[i] = numpy.vstack((feat_mat[i], numpy.zeros((max_frame_num-length[i], feat_mat[i].shape[1]),dtype=numpy.float32)))
             i += 1
-
-        if feat_mat.__len__():
-            #return feat_mat , label , length
-           # print('exchange')
-            feat_mat_nstream = numpy.hstack(feat_mat).reshape(-1, nstreams, self.feat_dim)
-            #feat_mat_nstream = numpy.vstack(feat_mat).reshape(nstreams, -1, self.original_feat_dim)
+        if feat_mat.__len__() == self.batch_size:
+            feat_mat_nstream = numpy.hstack(feat_mat).reshape(-1, self.batch_size, self.output_feat_dim)
             np_length = numpy.vstack(length).reshape(-1)
             array_feat = numpy.split(feat_mat_nstream, max_frame_num / self.num_frames_batch)
             array_label = []
@@ -283,7 +268,7 @@ class KaldiDataReadParallel(object):
                         else:
                             tmp_label.append(0)
                         j += 1
-                    if j < len(label[i])-offset_n: 
+                    if j < len(label[i])-offset_n:
                         tmp_length.append(j)
                     else:
                         tmp_length.append(len(label[i])-offset_n)
@@ -291,4 +276,47 @@ class KaldiDataReadParallel(object):
                 array_length.append(numpy.vstack(tmp_length).reshape(-1))
             return array_feat , array_label , array_length
         else:
-            return None,None,None
+            logging.info('It\'s shouldn\'t happen. feat is less then batch_size.')
+            return None, None, None
+            
+    # print info
+    def __repr__(self):
+        pri = '{\nKaldiDataReadParallel parameters:\n'
+        for key in self.__dict__:
+            if key != 'package_feat_ali':
+                pri += key + ':\t' + str(self.__dict__[key]) +'\n'
+            else:
+                pri += key + ':\t' + 'too big not print' + '\n'
+        pri += '}'
+        return pri
+
+if __name__ == '__main__':
+    conf_dict = { 'batch_size' :100,
+            'skip_frame':3,
+            'skip_offset': 0,
+            'do_skip_lab': True,
+            'shuffle': True}
+    path = '/search/speech/hubo/git/tf-code-acoustics/train-data'
+    feat_trans_file = '/search/speech/hubo/git/tf-code-acoustics/feat_process/transdir/1_final.feature_transform'
+    feat_trans = FeatureTransform()
+    feat_trans.LoadTransform(feat_trans_file)
+
+    logging.basicConfig(filename = 'test.log')
+    logging.getLogger().setLevel('INFO')
+    io_read = KaldiDataReadParallel()
+    io_read.Initialize(conf_dict, scp_file=path+'/train.scp',
+            label = path+'/merge_sort_tr.labels',
+            feature_transform = feat_trans, criterion = 'ctc')
+
+            #label = path+'/sort_tr.labels.4026.ce',
+    start = time.time()
+    while True:
+        feat_mat, label, length = io_read.LoadNestNstreams()
+        #feat_mat, label, length = io_read.SliceLoadNextNstreams()
+        if feat_mat is None:
+            break
+#        else:
+#            print(length)
+    end = time.time()
+    logging.info('load time is : %f s' % (end - start))
+

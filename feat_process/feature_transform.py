@@ -38,7 +38,9 @@ def ReadData(fp, dtype=np.float32):
         return np.array(data, dtype=dtype)
 
 class Splice(object):
-    def __init__(self):
+    def __init__(self, input_dim = None, output_dim = None):
+        self.input_dim_ = input_dim
+        self.output_dim_ = output_dim
         self.data_ = None
         self.key_ = None
 
@@ -69,9 +71,17 @@ class Splice(object):
 
     def Read(self, fp):
         self.data_ = ReadData(fp, dtype=np.int32 )
+    
+    def GetOutDim(self):
+        return self.output_dim_
+
+    def GetInDim(self):
+        return self.input_dim_
 
 class AddShift(object):
-    def __init__(self):
+    def __init__(self, input_dim = None, output_dim = None):
+        self.input_dim_ = input_dim
+        self.output_dim_ = output_dim
         self.data_ = None
         self.key_ = None
     
@@ -81,8 +91,16 @@ class AddShift(object):
     def Read(self, fp):
         self.data_ = ReadData(fp)
 
+    def GetOutDim(self):
+        return len(self.data_)
+    
+    def GetInDim(self):
+        return len(self.data_)
+
 class Rescale(object):
-    def __init__(self):
+    def __init__(self, input_dim = None, output_dim = None):
+        self.input_dim_ = input_dim
+        self.output_dim_ = output_dim
         self.data_ = None
         self.key_ = None
 
@@ -91,6 +109,12 @@ class Rescale(object):
 
     def Read(self, fp):
         self.data_ = ReadData(fp)
+    
+    def GetOutDim(self):
+        return len(self.data_)
+    
+    def GetInDim(self):
+        return len(self.data_)
 
 class FeatureTransform(object):
     def __init__(self):
@@ -111,7 +135,7 @@ class FeatureTransform(object):
                         rsl.Read(fp)
                         self.trans_.append(rsl)
                     elif key == '<Splice>':
-                        spl = Splice()
+                        spl = Splice(int(line_list[2]), int(line_list[1]))
                         spl.Read(fp)
                         self.trans_.append(spl)
                     elif key == '<Nnet>':
@@ -125,6 +149,12 @@ class FeatureTransform(object):
             res = cal.Propagate(res)
         return res
 
+    def GetOutDim(self):
+        return self.trans_[-1].GetOutDim()
+
+    def GetInDim(self):
+        return self.trans_[0].GetInDim()
+    
     def Print(self):
         for t in self.trans_:
             print(t.data_)

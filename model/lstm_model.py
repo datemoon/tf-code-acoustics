@@ -31,7 +31,7 @@ class ProjConfig(object):
             if key in config_dict.keys():
                 self.__dict__[key] = config_dict[key]
     def __repr__(self):
-        pri = '{\nProjConfig:\n'
+        pri = '{\nModelProjConfig:\n'
         for key in self.__dict__:
             pri += key + ':\t' + str(self.__dict__[key]) +'\n'
         pri += '}'
@@ -168,7 +168,7 @@ class LSTM_Model(object):
                 else:
                     return tf.contrib.rnn.LSTMCell(
                             self.hidden_size, use_peepholes=self.use_peepholes, 
-                            num_proj=self.proj_dim, forget_bias=0.0, 
+                            num_proj=self.proj_dim, forget_bias = 0.0, 
                             state_is_tuple=self.state_is_tuple, reuse=tf.get_variable_scope().reuse)
 
             layers_list = []
@@ -292,6 +292,7 @@ class LSTM_Model(object):
             lstm_output = grid_output
         output_log = self.AffineTransform(lstm_output)
 
+        softmax_val = tf.nn.softmax(output_log)
         rnn_keep_state_op = []
         rnn_state_zero_op = []
         if grid_rnn_keep_state_op != None:
@@ -321,7 +322,7 @@ class LSTM_Model(object):
             
             label_error_rate = self.calculate_label_error_rate(output_log, labels, mask, total_frames)
 
-        return mean_loss, ce_loss, rnn_keep_state_op, rnn_state_zero_op ,label_error_rate
+        return mean_loss, ce_loss, rnn_keep_state_op, rnn_state_zero_op ,label_error_rate , softmax_val
 
     def calculate_label_error_rate(self, output_log, labels, mask, total_frames):
         #tf.reshape(output_log, [-1])

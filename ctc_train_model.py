@@ -15,8 +15,10 @@ import logging
 
 from io_func import sparse_tuple_from
 from io_func.kaldi_io_parallel import KaldiDataReadParallel
+from feat_process.feature_transform import FeatureTransform
 from parse_args import parse_args
 from model.lstm_model import ProjConfig, LSTM_Model
+from util.tensor_io import print_trainable_variables
 
 import tensorflow as tf
 
@@ -24,44 +26,6 @@ import tensorflow as tf
 
 class train_class(object):
     def __init__(self, conf_dict):
-        self.nnet_conf = ProjConfig()
-        self.nnet_conf.initial(conf_dict)
-
-        self.kaldi_io_nstream = None
-        # init train file
-        self.kaldi_io_nstream_train = KaldiDataReadParallel()
-        self.input_dim = self.kaldi_io_nstream_train.initialize_read(conf_dict, True)
-
-        # init cv file
-        self.kaldi_io_nstream_cv = KaldiDataReadParallel()
-        self.kaldi_io_nstream_cv.initialize_read(conf_dict, first_time_reading = True, 
-                scp_file = conf_dict['cv_scp'], label = conf_dict['cv_label'])
-
-        self.num_batch_total = 0
-        self.tot_lab_err_rate = 0.0
-        self.tot_num_batch = 0
-
-        logging.info(self.nnet_conf.__repr__())
-        logging.info(self.kaldi_io_nstream_train.__repr__())
-        logging.info(self.kaldi_io_nstream_cv.__repr__())
-
-        self.tf_async_model_prefix = conf_dict['checkpoint_dir']
-        self.num_threads = conf_dict['num_threads']
-        self.queue_cache = conf_dict['queue_cache']
-        self.use_shuffle = False
-        if self.use_shuffle:
-            self.input_queue = Queue.PriorityQueue(self.queue_cache)
-        else:
-            self.input_queue = Queue.Queue(self.queue_cache)
-
-        self.acc_label_error_rate = []
-        self.all_lab_err_rate = []
-        for i in range(5):
-            self.all_lab_err_rate.append(1.1)
-        self.num_batch = []
-        for i in range(self.num_threads):
-            self.acc_label_error_rate.append(1.0)
-            self.num_batch.append(0)
         if conf_dict.has_key('print_trainable_variables'):
             self.print_trainable_variables = conf_dict['print_trainable_variables']
         else:
@@ -79,10 +43,54 @@ class train_class(object):
             self.restore_training = conf_dict['restore_training']
         else:
             self.restore_training = False
+        self.tf_async_model_prefix = conf_dict['checkpoint_dir']
+        self.num_threads = conf_dict['num_threads']
+        self.queue_cache = conf_dict['queue_cache']
 
+        self.nnet_conf = ProjConfig()
+        self.nnet_conf.initial(conf_dict)
+
+        self.kaldi_io_nstream = None
+
+        feat_trans = FeatureTransform()
+        feat_trans.LoadTransform(conf_dict['feature_transfile'])
+        # init train file
+        self.kaldi_io_nstream_train = KaldiDataReadParallel()
+        self.input_dim = self.kaldi_io_nstream_train.Initialize(conf_dict, 
+                scp_file = conf_dict['scp_file'], label = conf_dict['label'],
+                feature_transform = feat_trans, criterion = 'ctc')
+
+        # init cv file
+        self.kaldi_io_nstream_cv = KaldiDataReadParallel()
+        self.kaldi_io_nstream_cv.Initialize(conf_dict,
+                scp_file = conf_dict['cv_scp'], label = conf_dict['cv_label'],
+                feature_transform = feat_trans, criterion = 'ctc')
+
+        self.num_batch_total = 0
+        self.tot_lab_err_rate = 0.0
+        self.tot_num_batch = 0
+
+        logging.info(self.nnet_conf.__repr__())
+        logging.info(self.kaldi_io_nstream_train.__repr__())
+        logging.info(self.kaldi_io_nstream_cv.__repr__())
+
+        self.input_queue = Queue.Queue(self.queue_cache)
+
+        self.acc_label_error_rate = [] # record every thread label error rate
+        self.all_lab_err_rate = []     # for adjust learn rate
+        self.num_save = 0
+        for i in range(5):
+            self.all_lab_err_rate.append(1.1)
+        self.num_batch = []
+        for i in range(self.num_threads):
+            self.acc_label_error_rate.append(1.0)
+            self.num_batch.append(0)
+
+    # get restore model number
     def get_num(self,str):
         return int(str.split('/')[-1].split('_')[0])
                     #model_48434.ckpt.final
+    # construct train graph
     def construct_graph(self):
         with tf.Graph().as_default():
             self.run_ops = []
@@ -116,7 +124,6 @@ class train_class(object):
                             'mean_loss':mean_loss,
                             'ctc_loss':ctc_loss,
                             'label_error_rate':label_error_rate}
-                    #,
                     #        'decoded':decoded,
                     #        'softval':softval}
                     self.run_ops.append(run_op)
@@ -144,13 +151,6 @@ class train_class(object):
                         sys.exit(0)
                     logging.info('model:'+ckpt.model_checkpoint_path)
                     logging.info('restore learn_rate:'+str(self.sess.run(self.learning_rate_var)))
-                    #print('*******************',self.num_batch_total)
-                    #time.sleep(3)
-                    #model_48434.ckpt.final
-                    #print("ckpt.model_checkpoint_path",ckpt.model_checkpoint_path)
-                    #print("self.tf_async_model_prefix",self.tf_async_model_prefix)
-                    #self.saver.restore(self.sess, self.tf_async_model_prefix)
-                    
                 else:
                     logging.info('No checkpoint file found')
                     self.sess.run(init)
@@ -204,11 +204,13 @@ class train_class(object):
             feed_dict = {self.X : feat, self.Y : sparse_label, self.seq_len : length}
             run_need_op = {
                     'label_error_rate':run_op['label_error_rate']}
+                    #'softval':run_op['softval']}
                     #'mean_loss':run_op['mean_loss'],
                     #'ctc_loss':run_op['ctc_loss'],
                     #'label_error_rate':run_op['label_error_rate']}
             calculate_return = self.sess.run(run_need_op, feed_dict = feed_dict)
             print('label_error_rate:',calculate_return['label_error_rate'])
+            print('softval:',calculate_return['softval'])
             num_batch += 1
             total_acc_error_rate += calculate_return['label_error_rate']
             self.acc_label_error_rate[gpu_id] += calculate_return['label_error_rate']
@@ -219,7 +221,7 @@ class train_class(object):
 
     def input_feat_and_label(self):
         strat_io_time = time.time()
-        feat,label,length = self.kaldi_io_nstream.load_next_nstreams()
+        feat,label,length = self.kaldi_io_nstream.LoadNextNstreams()
         end_io_time = time.time()
 #        print('*************io time**********************',end_io_time-strat_io_time)
         if length is None:
@@ -227,18 +229,14 @@ class train_class(object):
         if len(label) != self.nnet_conf.batch_size:
              return False
         sparse_label = sparse_tuple_from(label)
-        if self.use_shuffle:
-            #self.input_queue.put( (feat,sparse_label,length) , int(time.time())%self.queue_cache )
-            self.input_queue.put( (feat,sparse_label,length) , 1 )
-        else:
-            self.input_queue.put((feat,sparse_label,length))
+        self.input_queue.put((feat,sparse_label,length))
         self.num_batch_total += 1
         print('total_batch_num**********',self.num_batch_total,'***********')
         return True
 
     def InputFeat(self, input_lock):
         while True:
-            feat,label,length = self.kaldi_io_nstream.load_next_nstreams()
+            feat,label,length = self.kaldi_io_nstream.LoadNextNstreams()
             if length is None:
                 break
             if len(label) != self.nnet_conf.batch_size:
@@ -247,7 +245,7 @@ class train_class(object):
             input_lock.acquire()
             self.input_queue.put((feat,sparse_label,length))
             self.num_batch_total += 1
-            if self.num_batch_total % 6000 == 0:
+            if self.num_batch_total % 3000 == 0:
                 self.SaveModel()
                 self.AdjustLearnRate()
             print('total_batch_num**********',self.num_batch_total,'***********')
@@ -276,16 +274,19 @@ class train_class(object):
                 self.saver.save(self.sess, checkpoint_path)
                 break
 
-                
+    # if current label error rate less then previous five       
     def AdjustLearnRate(self):
         curr_lab_err_rate = self.get_avergae_label_error_rate()
-        self.all_lab_err_rate.sort()
-        for i in range(len(self.all_lab_err_rate)):
+        logging.info("current label error rate : %f\n" % curr_lab_err_rate)
+        all_lab_err_rate_len = len(self.all_lab_err_rate)
+        #self.all_lab_err_rate.sort()
+        for i in range(all_lab_err_rate_len):
             if curr_lab_err_rate < self.all_lab_err_rate[i]:
                 break
             if i == len(self.all_lab_err_rate)-1:
                 train_logic.decay_learning_rate(0.8)
-                self.all_lab_err_rate[len(self.all_lab_err_rate)-1] = curr_lab_err_rate
+        self.all_lab_err_rate[self.num_save%all_lab_err_rate_len] = curr_lab_err_rate
+        self.num_save += 1
 
 
     def cv_logic(self):
@@ -319,7 +320,7 @@ class train_class(object):
             logging.info('join cv thread %s' % thr.name)
             
         tmp_label_error_rate = self.get_avergae_label_error_rate()
-        self.kaldi_io_nstream.reset_read(reset_offset=False)
+        self.kaldi_io_nstream.Reset()
         self.reset_acc()
         return tmp_label_error_rate
 
@@ -342,7 +343,7 @@ class train_class(object):
 
         tot_time = 0.0
         while True:
-            if self.num_batch_total % 6000 == 0:
+            if self.num_batch_total % 3000 == 0:
                 while True:
                     #print('wait save mode')
                     time.sleep(0.5)
@@ -356,17 +357,9 @@ class train_class(object):
                         if self.num_batch_total == 0:
                             break
 
-                        curr_lab_err_rate = self.get_avergae_label_error_rate()
-                        logging.info("current label error rate : %f\n" % curr_lab_err_rate)
-                        all_lab_err_rate.sort()
-                        for i in range(len(all_lab_err_rate)):
-                            if curr_lab_err_rate < all_lab_err_rate[i]:
-                                all_lab_err_rate[len(all_lab_err_rate)-1] = curr_lab_err_rate
-                                break
-                            if i == len(all_lab_err_rate)-1:
-                                train_logic.decay_learning_rate(0.8)
-                                all_lab_err_rate[len(all_lab_err_rate)-1] = curr_lab_err_rate
+                        self.AdjustLearnRate() # adjust learn rate
                         break
+
             s_1 = time.time()
             if self.input_feat_and_label():
                 e_1 = time.time()
@@ -402,7 +395,7 @@ class train_class(object):
             logging.info('join thread %s' % thr.name)
 
         tmp_label_error_rate = self.get_avergae_label_error_rate()
-        self.kaldi_io_nstream.reset_read(reset_offset=False)
+        self.kaldi_io_nstream.Reset()
         self.reset_acc()
         return tmp_label_error_rate
 
@@ -411,7 +404,6 @@ class train_class(object):
         self.sess.run(learning_rate_decay_op)
         logging.info('learn_rate decay to '+str(self.sess.run(self.learning_rate_var)))
         logging.info('lr_decay_factor is '+str(lr_decay_factor))
-#        return learning_rate_decay_op
 
     def get_avergae_label_error_rate(self):
         tot_label_error_rate = 0.0
@@ -441,6 +433,7 @@ class train_class(object):
             self.tot_num_batch = 0
             for i in range(5):
                 self.all_lab_err_rate.append(1.1)
+            self.num_save = 0
 
 
 if __name__ == "__main__":
