@@ -7,7 +7,26 @@ import sys
 import os
 
 class ProjConfig(object):
-    """Projection config. Compared with Hidden7Config"""
+    '''
+    Projection config. Compared with Hidden7Config
+    init_scale:bound of the range of random values to generate.
+    learning_rate:learning rate for NN training.
+    grad_clip:Clipping the accumulated gradients (per-updates)
+    num_layers:Nnet number layers
+    hidden_size:Number of cells for one direction in LSTM
+    proj_dim:Number of LSTM recurrent units.
+    dropout_input_keep_prob:dropout input keep prob
+    dropout_output_keep_prob:dropout output keep prob
+    lr_decay_factor:learn rate decay factor.
+    batch_size:Number of streams in the Multi-stream training.
+    num_frames_batch:Length of 'one stream' in the Multi-stream training
+    output_size:output dim
+    time_major:time major
+    forward_only:only calculate forward
+    Debug:debug or not
+    use_gridlstm:First layer wether use gridlstm.
+    use_peepholes:use peepholes.
+    '''
     def __init__(self):
         self.init_scale = 0.01 # scale to initialize LSTM weights
         self.learning_rate = 1.0

@@ -166,7 +166,15 @@ def parse_args(args_list):
             help='Clipping the accumulated gradients (per-updates)'
             '(float, default = 5.0)')
 
-
+    train_common_opt.add_argument('--use-sgd', dest='use_sgd', type=bool,
+            default=True,
+            help='train parameter way'
+            '(bool, default = True)')
+    
+    train_common_opt.add_argument('--use-normal', dest='use_normal', type=bool,
+            default=False,
+            help='train parameter way'
+            '(bool, default = True)')
 
     train_common_opt.set_defaults(cross_validate=False)
     train_common_opt.add_argument('--cross-validate', dest='cross_validate',

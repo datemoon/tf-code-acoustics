@@ -1,7 +1,7 @@
 #configuration file
 #[acoustic_network_params]
 --init-scale = 0.01
---learning-rate = 1.0
+--learning-rate = 0.5
 --lr_decay_factor = 0.5
 --grad_clip = 5
 
@@ -13,6 +13,8 @@
 --hidden_size = 1024
 --proj_dim = 1024
 --output_size = 4223
+#--use_peepholes = True
+
 # Dropout value during training
 # Those values define the probability to keep a cell active during training
 # Recommanded values are 0.8 for input (dropping 20%) and 0.5 for output (dropping 50%)
@@ -38,7 +40,7 @@
 #language = chinese
 
 --time_major = True
---forward_only = False
+#--forward_only = False
 --Debug = True
 
 # The ratio to which the internal state of the RNN will be reset to 0. For example =
@@ -53,9 +55,9 @@
 --steps_per_checkpoint = 100
 # Frequency at which to evaluate on the test set. This must be a multiple of steps_per_checkpoint
 #steps_per_evaluation = 1000
---checkpoint_dir = data_ctc/checkpoints/
---num_threads = 1
+#--num_threads = 1
 --queue_cache = 100
+#--print-trainable-variables = False
 
 #[training]
 # max_input_seq_length is the maximum number of 0.01s chunks we allow in a single training (or test) example
@@ -70,13 +72,25 @@
 # Vystadial_2013 training dataset = 900 / 100
 --max_input_seq_length = 1500
 --max_target_seq_length = 600
---scp_file = train-data/train.scp
---label = train-data/merge_sort_tr.labels
-#--label = train-data/sort_tr.labels.4026.ce
+#--scp_file = train-data/train.scp
+#--label = train-data/merge_sort_tr.labels
+--scp_file = train-data/abc.scp
+--label = train-data/merge_sort_cv.labels
+
+#--cv-scp= train-data/cv.scp
+--cv-label= train-data/merge_sort_cv.labels
+--cv-scp = train-data/abc.scp
+
+--feature-transfile = feat_process/transdir/new_final.feature_transform
+#--feature-transfile = feat_process/transdir/1_final.feature_transform
+#--feature-transfile = feat_process/transdir/final.feature_transform
+#--cv-scp= train-data/train.scp
+#--cv-label= train-data/merge_sort_tr.labels
+
 --lcxt = 3
 --rcxt = 3
 #--num_streams = 100
---batch_size = 16
+--batch_size = 32
 #--num_frames_batch = 20
 --skip_frame = 3
 --restore_training = True
@@ -86,6 +100,11 @@
 
 #[logging]
 # Set a log file, if void then log messages will be outputed to the screen
---log_file = data_ctc/full_data.log
+--log_file = data-ctc-cv/full_data.log
+--checkpoint_dir = data-ctc-cv/checkpoints/
+#--log_file = old-data-ctc-model/full_data.log
+#--checkpoint_dir = old-data-ctc-model/checkpoints/
+#--log_file = data_ctc/full_data.log
+#--checkpoint_dir = data_ctc/checkpoints/
 # Set a log level = DEBUG, INFO, WARNING (default) , ERROR or CRITICAL
 --log_level = INFO

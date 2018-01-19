@@ -26,34 +26,32 @@ import tensorflow as tf
 
 class train_class(object):
     def __init__(self, conf_dict):
-        if conf_dict.has_key('print_trainable_variables'):
-            self.print_trainable_variables = conf_dict['print_trainable_variables']
-        else:
-            self.print_trainable_variables = False
-        if conf_dict.has_key('use_normal'):
-            self.use_normal = conf_dict['use_normal']
-        else:
-            self.use_normal = False
-        if conf_dict.has_key('use_sgd'):
-            self.use_sgd = conf_dict['use_sgd']
-        else:
-            self.use_sgd = True
+        self.print_trainable_variables = False
+        self.use_normal = False
+        self.use_sgd = True
+        self.restore_training = True
+        
+        self.checkpoint_dir = None
+        self.num_threads = 1
+        self.queue_cache = 100
 
-        if conf_dict.has_key('restore_training'):
-            self.restore_training = conf_dict['restore_training']
-        else:
-            self.restore_training = False
-        self.tf_async_model_prefix = conf_dict['checkpoint_dir']
-        self.num_threads = conf_dict['num_threads']
-        self.queue_cache = conf_dict['queue_cache']
-
+        self.feature_transfile = None
+        # initial configuration parameter
+        for key in self.__dict__:
+            if key in conf_dict.keys():
+                self.__dict__[key] = conf_dict[key]
+        
+        # initial nnet configuration parameter
         self.nnet_conf = ProjConfig()
         self.nnet_conf.initial(conf_dict)
 
         self.kaldi_io_nstream = None
 
+        if self.feature_transfile == None:
+            logging.info('No feature_transfile,it must have.')
+            sys.exit(1)
         feat_trans = FeatureTransform()
-        feat_trans.LoadTransform(conf_dict['feature_transfile'])
+        feat_trans.LoadTransform(self.feature_transfile)
         # init train file
         self.kaldi_io_nstream_train = KaldiDataReadParallel()
         self.input_dim = self.kaldi_io_nstream_train.Initialize(conf_dict, 
@@ -89,7 +87,7 @@ class train_class(object):
     # get restore model number
     def get_num(self,str):
         return int(str.split('/')[-1].split('_')[0])
-                    #model_48434.ckpt.final
+
     # construct train graph
     def construct_graph(self):
         with tf.Graph().as_default():
@@ -141,7 +139,7 @@ class train_class(object):
             #self.saver = tf.train.Saver(max_to_keep=100, sharded = True)
             if self.restore_training:
                 self.sess.run(init)
-                ckpt = tf.train.get_checkpoint_state(self.tf_async_model_prefix)
+                ckpt = tf.train.get_checkpoint_state(self.checkpoint_dir)
                 if ckpt and ckpt.model_checkpoint_path:
                     logging.info("restore training")
                     self.saver.restore(self.sess, ckpt.model_checkpoint_path)
@@ -160,6 +158,13 @@ class train_class(object):
 
             self.total_variables = np.sum([np.prod(v.get_shape().as_list()) for v in tf.trainable_variables()])
             logging.info('total parameters : %d' % self.total_variables)
+
+    def SaveTextModel(self):
+        if self.print_trainable_variables == True:
+            ckpt = tf.train.get_checkpoint_state(self.checkpoint_dir)
+            if ckpt and ckpt.model_checkpoint_path:
+                print_trainable_variables(self.sess, ckpt.model_checkpoint_path+'.txt')
+
 
     def train_function(self, gpu_id, run_op, thread_name):
         total_acc_error_rate = 0.0
@@ -210,7 +215,7 @@ class train_class(object):
                     #'label_error_rate':run_op['label_error_rate']}
             calculate_return = self.sess.run(run_need_op, feed_dict = feed_dict)
             print('label_error_rate:',calculate_return['label_error_rate'])
-            print('softval:',calculate_return['softval'])
+            #print('softval:',calculate_return['softval'])
             num_batch += 1
             total_acc_error_rate += calculate_return['label_error_rate']
             self.acc_label_error_rate[gpu_id] += calculate_return['label_error_rate']
@@ -267,7 +272,7 @@ class train_class(object):
         while True:
             time.sleep(1.0)
             if self.input_queue.empty():
-                checkpoint_path = os.path.join(self.tf_async_model_prefix, str(self.num_batch_total)+'_model'+'.ckpt')
+                checkpoint_path = os.path.join(self.checkpoint_dir, str(self.num_batch_total)+'_model'+'.ckpt')
                 logging.info('save model: '+checkpoint_path+
                         ' --- learn_rate: ' +
                         str(self.sess.run(self.learning_rate_var)))
@@ -284,7 +289,7 @@ class train_class(object):
             if curr_lab_err_rate < self.all_lab_err_rate[i]:
                 break
             if i == len(self.all_lab_err_rate)-1:
-                train_logic.decay_learning_rate(0.8)
+                self.decay_learning_rate(0.8)
         self.all_lab_err_rate[self.num_save%all_lab_err_rate_len] = curr_lab_err_rate
         self.num_save += 1
 
@@ -324,7 +329,7 @@ class train_class(object):
         self.reset_acc()
         return tmp_label_error_rate
 
-    def train_logic(self):
+    def train_logic(self, shuffle = False, skip_offset = 0):
         self.kaldi_io_nstream = self.kaldi_io_nstream_train 
         train_thread = []
         for i in range(self.num_threads):
@@ -348,7 +353,7 @@ class train_class(object):
                     #print('wait save mode')
                     time.sleep(0.5)
                     if self.input_queue.empty():
-                        checkpoint_path = os.path.join(self.tf_async_model_prefix, str(self.num_batch_total)+'_model'+'.ckpt')
+                        checkpoint_path = os.path.join(self.checkpoint_dir, str(self.num_batch_total)+'_model'+'.ckpt')
                         logging.info('save model: '+checkpoint_path+ 
                                 '--- learn_rate: ' + 
                                 str(self.sess.run(self.learning_rate_var)))
@@ -380,7 +385,7 @@ class train_class(object):
         while True:
             if self.input_queue.empty():
 #                logging.info('train is ok')
-                checkpoint_path = os.path.join(self.tf_async_model_prefix, str(self.num_batch_total)+'_model'+'.ckpt')
+                checkpoint_path = os.path.join(self.checkpoint_dir, str(self.num_batch_total)+'_model'+'.ckpt')
                 logging.info('save model: '+checkpoint_path+ 
                         '.final --- learn_rate: ' + 
                         str(self.sess.run(self.learning_rate_var)))
@@ -395,7 +400,7 @@ class train_class(object):
             logging.info('join thread %s' % thr.name)
 
         tmp_label_error_rate = self.get_avergae_label_error_rate()
-        self.kaldi_io_nstream.Reset()
+        self.kaldi_io_nstream.Reset(shuffle = shuffle, skip_offset = skip_offset)
         self.reset_acc()
         return tmp_label_error_rate
 
@@ -458,9 +463,9 @@ if __name__ == "__main__":
     train_logic.construct_graph()
     iter = 0
     err_rate = 1.0
-    while iter < 1:
+    while iter < 15:
         train_start_t = time.time()
-        tmp_err_rate = train_logic.train_logic()
+        tmp_err_rate = train_logic.train_logic(True, iter)
 
         train_end_t = time.time()
         tmp_cv_err_rate = train_logic.cv_logic()

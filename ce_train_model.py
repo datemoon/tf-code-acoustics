@@ -15,6 +15,7 @@ import logging
 
 from io_func import sparse_tuple_from
 from io_func.kaldi_io_parallel import KaldiDataReadParallel
+from feat_process.feature_transform import FeatureTransform
 from parse_args import parse_args
 from model.lstm_model import ProjConfig, LSTM_Model
 from util.tensor_io import print_trainable_variables

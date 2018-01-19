@@ -161,7 +161,8 @@ class FeatureTransform(object):
 
 if __name__ == "__main__":
     #file = sys.argv[1]
-    file = 'transdir/new_final.feature_transform'
+    #file = 'transdir/new_final.feature_transform'
+    file = '/search/speech/hubo/git/tf-code-acoustics/train-data-7300h/final.feature_transform'
     feat_trans = FeatureTransform()
     feat_trans.LoadTransform(file)
 

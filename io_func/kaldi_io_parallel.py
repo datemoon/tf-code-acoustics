@@ -116,15 +116,37 @@ def PackageFeatAndAli(scp_file, ali_file, nstreams, skip_frame = 1,  max_input_s
     return all_package
 
 class KaldiDataReadParallel(object):
+    '''
+    kaldi i.
+    max_input_seq_length:allow input max input length
+    batch_size:Number of streams in the Multi-stream training
+    num_frames_batch:Length of 'one stream' in the Multi-stream training
+    skip_frame:skip frame number
+    skip_offset:skip_offset
+    shuffle:shuffle data
+    '''
     def __init__(self):
-        self.scp_file = None   # path to the .scp file
-        self.label = None
         self.max_input_seq_length = 1500
         self.batch_size = 1
         self.num_frames_batch = 20
         self.skip_frame = 1
         self.skip_offset = 0
         self.shuffle = False
+        
+    def Initialize(self, conf_dict = None, scp_file = None, label = None, feature_transform = None, criterion = 'ce'):
+        for key in self.__dict__:
+            if key in conf_dict.keys():
+                self.__dict__[key] = conf_dict[key]
+        self.scp_file = ''   # path to the .scp file
+        self.label = ''
+        if scp_file != None:
+            self.scp_file = scp_file
+        if label != None:
+            self.label = label
+        if not os.path.exists(self.scp_file):
+            raise 'no scp file'
+        if not os.path.exists(self.label):
+            raise 'no label file'
         
         # feature information
         self.input_feat_dim = 0
@@ -135,24 +157,8 @@ class KaldiDataReadParallel(object):
         self.package_feat_ali = []  # save format is [scp_line_list, ali_list]
         self.read_offset = 0
 
-        self.shuffle = False
 
         self.feature_transform = None
-        self.read_lock = threading.Lock()
-
-    def Initialize(self, conf_dict = None, scp_file = None, label = None, feature_transform = None, criterion = 'ce'):
-        for key in self.__dict__:
-            if key in conf_dict.keys():
-                self.__dict__[key] = conf_dict[key]
-        if scp_file != None:
-            self.scp_file = scp_file
-        if label != None:
-            self.label = label
-        if not os.path.exists(self.scp_file):
-            raise 'no scp file'
-        if not os.path.exists(self.label):
-            raise 'no label file'
-
         # read feature transform parameter
         if feature_transform != None:
             self.feature_transform = feature_transform
@@ -174,7 +180,7 @@ class KaldiDataReadParallel(object):
             self.do_skip_lab = False
         return self.output_feat_dim
 
-    def Reset(self, shuffle = False, skip_offset = 0, ):
+    def Reset(self, shuffle = False, skip_offset = 0 ):
         self.skip_offset = skip_offset % self.skip_frame
         self.read_offset = 0
         if shuffle == True or self.shuffle == True:
@@ -215,7 +221,7 @@ class KaldiDataReadParallel(object):
         return feat_mat, label, length, max_frame_num
 
     # load batch_size features and labels
-    def LoadNestNstreams(self):
+    def LoadNextNstreams(self):
         feat_mat, label, length, max_frame_num = self.LoadOnePackage()
         if feat_mat == None:
             return None, None, None
