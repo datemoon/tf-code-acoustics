@@ -4,7 +4,6 @@ from __future__ import print_function
 import os, sys, shutil, time
 import random
 import threading
-import Queue
 import numpy as np
 import time
 import logging

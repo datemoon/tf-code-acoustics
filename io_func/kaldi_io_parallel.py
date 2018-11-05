@@ -59,8 +59,9 @@ def read_next_utt(next_scp_line):
 
     # now start to read the feature matrix into a numpy matrix
     header = struct.unpack('<xcccc', ark_read_buffer.read(5))
-    if header[0] != "B":
-        print "Input .ark file is not binary"; exit(1)
+    if header[0] != "B" and header[0] != b'B':
+        print ("Input .ark file is not binary"); 
+        exit(1)
 
     rows = 0; cols= 0
     m, rows = struct.unpack('<bi', ark_read_buffer.read(5))
@@ -85,7 +86,7 @@ def PackageFeatAndAli(scp_file, ali_file, nstreams, skip_frame = 1,  max_input_s
         utt_id, utt_mat = read_next_utt(line)
         logging.debug(utt_id + ' read ok.')
         # overlength
-        if len(utt_mat)/skip_frame + 1 > max_input_seq_length:
+        if int(len(utt_mat)/skip_frame) + 1 > max_input_seq_length:
             continue
 
         try:
@@ -246,7 +247,7 @@ class KaldiDataReadParallel(object):
             return None, None, None
         
         if max_frame_num % self.num_frames_batch != 0:
-            max_frame_num = self.num_frames_batch * (max_frame_num / self.num_frames_batch + 1)
+            max_frame_num = self.num_frames_batch * (int(max_frame_num / self.num_frames_batch) + 1)
 
         # zero fill
         i = 0
@@ -257,10 +258,10 @@ class KaldiDataReadParallel(object):
         if feat_mat.__len__() == self.batch_size:
             feat_mat_nstream = numpy.hstack(feat_mat).reshape(-1, self.batch_size, self.output_feat_dim)
             np_length = numpy.vstack(length).reshape(-1)
-            array_feat = numpy.split(feat_mat_nstream, max_frame_num / self.num_frames_batch)
+            array_feat = numpy.split(feat_mat_nstream, int(max_frame_num / self.num_frames_batch))
             array_label = []
             array_length = []
-            for nbatch in range(max_frame_num / self.num_frames_batch):
+            for nbatch in range(int(max_frame_num / self.num_frames_batch)):
                 array_label.append([])
                 tmp_length = []
                 offset_n = nbatch * self.num_frames_batch

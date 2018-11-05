@@ -6,8 +6,10 @@ import time
 
 import argparse 
 
-
 class MyArgumentParser(argparse.ArgumentParser):
+    '''
+    This class inherit argparse.ArgumentParser.It's used analy command line.
+    '''
     def convert_arg_line_to_args(self, arg_line):
         args_list = arg_line.replace(' ','').split('=')
         if args_list[0] == '' or args_list[0][0] == '#':

@@ -77,7 +77,7 @@ def skip_frame(feature, skip, offset = 0):
 # block_num = (feature_dim - block_size)/block_skip + 1
 # block_size = 8
 def grid_block(feature, block_size, block_skip=1):
-    block_num = (feature.shape[-1] - block_size) / block_skip + 1
+    block_num = int((feature.shape[-1] - block_size) / block_skip) + 1
     block_feat = []
     for i in range(feature.shape[0]):
         one_block = []
@@ -105,15 +105,18 @@ def preprocess_feature_and_label(feature, label, opts):
     feature = make_context(feature, opts['lcxt'], opts['rcxt'])
 
     if label is not None:
-        if opts.has_key('ignore-label'):
+        try:
             ignore = opts['ignore-label']
             mask = numpy.array([x not in ignore for x in label])
             feature = feature[mask]
             label = label[mask]
-        if opts.has_key('map-label'):
+        except KeyError:
+            print("no ignore-label")
+        try:
             map = opts['map-label']
             label = numpy.array([map.get(x, x) for x in label])
-
+        except KeyError:
+            print("no map-label")
     return feature, label
 
 def sparse_tuple_from(sequences, dtype=numpy.int32):
@@ -156,8 +159,8 @@ def shuffle_across_partitions(feature_list, label_list):
     numpy.random.seed(seed)
     for i in xrange(total - 1, 0, -1):
         j = numpy.random.randint(i + 1)
-        buffer[:] = feature_list[i / n][i % n]
-        feature_list[i / n][i % n] = feature_list[j / n][j % n]
-        feature_list[j / n][j % n] = buffer
-        label_list[i / n][i % n], label_list[j / n][j % n] = \
-            label_list[j / n][j % n], label_list[i / n][i % n]
+        buffer[:] = feature_list[int(i / n)][i % n]
+        feature_list[int(i / n)][i % n] = feature_list[int(j / n)][j % n]
+        feature_list[int(j / n)][j % n] = buffer
+        label_list[int(i / n)][i % n], label_list[int(j / n)][j % n] = \
+            label_list[int(j / n)][j % n], label_list[int(i / n)][i % n]

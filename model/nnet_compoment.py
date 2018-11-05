@@ -10,9 +10,11 @@ class AffineTransformLayer(object):
     '''
     '''
     def __init__(self, conf_opt):
-        self.name = None
+        self.name = 'AffineTransformLayer'
         self.input_dim = None
         self.output_dim = None
+        self.dtype = tf.float32
+        self.initializer = tf.contrib.layers.xavier_initializer(dtype=self.dtype)
         for key in self.__dict__:
             if key in conf_opt.keys():
                 self.__dict__[key] = conf_opt[key]
@@ -20,21 +22,20 @@ class AffineTransformLayer(object):
         assert self.output_dim != None
         
         with tf.variable_scope('AffineLayer'):
-            self.weights = tf.get_variable(name+'_w',
-                    [input_dim, output_dim],
-                    dtype = tf.float32,
-                    initializer = tf.contrib.layers.xavier_initializer(),
+            self.weights = tf.get_variable(self.name+'_w',
+                    shape = [self.input_dim, self.output_dim],
+                    dtype = self.dtype,
+                    initializer = self.initializer,
                     trainable=True)
-            self.bias = tf.get_variable(name+'_b', 
-                    [output_dim],
-                    dtype=tf.float32,
-                    initializer = tf.contrib.layers.xavier_initializer(),
+            self.bias = tf.get_variable(self.name+'_b', 
+                    shape = [self.output_dim],
+                    dtype = self.dtype,
+                    initializer = self.initializer,
                     trainable=True)
 
-    del __call__(self, input_feats):
-        input_feats = = tf.reshape(input_feats, [-1, self.input_dim])
+    def __call__(self, input_feats):
+        input_feats = tf.reshape(input_feats, [-1, self.input_dim])
         return tf.matmul(input_feats, self.weights) + self.bias
-    
     def GetOutputDim(self):
         return self.output_dim
 
@@ -82,7 +83,7 @@ class LstmLayer(object):
     def GetOutputDim(self):
         if self.num_proj == None:
             return self.lstm_cell
-        else
+        else:
             return self.num_proj
 
 # enum layer 

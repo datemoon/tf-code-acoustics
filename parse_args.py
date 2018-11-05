@@ -17,8 +17,24 @@ def parse_args(args_list):
     """ 
      #Parses the command line input.
     """ 
-    parser = parse_opt.MyArgumentParser(description='this train tool',fromfile_prefix_chars='@')
-    
+    parser = parse_opt.MyArgumentParser(description='this train tool',
+            fromfile_prefix_chars='@')
+
+    parser.add_argument('--ps-hosts',dest='ps_hosts',
+            type=str, default=None,
+            help='parameter server')
+
+    parser.add_argument('--worker-hosts',dest='worker_hosts',
+            type=str, default=None,
+            help='worker hosts')
+
+    parser.add_argument('--job-name',dest='job_name',
+            type=str, default=None,
+            help='job name (ps/worker)')
+
+    parser.add_argument('--task-index',dest='task_index',
+            type=int, default=None,
+            help='task index')
     parser.add_argument('--num-threads', dest='num_threads', type=int, default=1,
             help='number threads (int, default = 1)')
         
@@ -55,11 +71,11 @@ def parse_args(args_list):
             default=1500,
             help='allow target max input length' '(int, default = 1500)')
     
-    parser.add_argument('--scp-file', dest='scp_file', type=str,
+    parser.add_argument('--tr-scp', dest='tr_scp', type=str,
             default=None,
             help='train scp file' '(str, default = None)')
 
-    parser.add_argument('--label', dest='label', type=str,
+    parser.add_argument('--tr-label', dest='tr_label', type=str,
             default=None,
             help='train label file' '(str, default= None)')
 
@@ -97,16 +113,6 @@ def parse_args(args_list):
             type=str, default=None,
             help='Feature transform in front of main network (in nnet format)'
             ' (str, defalut = None)')
-
-    feature_opt.add_argument('--right-context', '--rcxt', dest='rcxt',
-            type=int, default=0,
-            help='right context frame number'
-            ' (int, default = 0)')
-    
-    feature_opt.add_argument('--left-context', '--lcxt', dest='lcxt',
-            type=int, default=0,
-            help='left context frame number'
-            ' (int, default = 0)')
 
     feature_opt.add_argument('--skip-frames', dest='skip_frame',
             type=int, default=1,
@@ -201,10 +207,7 @@ def parse_args(args_list):
             help='time major'
             '(bool, default = True)')
 
-    train_common_opt.add_argument('--output-size', dest='output_size',type=int,
-            default=None,
-            help='output dim' '(int, default = None)')
-
+    # no use
     train_common_opt.add_argument('--forward-only', dest='forward_only', type=bool,
             default=False,
             help='only calculate forward'
@@ -222,44 +225,33 @@ def parse_args(args_list):
     train_lstm_opt = parser.add_argument_group(title='train_lstm_opt', 
             description='training lstm option relation parameters')
 
+    train_lstm_opt.add_argument('--state-is-tuple',dest='state_is_tuple',
+            type=bool, default=True,
+            help='Lstm state is tuple'
+            ' (bool, default = True)')
+    
+    train_lstm_opt.add_argument('--nnet-conf',dest='nnet_conf',
+            type=str, default=None,
+            help='It\'s save nnet configure parameter.'
+            ' (bool, default = None)')
+
+    # no need
     train_lstm_opt.add_argument('--use-gridlstm',dest='use_gridlstm',
             type=bool, default=False,
             help='First layer wether use gridlstm'
             ' (bool, default = False)')
 
-    train_lstm_opt.add_argument('--use-peepholes',dest='use_peepholes',
-            type=bool, default=False,
-            help='use peepholes'
-            ' (bool, default = False)')
-
-    train_lstm_opt.add_argument('--frame-num-limit',dest='frame_num_limit',
-            type=int, default=1500,
-            help='Sentence max number of frames' 
-            ' (int, default = 1500)')
-    train_lstm_opt.add_argument('--num-layers', dest='num_layers', type=int,
-            default = 3,
-            help='Nnet number layers'
-            '(int, default = 3)')
-
-    train_lstm_opt.add_argument('--hidden-size', dest='hidden_size', type=int,
-            default=1024,
-            help='Number of cells for one direction in LSTM '
-            '(int, default = 1024)')
-
-    train_lstm_opt.add_argument('--proj-dim', dest='proj_dim', type=int, 
-            default=512,
-            help='Number of LSTM recurrent units (int, default = 512)');
-
+    # no need
     train_lstm_opt.add_argument('--dropout-input-keep-prob', dest='dropout_input_keep_prob', type=float,
             default=1.0,
             help='dropout input keep prob'
             '(float, default = 1.0)')
-
-    train_lstm_opt.add_argument('--dropout-output-keep-prob', dest='dropout_output_keep_prob', type=float,
+    # use
+    train_lstm_opt.add_argument('--dropout-output-keep-prob', dest='output_keep_prob', type=float,
             default=1.0,
             help='dropout output keep prob'
             '(float, default = 1.0)')
-
+    # no need
     train_lstm_opt.add_argument('--rnn-state-reset-ratio', dest='rnn_state_reset_ratio', type=float,
             default=0.0,
             help='rnn state reset ratio'
@@ -285,13 +277,10 @@ def parse_args(args_list):
     if args.start_frames >= args.skip_frame and args.start_frames != 0:
         raise 'error feature option'
 
-    if args.output_size <= 0:
-        raise 'output_size isn\'t less equal 0'
-
-    if args.scp_file is None:
+    if args.tr_scp is None:
         raise 'input scp file it\'s None'
 
-    if args.label is None:
+    if args.tr_label is None:
         raise 'input label it\'s None'
     
     return args.__dict__

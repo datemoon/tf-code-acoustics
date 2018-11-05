@@ -45,6 +45,9 @@ class Splice(object):
         self.key_ = None
 
     def Propagate(self, input_data):
+        # now self.data_ must be intervalles 1
+        for x in range(len(self.data_)-1):
+            assert self.data_[x+1] - self.data_[x] == 1
         feature = input_data
         splice_feature = []
         for offset in self.data_:

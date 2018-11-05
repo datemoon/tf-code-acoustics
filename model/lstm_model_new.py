@@ -6,19 +6,19 @@ import numpy as np
 import sys
 import os
 
-from nnet_base import NnetBase
-import nnet_compoment
+from model.nnet_base import NnetBase
+import model.nnet_compoment as nnet_compoment
 
-class LstmModel(object, NnetBase):
+class LstmModel(NnetBase):
     '''
     Lstm model.
     '''
     def __init__(self, conf_dict):
-        self.num_layers_cf = 0
+        self.num_layers = 0
         self.batch_size_cf = 10
         self.num_frames_batch_cf = 20
-        self.learn_rate_cf = 1e-4
-        self.output_keep_prob_cf = 1.0
+#        self.learn_rate_cf = 1e-4
+#        self.output_keep_prob_cf = 1.0
         self.time_major_cf = True
         self.state_is_tuple_cf = True
         self.nnet_conf_cf = None
@@ -32,19 +32,19 @@ class LstmModel(object, NnetBase):
                 self.__dict__[attr] = conf_dict[key]
 
         # Initial nnet parameter
-        self.nnet_conf_opt = NnetBase.ReadNnetConf(self.nnet_conf_cf)
+        self.nnet_conf_opt = NnetBase().ReadNnetConf(self.nnet_conf_cf)
 
     
     def CreateRnnModel(self, input_feats, seq_len):
         rnn_layers = []
-        other_layer = []
+        self.other_layer = []
         for layer_opt in self.nnet_conf_opt:
             if layer_opt['layer_flag'] == 'AffineTransformLayer':
-                other_layer.append(nnet_compoment.AffineTransformLayer(layer_opt))
+                self.other_layer.append(nnet_compoment.AffineTransformLayer(layer_opt))
             elif layer_opt['layer_flag'] == 'LstmLayer':
-                rnn_layer.append(nnet_compoment.LstmLayer(layer_opt))
+                rnn_layers.append(nnet_compoment.LstmLayer(layer_opt))
             elif layer_opt['layer_flag'] == 'Sigmoid':
-                other_layer.append(tf.nn.sigmoid)
+                self.other_layer.append(tf.nn.sigmoid)
 
         rnn_cells = tf.contrib.rnn.MultiRNNCell(rnn_layers, 
                 state_is_tuple=self.state_is_tuple_cf)
@@ -97,15 +97,64 @@ class LstmModel(object, NnetBase):
         #
         output = []
         output.append(rnn_outputs)
-        for layer in other_layer:
+        for layer in self.other_layer:
            output.append(layer(output[-1]))
 
         # Get output dim
-        output_dim = other_layer[-1].GetOutputdim()
+        output_dim = self.other_layer[-1].GetOutputdim()
         # last no softmax
         last_output = tf.reshape(output[-1], 
                 [-1, self.batch_size_cf, output_dim])
         return last_output, rnn_keep_state_op, rnn_state_zero_op
-                        
-    def Run(self, input_feats, seq_len):
+    #
+    #
+    def CtcLoss(self, input_feats, labels, seq_len):
+        last_output, rnn_keep_state_op, rnn_state_zero_op = self.CreateRnnModel(
+                input_feats, seq_len)
+
+        if True:
+            decoded, log_prob = tf.nn.ctc_greedy_decoder(output_log,
+                    seq_len, merge_repeated=True)
+        else:
+            decoded, log_prob = tf.nn.ctc_beam_search_decoder(output_log,
+                    seq_len, merge_repeated=True)
+
+        # Inaccuracy: label error rate
+        label_error_rate = tf.reduce_mean(
+                tf.edit_distance(tf.to_int32(decoded[0]),labels))
+        with tf.name_scope('CTC'):
+            ctc_loss = tf.nn.ctc_loss(labels, last_output, seq_len, 
+                    time_major=self.time_major_cf)
+            # Compute the mean loss of the batch (only used to check on progression in learning)
+            # The loss is averaged accross the batch but before we take into account the real size of the label
+            ctc_mean_loss = tf.reduce_mean(tf.truediv(ctc_loss, tf.to_float(seq_len)))
+        return ctc_mean_loss, ctc_loss ,label_error_rate, decoded[0]
+
+    def CeLoss(self, input_feats, labels, seq_len):
+        last_output, rnn_keep_state_op, rnn_state_zero_op = self.CreateRnnModel(
+                input_feats, seq_len)
+
+        if self.time_major:
+            labels = tf.transpose(labels)
+        
+        with tf.name_scope('CE'):
+            print('********************',labels.shape)
+            ce_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels, logits=output_log, name="ce_loss")
+            print('********************',ce_loss.shape)
+            mask = tf.cast(tf.reshape(tf.transpose(tf.sequence_mask(
+                    seq_len, self.num_frames_batch)), [-1]), tf.float32)
+
+            total_frames = tf.cast(tf.reduce_sum(seq_len) ,tf.float32)
+            ce_mean_loss = tf.reduce_sum(mask * tf.reshape(ce_loss,[-1])) / total_frames
+            label_error_rate = self.CalculateLabelErrorRate(output_log, labels, mask, total_frames)
+
+        return ce_mean_loss, ce_loss, rnn_keep_state_op, rnn_state_zero_op ,label_error_rate , softmax_val
+
+    def CalculateLabelErrorRate(self, output_log, labels, mask, total_frames):
+        correct_prediction = tf.equal( 
+                tf.argmax(tf.reshape(output_log, [-1,self.output_size]), 1), 
+                tf.cast(tf.reshape(labels, [-1]), tf.int64))
+        accuracy = tf.reduce_sum(tf.cast(correct_prediction, tf.float32) * mask) / total_frames
+        return 1-accuracy
+
 

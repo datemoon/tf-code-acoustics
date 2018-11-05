@@ -9,7 +9,7 @@ class NnetBase(object):
     '''
     This is base class,the method provided must be implemented.
     '''
-    def Loss(self, in, labels, seq_len):
+    def Loss(self, input, labels, seq_len):
         pass
 
     def CalculateLabelErrorRate(self, output, labels, mask, total_frames):
@@ -18,11 +18,13 @@ class NnetBase(object):
     def ReadNnetConf(self, nnet_conf):
         layer_conf=[]
         for line in open(nnet_conf,'r'):
-            optlist = line.split(';')
+            optlist = line.rstrip().replace(' ','').split(';')
             opt_dict={}
             # A layer configue option.
             for opt in optlist:
                 try:
+                    if len(opt) == 0:
+                        continue
                     key, val = opt.split('=')
                 except ValueError:
                     print(opt+' it\'s error format.')

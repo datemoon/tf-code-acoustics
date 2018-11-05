@@ -27,7 +27,7 @@ import struct
 
 from io_func import smart_open
 
-# Classes to read and write Kaldi features. They are used when PDNN passes Kaldi features
+# Classes to read and write Kaldi features. They are used when DNN passes Kaldi features
 # through trained models and saves network activation into Kaldi features. Currently we
 # are using them during decoding of convolutional networks.
 
