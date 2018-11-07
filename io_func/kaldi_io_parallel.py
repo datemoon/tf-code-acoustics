@@ -311,14 +311,14 @@ if __name__ == '__main__':
     logging.basicConfig(filename = 'test.log')
     logging.getLogger().setLevel('INFO')
     io_read = KaldiDataReadParallel()
-    io_read.Initialize(conf_dict, scp_file=path+'/train.scp',
-            label = path+'/merge_sort_tr.labels',
+    io_read.Initialize(conf_dict, scp_file=path+'/abc.scp',
+            label = path+'/merge_sort_cv.labels',
             feature_transform = feat_trans, criterion = 'ctc')
 
             #label = path+'/sort_tr.labels.4026.ce',
     start = time.time()
     while True:
-        feat_mat, label, length = io_read.LoadNestNstreams()
+        feat_mat, label, length = io_read.LoadNextNstreams()
         #feat_mat, label, length = io_read.SliceLoadNextNstreams()
         if feat_mat is None:
             break

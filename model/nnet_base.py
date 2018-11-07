@@ -19,6 +19,8 @@ class NnetBase(object):
         layer_conf=[]
         for line in open(nnet_conf,'r'):
             optlist = line.rstrip().replace(' ','').split(';')
+            if optlist[0][0] == '#':
+                continue
             opt_dict={}
             # A layer configue option.
             for opt in optlist:

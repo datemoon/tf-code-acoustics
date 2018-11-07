@@ -70,13 +70,25 @@ class TrainClass(object):
         self.num_batch_total = 0
         self.tot_lab_err_rate = 0.0
         self.tot_num_batch = 0.0
-        self.num_save = 0
 
         logging.info(self.kaldi_io_nstream_train.__repr__())
         logging.info(self.kaldi_io_nstream_cv.__repr__())
         
         # Initial input queue.
         self.input_queue = Queue.Queue(self.queue_cache_cf)
+
+        self.acc_label_error_rate = []
+        self.all_lab_err_rate = []
+        self.num_save = 0
+        for i in range(5):
+            self.all_lab_err_rate.append(1.1)
+        self.num_batch = []
+        for i in range(self.num_threads_cf):
+            self.acc_label_error_rate.append(1.0)
+            self.num_batch.append(0)
+
+
+
         return
     
     # multi computers construct train graph
@@ -94,8 +106,8 @@ class TrainClass(object):
                 optimizer = tf.train.AdamOptimizer(learning_rate=
                         self.learning_rate_var_tf, beta1=0.9, beta2=0.999, epsilon=1e-08)
             nnet_model = LstmModel(self.conf_dict)
-            ctc_mean_loss, ctc_loss , label_error_rate, decoded = nnet_model.CtcLoss(
-                    self.X, self.Y, self.seq_len)
+
+            ctc_mean_loss, ctc_loss , label_error_rate, decoded = nnet_model.CtcLoss(self.X, self.Y, self.seq_len)
 
             if self.use_sgd_cf and self.use_normal_cf:
                 tvars = tf.trainable_variables()
@@ -126,15 +138,15 @@ class TrainClass(object):
             gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.95)
 
             # session config
-            sess_config = tf.ConfigProto(intra_op_parallelism_threads=self.num_threads,
-                    inter_op_parallelism_threads=self.num_threads,
+            sess_config = tf.ConfigProto(intra_op_parallelism_threads=self.num_threads_cf,
+                    inter_op_parallelism_threads=self.num_threads_cf,
                     allow_soft_placement=True,
                     log_device_placement=False,gpu_options=gpu_options)
             global_step = tf.contrib.framework.get_or_create_global_step()
 
             sv = tf.train.Supervisor(is_chief=(self.task_index_cf==0),
                     global_step=global_step,
-                    init_op = init,
+                    init_op = self.init_para,
                     logdir = self.checkpoint_dir_cf,
                     saver=self.saver,
                     save_model_secs=3600,
@@ -194,7 +206,7 @@ class TrainClass(object):
 
     # if current label error rate less then previous five
     def AdjustLearnRate(self):
-        curr_lab_err_rate = self.get_avergae_label_error_rate()
+        curr_lab_err_rate = self.GetAvergaeLabelErrorRate()
         logging.info("current label error rate : %f\n" % curr_lab_err_rate)
         all_lab_err_rate_len = len(self.all_lab_err_rate)
         for i in range(all_lab_err_rate_len):
@@ -209,7 +221,7 @@ class TrainClass(object):
     def TrainLogic(self, device, shuffle = False, train_loss = True, skip_offset = 0):
         if train_loss == True:
             self.kaldi_io_nstream = self.kaldi_io_nstream_train
-            run_op = self.run_ops[0]
+            run_op = self.run_ops
         else:
             self.kaldi_io_nstream = self.kaldi_io_nstream_cv
             run_op = {'label_error_rate':run_op['label_error_rate'],
@@ -224,7 +236,7 @@ class TrainClass(object):
         logging.info('train end.')
         threadinput[0].join()
 
-        tmp_label_error_rate = self.get_avergae_label_error_rate()
+        tmp_label_error_rate = self.GetAvergaeLabelErrorRate()
         self.kaldi_io_nstream.Reset(shuffle = shuffle, skip_offset = skip_offset)
         self.ResetAccuracy()
         return tmp_label_error_rate
@@ -263,6 +275,20 @@ class TrainClass(object):
     def GetFeatAndLabel(self):
         return self.input_queue.get()
 
+    def GetAvergaeLabelErrorRate(self):
+        tot_label_error_rate = 0.0
+        tot_num_batch = 0
+        for i in range(self.num_threads_cf):
+            tot_label_error_rate += self.acc_label_error_rate[i]
+            tot_num_batch += self.num_batch[i]
+        if tot_num_batch == 0:
+            average_label_error_rate = 1.0
+        else:
+            average_label_error_rate = tot_label_error_rate / tot_num_batch
+        self.tot_lab_err_rate += tot_label_error_rate
+        self.tot_num_batch += tot_num_batch
+        self.ResetAccuracy(tot_reset = False)
+        return average_label_error_rate
 
     def GetTotLabErrRate(self):
         return self.tot_lab_err_rate/self.tot_num_batch

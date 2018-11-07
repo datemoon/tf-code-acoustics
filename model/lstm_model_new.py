@@ -42,7 +42,7 @@ class LstmModel(NnetBase):
             if layer_opt['layer_flag'] == 'AffineTransformLayer':
                 self.other_layer.append(nnet_compoment.AffineTransformLayer(layer_opt))
             elif layer_opt['layer_flag'] == 'LstmLayer':
-                rnn_layers.append(nnet_compoment.LstmLayer(layer_opt))
+                rnn_layers.append(nnet_compoment.LstmLayer(layer_opt)())
             elif layer_opt['layer_flag'] == 'Sigmoid':
                 self.other_layer.append(tf.nn.sigmoid)
 
@@ -55,7 +55,7 @@ class LstmModel(NnetBase):
         #        this way is much more efficient
         with tf.variable_scope('Hidden_state'):
             state_variables = []
-            for state_c, state_h in cell.zero_state(self.batch_size_cf,
+            for state_c, state_h in rnn_cells.zero_state(self.batch_size_cf,
                     tf.float32):
                 state_variables.append(tf.contrib.rnn.LSTMStateTuple(
                     tf.Variable(state_c, trainable=False),
@@ -101,10 +101,10 @@ class LstmModel(NnetBase):
            output.append(layer(output[-1]))
 
         # Get output dim
-        output_dim = self.other_layer[-1].GetOutputdim()
+        self.output_dim = self.other_layer[-1].GetOutputDim()
         # last no softmax
         last_output = tf.reshape(output[-1], 
-                [-1, self.batch_size_cf, output_dim])
+                [-1, self.batch_size_cf, self.output_dim])
         return last_output, rnn_keep_state_op, rnn_state_zero_op
     #
     #
@@ -113,10 +113,10 @@ class LstmModel(NnetBase):
                 input_feats, seq_len)
 
         if True:
-            decoded, log_prob = tf.nn.ctc_greedy_decoder(output_log,
+            decoded, log_prob = tf.nn.ctc_greedy_decoder(last_output,
                     seq_len, merge_repeated=True)
         else:
-            decoded, log_prob = tf.nn.ctc_beam_search_decoder(output_log,
+            decoded, log_prob = tf.nn.ctc_beam_search_decoder(last_output,
                     seq_len, merge_repeated=True)
 
         # Inaccuracy: label error rate

@@ -130,7 +130,7 @@ def sparse_tuple_from(sequences, dtype=numpy.int32):
     values = []
     
     for n, seq in enumerate(sequences):
-        indices.extend(zip([n]*len(seq), xrange(len(seq))))
+        indices.extend(zip([n]*len(seq), range(len(seq))))
         values.extend(seq)
     
     indices = numpy.asarray(indices, dtype=numpy.int64)
@@ -157,7 +157,7 @@ def shuffle_across_partitions(feature_list, label_list):
     buffer = numpy.empty_like(feature_list[0][0])
     seed = 18877
     numpy.random.seed(seed)
-    for i in xrange(total - 1, 0, -1):
+    for i in range(total - 1, 0, -1):
         j = numpy.random.randint(i + 1)
         buffer[:] = feature_list[int(i / n)][i % n]
         feature_list[int(i / n)][i % n] = feature_list[int(j / n)][j % n]
