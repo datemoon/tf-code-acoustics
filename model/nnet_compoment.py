@@ -22,8 +22,9 @@ class AffineTransformLayer(object):
         for key in self.__dict__:
             if key in conf_opt.keys():
                 if key in strset:
-                    continue
-                self.__dict__[key] = eval(conf_opt[key])
+                    self.__dict__[key] = conf_opt[key]
+                else:
+                    self.__dict__[key] = eval(conf_opt[key])
         assert self.input_dim != None
         assert self.output_dim != None
         
@@ -70,12 +71,15 @@ class LstmLayer(object):
         self.dtype = tf.float32
         self.reuse = tf.get_variable_scope().reuse
         for key in self.__dict__:
-            if key in conf_opt.keys():
+            if prefix != None:
+                opt_key = prefix+key
+            else:
+                opt_key = key
+            if opt_key in conf_opt.keys():
                 if key in strset:
-                    continue
-                if prefix != None:
-                    key = prefix+key
-                self.__dict__[key] = eval(conf_opt[key])
+                    self.__dict__[key] = conf_opt[opt_key]
+                else:
+                    self.__dict__[key] = eval(conf_opt[opt_key])
         
         
         assert self.lstm_cell != None
@@ -129,16 +133,16 @@ class BLstmLayer(object):
     def __init__(self, conf_opt):
         self.conf = conf_opt
 
-    def __cell__(self):
-        lstm_fw_cell = LstmLayer(self.conf_fw, prefix = 'fw_')
-        lstm_bw_cell = LstmLayer(self.conf_bw, prefix = 'bw_')
-        return (lstm_fw_cell, lstm_bw_cell)
+    def __call__(self):
+        lstm_fw_cell = LstmLayer(self.conf, prefix = 'fw_')
+        lstm_bw_cell = LstmLayer(self.conf, prefix = 'bw_')
+        return (lstm_fw_cell(), lstm_bw_cell())
 
     def GetOutputDim(self):
-        if self.conf_fw['num_proj'] == None:
-            return self.conf['fw_lstm_cell'] + self.conf['bw_lstm_cell']
+        if self.conf['fw_num_proj'] == None:
+            return int(self.conf['fw_lstm_cell']) + int(self.conf['bw_lstm_cell'])
         else:
-            return self.conf['fw_num_proj'] + self.conf['bw_num_proj']
+            return int(self.conf['fw_num_proj']) + int(self.conf['bw_num_proj'])
 
 # enum layer 
 g_layer_dict={'AffineTransformLayer':AffineTransformLayer,

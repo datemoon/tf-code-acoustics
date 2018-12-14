@@ -64,7 +64,7 @@ class LstmModel(NnetBase):
                     layers.append(['Sigmoid',tf.nn.sigmoid])
             elif layer_opt['layer_flag'] == 'BLstmLayer':
                 if self.PrevLayerIs(layers, 'BLstmLayer'):
-                    layers[-1].append(BLstmLayer(layer_opt))
+                    layers[-1].append(nnet_compoment.BLstmLayer(layer_opt))
                 else:
                     layers.append(['BLstmLayer' ,
                         nnet_compoment.BLstmLayer(layer_opt)])
@@ -99,18 +99,20 @@ class LstmModel(NnetBase):
         layers = self.CreateModelGraph()
         outputs = [input_feats]
         output_dim = np.shape(input_feats)[-1]
+        rnn_keep_state_op = None
+        rnn_state_zero_op = None
         for layer in layers:
             if layer[0] == 'AffineTransformLayer':
                 assert output_dim == layer[1].GetInputDim()
-                for mlp in layer[1:-1]:
+                for mlp in layer[1:]:
                     outputs.append(mlp(outputs[-1]))
                 output_dim = layer[-1].GetOutputDim()
             elif layer[0] == 'Sigmoid':
-                for sig in layer[1:-1]:
+                for sig in layer[1:]:
                     outputs.append(sig(outputs[-1]))
             elif layer[0] == 'LstmLayer':
                 lstm_layer = []
-                for lstm_nn in layer[1:-1]:
+                for lstm_nn in layer[1:]:
                     lstm_layer.append(lstm_nn())
                 rnn_cells = tf.contrib.rnn.MultiRNNCell(lstm_layer,
                         state_is_tuple=self.state_is_tuple_cf)
@@ -175,13 +177,14 @@ class LstmModel(NnetBase):
             elif layer[0] == 'BLstmLayer':
                 fw_lstm_layer = []
                 bw_lstm_layer = []
-                for blstm_l in layer[1:-1]:
-                    fw_lstm_layer.append(blstm_l[0]())
-                    bw_lstm_layer.append(blstm_l[1]())
-                fw_rnn_cells = tf.contrib.rnn.MultiRNNCell(fw_lstm_layer,
-                        state_is_tuple=self.state_is_tuple_cf)
-                bw_rnn_cells = tf.contrib.rnn.MultiRNNCell(bw_lstm_layer,
-                        state_is_tuple=self.state_is_tuple_cf)
+                for blstm_l in layer[1:]:
+                    blstm_nn = blstm_l()
+                    fw_lstm_layer.append(blstm_nn[0])
+                    bw_lstm_layer.append(blstm_nn[1])
+                #fw_rnn_cells = tf.contrib.rnn.MultiRNNCell(fw_lstm_layer,
+                #        state_is_tuple=self.state_is_tuple_cf)
+                #bw_rnn_cells = tf.contrib.rnn.MultiRNNCell(bw_lstm_layer,
+                #        state_is_tuple=self.state_is_tuple_cf)
 
                 # Define some variables to store the RNN state
                 # Note : tensorflow keep the state inside a batch but it's necessary to do this in order to keep the state
@@ -190,21 +193,23 @@ class LstmModel(NnetBase):
                 #        this way is much more efficient
                 with tf.variable_scope('Blstm_FwHidden_state'):
                     state_variables = []
-                    for state_c, state_h in rnn_cells.zero_state(self.batch_size_cf,
-                            tf.float32):
+                    for f_lstm in fw_lstm_layer:
+                        state_c, state_h = f_lstm.zero_state(self.batch_size_cf, tf.float32)
                         state_variables.append(tf.contrib.rnn.LSTMStateTuple(
                             tf.Variable(state_c, trainable=False),
                             tf.Variable(state_h, trainable=False)))
-                        fw_rnn_tuple_state = tuple(state_variables)
+                    fw_rnn_tuple_state = state_variables
+                    #fw_rnn_tuple_state = tuple(state_variables)
 
                 with tf.variable_scope('Blstm_BwHidden_state'):
                     state_variables = []
-                    for state_c, state_h in rnn_cells.zero_state(self.batch_size_cf,
-                            tf.float32):
+                    for b_lstm in bw_lstm_layer:
+                        state_c, state_h = b_lstm.zero_state(self.batch_size_cf, tf.float32)
                         state_variables.append(tf.contrib.rnn.LSTMStateTuple(
                             tf.Variable(state_c, trainable=False),
                             tf.Variable(state_h, trainable=False)))
-                        bw_rnn_tuple_state = tuple(state_variables)
+                    bw_rnn_tuple_state = state_variables
+                    #bw_rnn_tuple_state = tuple(state_variables)
 
                 # Build the RNN
                 # time is major
@@ -217,8 +222,8 @@ class LstmModel(NnetBase):
 
                 with tf.name_scope("BLSTM"):
                     brnn_outputs, output_states_fw, output_states_bw = tf.contrib.rnn.stack_bidirectional_dynamic_rnn(
-                            cells_fw = fw_rnn_cells,
-                            cells_bw = bw_rnn_cells,
+                            cells_fw = fw_lstm_layer,
+                            cells_bw = bw_lstm_layer,
                             inputs = outputs[-1],
                             initial_states_fw = fw_rnn_tuple_state,
                             initial_states_bw = bw_rnn_tuple_state,
@@ -233,6 +238,8 @@ class LstmModel(NnetBase):
                 
                 fw_rnn_state_zero_op = self.ResetLstmHiddenState(fw_rnn_tuple_state)
                 bw_rnn_state_zero_op = self.ResetLstmHiddenState(bw_rnn_tuple_state)
+                rnn_keep_state_op = (fw_rnn_keep_state_op, bw_rnn_keep_state_op) 
+                rnn_state_zero_op = (fw_rnn_state_zero_op, bw_rnn_state_zero_op)
                 if not self.time_major_cf:
                     brnn_outputs = tf.transpose(brnn_outputs, [1, 0, 2]) # [time, batch_size, cell_outdim]
 
@@ -319,10 +326,10 @@ class LstmModel(NnetBase):
     #
     #
     def CtcLoss(self, input_feats, labels, seq_len):
-        last_output, rnn_keep_state_op, rnn_state_zero_op = self.CreateRnnModel(
-                input_feats, seq_len)
-        #last_output, rnn_keep_state_op, rnn_state_zero_op = self.CreateModel(
+        #last_output, rnn_keep_state_op, rnn_state_zero_op = self.CreateRnnModel(
         #        input_feats, seq_len)
+        last_output, rnn_keep_state_op, rnn_state_zero_op = self.CreateModel(
+               input_feats, seq_len)
 
         if True:
             decoded, log_prob = tf.nn.ctc_greedy_decoder(last_output,

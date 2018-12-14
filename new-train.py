@@ -310,6 +310,7 @@ class TrainClass(object):
         self.acc_label_error_rate[gpu_id] = 0.0
         self.num_batch[gpu_id] = 0
 
+        #print_trainable_variables(self.sess, 'save.model.txt')
         while True:
             time1=time.time()
             feat, sparse_label, length = self.GetFeatAndLabel()
