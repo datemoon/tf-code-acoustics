@@ -23,6 +23,7 @@ from util.tensor_io import print_trainable_variables
 
 import tensorflow as tf
 
+strset=('criterion', 'feature_transfile', 'checkpoint_dir')
 class TrainClass(object):
     '''
     '''
@@ -41,14 +42,22 @@ class TrainClass(object):
         self.feature_transfile_cf = None
         self.learning_rate_cf = 0.001
         self.batch_size_cf = 10
+        self.num_frames_batch_cf = 20
 
+        self.steps_per_checkpoint_cf = 1000
+
+        self.criterion_cf = 'ctc'
         # initial configuration parameter
         for attr in self.__dict__:
             if len(attr.split('_cf')) != 2:
                 continue;
             key = attr.split('_cf')[0]
             if key in conf_dict.keys():
-                self.__dict__[attr] = conf_dict[key]
+                if key in strset or type(conf_dict[key]) is not str:
+                    self.__dict__[attr] = conf_dict[key]
+                else:
+                    print('***************',key)
+                    self.__dict__[attr] = eval(conf_dict[key])
 
         if self.feature_transfile_cf == None:
             logging.info('No feature_transfile,it must have.')
@@ -60,19 +69,19 @@ class TrainClass(object):
         self.kaldi_io_nstream_train = KaldiDataReadParallel()
         self.input_dim = self.kaldi_io_nstream_train.Initialize(conf_dict,
                 scp_file = conf_dict['tr_scp'], label = conf_dict['tr_label'],
-                feature_transform = feat_trans, criterion = 'ctc')
+                feature_transform = feat_trans, criterion = self.criterion_cf)
         # init cv file
         self.kaldi_io_nstream_cv = KaldiDataReadParallel()
-        self.kaldi_io_nstream_cv.Initialize(conf_dict,
-                scp_file = conf_dict['cv_scp'], label = conf_dict['cv_label'],
-                feature_transform = feat_trans, criterion = 'ctc')
+        #self.kaldi_io_nstream_cv.Initialize(conf_dict,
+        #        scp_file = conf_dict['cv_scp'], label = conf_dict['cv_label'],
+        #        feature_transform = feat_trans, criterion = 'ctc')
 
         self.num_batch_total = 0
         self.tot_lab_err_rate = 0.0
         self.tot_num_batch = 0.0
 
         logging.info(self.kaldi_io_nstream_train.__repr__())
-        logging.info(self.kaldi_io_nstream_cv.__repr__())
+        #logging.info(self.kaldi_io_nstream_cv.__repr__())
         
         # Initial input queue.
         self.input_queue = Queue.Queue(self.queue_cache_cf)
@@ -87,8 +96,6 @@ class TrainClass(object):
             self.acc_label_error_rate.append(1.0)
             self.num_batch.append(0)
 
-
-
         return
     
     # multi computers construct train graph
@@ -96,7 +103,10 @@ class TrainClass(object):
         with tf.device(device):
             self.X = tf.placeholder(tf.float32, [None, None, self.input_dim], 
                     name='feature')
-            self.Y = tf.sparse_placeholder(tf.int32, name="labels")
+            if self.criterion_cf == 'ctc':
+                self.Y = tf.sparse_placeholder(tf.int32, name="labels")
+            elif self.criterion_cf == 'ce':
+                self.Y = tf.placeholder(tf.int32, [self.batch_size_cf, self.num_frames_batch_cf], name="labels")
             self.seq_len = tf.placeholder(tf.int32,[None], name = 'seq_len')
             
             #self.learning_rate_var_tf = tf.Variable(float(self.learning_rate_cf), 
@@ -122,32 +132,43 @@ class TrainClass(object):
                         self.learning_rate_var_tf, beta1=0.9, beta2=0.999, epsilon=1e-08)
             nnet_model = LstmModel(self.conf_dict)
 
-            ctc_mean_loss, ctc_loss , label_error_rate, decoded = nnet_model.CtcLoss(self.X, self.Y, self.seq_len)
+            mean_loss = None
+            loss = None
+            rnn_state_zero_op = None
+            rnn_keep_state_op = None
+            if self.criterion_cf == 'ctc':
+                ctc_mean_loss, ctc_loss , label_error_rate, _ = nnet_model.CtcLoss(self.X, self.Y, self.seq_len)
+                mean_loss = ctc_mean_loss
+                loss = ctc_loss
+            elif self.criterion_cf == 'ce':
+                ce_mean_loss, ce_loss , label_error_rate, rnn_keep_state_op, rnn_state_zero_op = nnet_model.CeLoss(self.X, self.Y, self.seq_len)
+                mean_loss = ce_mean_loss
+                loss = ce_loss
 
             if self.use_sgd_cf and self.use_normal_cf:
                 tvars = tf.trainable_variables()
                 grads, _ = tf.clip_by_global_norm(tf.gradients(
-                    ctc_mean_loss, tvars), self.grad_clip_cf)
+                    mean_loss, tvars), self.grad_clip_cf)
                 train_op = optimizer.apply_gradients(
                         zip(grads, tvars),
                         global_step=tf.train.get_or_create_global_step())
             else:
-                train_op = optimizer.minimize(ctc_mean_loss,
+                train_op = optimizer.minimize(mean_loss,
                         global_step=tf.train.get_or_create_global_step())
 
             # set run operation
             self.run_ops = {'train_op':train_op,
-                    'ctc_mean_loss':ctc_mean_loss,
-                    'ctc_loss':ctc_loss,
-                    'label_error_rate':label_error_rate}
+                    'mean_loss':mean_loss,
+                    'loss':loss,
+                    'label_error_rate':label_error_rate,
+                    'rnn_keep_state_op':rnn_keep_state_op,
+                    'rnn_state_zero_op':rnn_state_zero_op}
 
             # set initial parameter
             self.init_para = tf.group(tf.global_variables_initializer(),tf.local_variables_initializer())
 
             #tmp_variables = tf.trainable_variables()
             #self.saver = tf.train.Saver(tmp_variables, max_to_keep=100)
-
-            
 
             self.total_variables = np.sum([np.prod(v.get_shape().as_list()) 
                 for v in tf.trainable_variables()])
@@ -174,13 +195,13 @@ class TrainClass(object):
                     hooks=None,
                     chief_only_hooks=None,
                     save_checkpoint_secs=None,
-                    save_summaries_steps=1000,
+                    save_summaries_steps=self.steps_per_checkpoint_cf,
                     save_summaries_secs=None,
                     config=sess_config,
                     stop_grace_period_secs=120,
                     log_step_count_steps=100,
                     max_wait_secs=7200,
-                    save_checkpoint_steps=1000)
+                    save_checkpoint_steps=self.steps_per_checkpoint_cf)
           #          summary_dir = self.checkpoint_dir_cf + "_summary_dir")
             '''
             sv = tf.train.Supervisor(is_chief=(self.task_index_cf==0),
@@ -204,13 +225,21 @@ class TrainClass(object):
     def InputFeat(self, input_lock):
         while True:
             input_lock.acquire()
-            feat,label,length = self.kaldi_io_nstream.LoadNextNstreams()
-            if length is None:
-                break
-            if len(label) != self.batch_size_cf:
-                break
-            sparse_label = sparse_tuple_from(label)
-            self.input_queue.put((feat,sparse_label,length))
+            if self.criterion_cf == 'ctc':
+                feat,label,length = self.kaldi_io_nstream.LoadNextNstreams()
+                if length is None:
+                    break
+                if len(label) != self.batch_size_cf:
+                    break
+                sparse_label = sparse_tuple_from(label)
+                self.input_queue.put((feat,sparse_label,length))
+            elif self.criterion_cf == 'ce':
+                feat_array, label_array, length_array = self.kaldi_io_nstream.SliceLoadNextNstreams()
+                if length_array is None:
+                    break
+                if len(label_array[0]) != self.batch_size_cf:
+                    break
+                self.input_queue.put((feat_array, label_array, length_array))
             self.num_batch_total += 1
 #            if self.num_batch_total % 3000 == 0:
 #                self.SaveModel()
@@ -273,18 +302,35 @@ class TrainClass(object):
         if train_loss == True:
             logging.info('TrainLogic train start.')
             self.kaldi_io_nstream = self.kaldi_io_nstream_train
-            run_op = self.run_ops
+            # set run operation
+            if self.criterion_cf == 'ctc':
+                run_op = {'train_op':self.run_ops['train_op'],
+                        'label_error_rate': self.run_ops['label_error_rate'],
+                        'mean_loss':self.run_ops['mean_loss'],
+                        'loss':self.run_ops['loss']}
+            elif self.criterion_cf == 'ce':
+                run_op = {'train_op':self.run_ops['train_op'],
+                        'label_error_rate': self.run_ops['label_error_rate'],
+                        'mean_loss':self.run_ops['mean_loss'],
+                        'loss':self.run_ops['loss'],
+                        'rnn_keep_state_op':self.run_ops['rnn_keep_state_op'],
+                        'rnn_state_zero_op':self.run_ops['rnn_state_zero_op']}
+            else:
+                assert 'No train criterion.'
         else:
             logging.info('TrainLogic cv start.')
             self.kaldi_io_nstream = self.kaldi_io_nstream_cv
             run_op = {'label_error_rate':self.run_ops['label_error_rate'],
-                    'ctc_mean_loss':self.run_ops['ctc_mean_loss']}
+                    'mean_loss':self.run_ops['mean_loss']}
         
         threadinput = self.ThreadInputFeatAndLab()
         time.sleep(3)
         with tf.device(device):
-            self.TrainFunction(0, run_op, 'train_thread_hubo')
-
+            if self.criterion_cf == 'ctc':
+                self.CtcTrainFunction(0, run_op, 'train_ctc_thread_hubo')
+            elif self.criterion_cf == 'ce':
+                self.CeTrainFunction(0, run_op, 'train_ce_thread_hubo')
+        
         tmp_label_error_rate = self.GetAverageLabelErrorRate()
         logging.info("current averagelabel error rate : %f" % tmp_label_error_rate)
         logging.info('learn_rate is '+str(self.sess.run(self.learning_rate_var_tf)))
@@ -303,7 +349,7 @@ class TrainClass(object):
         self.ResetAccuracy()
         return tmp_label_error_rate
 
-    def TrainFunction(self, gpu_id, run_op, thread_name):
+    def CtcTrainFunction(self, gpu_id, run_op, thread_name):
         logging.info('******start TrainFunction******')
         total_acc_error_rate = 0.0
         num_batch = 0
@@ -326,14 +372,51 @@ class TrainClass(object):
 
             print("thread_name: ", thread_name,  num_batch, " time:",time2-time1,time3-time2,time4-time3,time4-time1)
             print('label_error_rate:',calculate_return['label_error_rate'])
-            print('ctc_mean_loss:',calculate_return['ctc_mean_loss'])
+            print('mean_loss:',calculate_return['mean_loss'])
 
             num_batch += 1
             total_acc_error_rate += calculate_return['label_error_rate']
             self.acc_label_error_rate[gpu_id] += calculate_return['label_error_rate']
             self.num_batch[gpu_id] += 1
         logging.info('******end TrainFunction******')
-    
+
+    def CeTrainFunction(self, gpu_id, run_op, thread_name):
+        logging.info('******start TrainFunction******')
+        total_acc_error_rate = 0.0
+        num_batch = 0
+        self.acc_label_error_rate[gpu_id] = 0.0
+        self.num_batch[gpu_id] = 0
+
+        while True:
+            time1=time.time()
+            feat, label, length = self.GetFeatAndLabel()
+            if feat is None:
+                logging.info('train thread end : %s' % thread_name)
+                break
+            time2=time.time()
+            self.sess.run(run_op['rnn_state_zero_op'])
+            for i in range(len(feat)):
+                time3 = time.time()
+                feed_dict = {self.X : feat[i], self.Y : label[i], self.seq_len : length[i]}
+                time4 = time.time()
+                run_need_op = {'train_op':run_op['train_op'],
+                        'mean_loss':run_op['mean_loss'],
+                        'loss':run_op['loss'],
+                        'rnn_keep_state_op':run_op['rnn_keep_state_op'],
+                        'label_error_rate':run_op['label_error_rate']}
+                calculate_return = self.sess.run(run_need_op, feed_dict = feed_dict)
+                time5 = time.time()
+                print("thread_name: ", thread_name,  num_batch, " time:",time4-time3,time5-time4)
+                print('label_error_rate:',calculate_return['label_error_rate'])
+                print('mean_loss:',calculate_return['mean_loss'])
+
+                print("thread_name: ", thread_name,  num_batch, " time:",time2-time1,time3-time2,time4-time3,time4-time1)
+                num_batch += 1
+                total_acc_error_rate += calculate_return['label_error_rate']
+                self.acc_label_error_rate[gpu_id] += calculate_return['label_error_rate']
+                self.num_batch[gpu_id] += 1
+        logging.info('******end TrainFunction******')
+
     def GetFeatAndLabel(self):
         return self.input_queue.get()
 

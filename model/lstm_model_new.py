@@ -246,10 +246,9 @@ class LstmModel(NnetBase):
                 outputs.append(brnn_outputs)
                 output_dim = layer[-1].GetOutputDim()
 
-
         last_output = tf.reshape(outputs[-1], 
                 [-1, self.batch_size_cf, output_dim])
-
+        self.output_size = output_dim
         return last_output, rnn_keep_state_op, rnn_state_zero_op
 
     def CreateRnnModel(self, input_feats, seq_len):
@@ -350,24 +349,26 @@ class LstmModel(NnetBase):
         return ctc_mean_loss, ctc_loss ,label_error_rate, decoded[0]
 
     def CeLoss(self, input_feats, labels, seq_len):
-        last_output, rnn_keep_state_op, rnn_state_zero_op = self.CreateRnnModel(
+        #last_output, rnn_keep_state_op, rnn_state_zero_op = self.CreateRnnModel(
+        #        input_feats, seq_len)
+        last_output, rnn_keep_state_op, rnn_state_zero_op = self.CreateModel(
                 input_feats, seq_len)
 
-        if self.time_major:
+        if self.time_major_cf:
             labels = tf.transpose(labels)
         
         with tf.name_scope('CE'):
-            print('********************',labels.shape)
-            ce_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels, logits=output_log, name="ce_loss")
+            print('********************',labels.shape,input_feats.shape)
+            ce_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels, logits=last_output, name="ce_loss")
             print('********************',ce_loss.shape)
             mask = tf.cast(tf.reshape(tf.transpose(tf.sequence_mask(
-                    seq_len, self.num_frames_batch)), [-1]), tf.float32)
+                    seq_len, self.num_frames_batch_cf)), [-1]), tf.float32)
 
             total_frames = tf.cast(tf.reduce_sum(seq_len) ,tf.float32)
             ce_mean_loss = tf.reduce_sum(mask * tf.reshape(ce_loss,[-1])) / total_frames
-            label_error_rate = self.CalculateLabelErrorRate(output_log, labels, mask, total_frames)
+            label_error_rate = self.CalculateLabelErrorRate(last_output, labels, mask, total_frames)
 
-        return ce_mean_loss, ce_loss, rnn_keep_state_op, rnn_state_zero_op ,label_error_rate , softmax_val
+        return ce_mean_loss, ce_loss, label_error_rate , rnn_keep_state_op, rnn_state_zero_op
 
     def CalculateLabelErrorRate(self, output_log, labels, mask, total_frames):
         correct_prediction = tf.equal( 

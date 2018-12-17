@@ -43,6 +43,11 @@ def parse_args(args_list):
             help='TensorFlow save path name for the run (allow multiples run with the same output path)'
             '(str, default = None)')
 
+    parser.add_argument('--criterion', dest='criterion', 
+            type=str, default='ctc', 
+            help='TensorFlow loss criterion '
+            '(str, default = ctc)')
+    
     parser.add_argument('--max-epoch', dest='max_epoch', type=int, default=None, 
             help='Max epoch to train (no limitation if not provided)' '(int, default = None)') 
  
@@ -79,17 +84,17 @@ def parse_args(args_list):
             default=None,
             help='train label file' '(str, default= None)')
 
-    parser.add_argument('--cv-scp', dest='cv_scp', type=str,
-            default=None,
-            help='cv scp file' '(str, default = None)')
+#    parser.add_argument('--cv-scp', dest='cv_scp', type=str,
+#            default=None,
+#            help='cv scp file' '(str, default = None)')
 
-    parser.add_argument('--cv-label', dest='cv_label', type=str,
-            default=None,
-            help='cv label file' '(str, default= None)')
+#    parser.add_argument('--cv-label', dest='cv_label', type=str,
+#            default=None,
+#            help='cv label file' '(str, default= None)')
     
-    parser.add_argument('--restore-training', dest='restore_training', type=bool,
-            default=False,
-            help='restore training' '(bool, default = False)')
+#    parser.add_argument('--restore-training', dest='restore_training', type=bool,
+#            default=False,
+#            help='restore training' '(bool, default = False)')
 
     parser.add_argument('--shuffle', dest='shuffle', type=bool,
             default=False,
@@ -162,10 +167,10 @@ def parse_args(args_list):
             help='bound of the range of random values to generate'
             '(float, default = 0.01)')
 
-    train_common_opt.add_argument('--lr-decay-factor', dest='lr_decay_factor', type=float,
-            default = 0.5,
-            help='learn rate decay factor'
-            '(float, default = 0.5)')
+#    train_common_opt.add_argument('--lr-decay-factor', dest='lr_decay_factor', type=float,
+#            default = 0.5,
+#            help='learn rate decay factor'
+#            '(float, default = 0.5)')
 
     train_common_opt.add_argument('--grad-clip', dest='grad_clip', type=float,
             default = 5.0,
@@ -173,14 +178,14 @@ def parse_args(args_list):
             '(float, default = 5.0)')
 
     train_common_opt.add_argument('--use-sgd', dest='use_sgd', type=bool,
-            default=True,
+            default=False,
             help='train parameter way'
             '(bool, default = True)')
     
     train_common_opt.add_argument('--use-normal', dest='use_normal', type=bool,
             default=False,
             help='train parameter way'
-            '(bool, default = True)')
+            '(bool, default = False)')
 
     train_common_opt.set_defaults(cross_validate=False)
     train_common_opt.add_argument('--cross-validate', dest='cross_validate',
@@ -203,7 +208,7 @@ def parse_args(args_list):
             ' (int, default = 100)')
 
     train_common_opt.add_argument('--time-major', dest='time_major', type=bool,
-            default=True,
+            default=False,
             help='time major'
             '(bool, default = True)')
 
@@ -225,10 +230,10 @@ def parse_args(args_list):
     train_lstm_opt = parser.add_argument_group(title='train_lstm_opt', 
             description='training lstm option relation parameters')
 
-    train_lstm_opt.add_argument('--state-is-tuple',dest='state_is_tuple',
-            type=bool, default=True,
-            help='Lstm state is tuple'
-            ' (bool, default = True)')
+#    train_lstm_opt.add_argument('--state-is-tuple',dest='state_is_tuple',
+#            type=bool, default=True,
+#            help='Lstm state is tuple'
+#            ' (bool, default = True)')
     
     train_lstm_opt.add_argument('--nnet-conf',dest='nnet_conf',
             type=str, default=None,
