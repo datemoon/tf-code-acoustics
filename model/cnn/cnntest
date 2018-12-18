@@ -1,0 +1,12 @@
+<Nnet>
+<ConvolutionalComponent> 24 24
+<PatchDim> 1 <PatchStep> 1 <PatchStride> 12
+<LearnRateCoef> 2.5 <BiasLearnRateCoef> 2.5 <MaxNorm> 0
+<Filters>
+ [ 
+1.0 3.0
+2.0 4.0 ]
+<Bias>
+ [ 0.0 0.0 ]
+<!EndOfComponent>
+</Nnet>

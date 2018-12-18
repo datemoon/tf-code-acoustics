@@ -220,8 +220,36 @@ class KaldiDataReadParallel(object):
             label = process_lab
 
         return feat_mat, label, length, max_frame_num
+    
+    # load batch frames features train.The order it's not important.
+    def LoadBatch(self):
+        return
+    
+    # Cnn frames features train.
+    def CnnSliceLoadNextNstreams(self):
+        array_feat , array_label , array_length = self.SliceLoadNextNstreams()
+        if array_feat == None:
+            return None, None, None
+        outdim = self.feature_transform.GetOutDim()
+        inputdim = self.feature_transform.GetInDim()
+        splicedim = int(outdim / inputdim)
+        cnn_feat = []
+        for feat in array_feat:
+            # -1 it's frames, splicedim it's time, inputdim it's feature dim
+            cnn_feat.append(feat.reshape(-1, splicedim, inputdim))
+        assert len(cnn_feat) == numpy.shape(array_feat)[0]
+        return numpy.array(cnn_feat), array_label, array_length
 
-    # load batch_size features and labels
+    def CnnLoadNextNstreams(self):
+        feat , label , length = self.LoadNextNstreams()
+        if feat == None:
+            return None, None, None
+        outdim = self.feature_transform.GetOutDim()
+        inputdim = self.feature_transform.GetInDim()
+        splicedim = int(outdim / inputdim)
+        return feat.reshape(-1, splicedim, inputdim), label, length
+
+    # load batch_size features and labels, it's whole sentence train.
     def LoadNextNstreams(self):
         feat_mat, label, length, max_frame_num = self.LoadOnePackage()
         if feat_mat == None:
@@ -241,6 +269,7 @@ class KaldiDataReadParallel(object):
             logging.info('It\'s shouldn\'t happen. feat is less then batch_size.')
             return None, None, None
 
+    # load batch size features and labels,it's ce train, cut sentence.
     def SliceLoadNextNstreams(self):
         feat_mat, label, length, max_frame_num = self.LoadOnePackage()
         if feat_mat == None:
@@ -302,7 +331,7 @@ if __name__ == '__main__':
             'skip_frame':3,
             'skip_offset': 0,
             'do_skip_lab': True,
-            'shuffle': True}
+            'shuffle': False}
     path = '/search/speech/hubo/git/tf-code-acoustics/train-data'
     feat_trans_file = '/search/speech/hubo/git/tf-code-acoustics/feat_process/transdir/1_final.feature_transform'
     feat_trans = FeatureTransform()
@@ -318,8 +347,10 @@ if __name__ == '__main__':
             #label = path+'/sort_tr.labels.4026.ce',
     start = time.time()
     while True:
-        feat_mat, label, length = io_read.LoadNextNstreams()
+        #feat_mat, label, length = io_read.LoadNextNstreams()
+        feat_mat, label, length = io_read.CnnLoadNextNstreams()
         #feat_mat, label, length = io_read.SliceLoadNextNstreams()
+        print(numpy.shape(feat_mat))
         if feat_mat is None:
             break
 #        else:
