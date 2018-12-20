@@ -6,7 +6,7 @@ import sys
 import os
 
 
-strset=('name')
+strset=('name', 'padding', 'data_format')
 class AffineTransformLayer(object):
     '''
     '''
@@ -37,9 +37,9 @@ class AffineTransformLayer(object):
 
             self.bias = tf.get_variable(self.name+'_b', 
                     shape = [self.output_dim],
-                    dtype = dtype,
-                    initializer = initializer,
-                    trainable = trainable)
+                    dtype = self.dtype,
+                    initializer = self.initializer,
+                    trainable = self.trainable)
 
     def __call__(self, input_feats):
         input_feats = tf.reshape(input_feats, [-1, self.input_dim])
@@ -144,8 +144,94 @@ class BLstmLayer(object):
         else:
             return int(self.conf['fw_num_proj']) + int(self.conf['bw_num_proj'])
 
+class Cnn2d(object):
+    def __init__(self, conf_opt):
+        self.height = 11
+        self.width = 71
+        self.in_channels = 1
+        self.filter_height = 11
+        self.filter_width = 9
+        self.out_channels = 128
+        self.height_strides = 1
+        self.width_strides = 2
+        self.padding = 'VALID'
+        self.data_format = 'NHWC'
+        self.dilations = [1, 1, 1, 1]
+        self.name = 'cnn2d'
+        self.initializer = tf.contrib.layers.xavier_initializer(tf.float32)
+        self.dtype = tf.float32
+        self.trainable = True
+
+        for key in self.__dict__:
+            if key in conf_opt.keys():
+                if key in strset:
+                    self.__dict__[key] = conf_opt[key]
+                else:
+                    self.__dict__[key] = eval(conf_opt[key])
+        
+        self.cnn_filter = [self.filter_height, self.filter_width, self.in_channels, self.out_channels]
+        self.strides = [1, self.height_strides, self.width_strides, 1]
+        
+        with tf.variable_scope(self.name):
+            self.kernel = tf.get_variable(self.name+'_w',
+                    shape = self.cnn_filter,
+                    dtype = self.dtype,
+                    initializer = self.initializer,
+                    trainable = self.trainable)
+
+    def __call__(self, input_feats):
+        return tf.nn.conv2d(input_feats, self.kernel, 
+                strides = self.strides, padding = self.padding, 
+                use_cudnn_on_gpu=True,
+                data_format=self.data_format, dilations = self.dilations, name = self.name)
+
+    def GetOutputDim(self):
+        return [int((self.height - self.filter_height + 1)/self.height_strides), int((self.width - self.filter_width + 1)/self.width_strides), self.out_channels]
+
+class MaxPool2d(object):
+    '''
+    inputdim is [height, width, channels]
+    '''
+    def __init__(self, conf_opt):
+        self.pool_height = 1
+        self.pool_width = 4
+        self.height_strides = 1
+        self.width_strides = 4
+        self.padding = 'valid'
+        self.data_format = 'channels_last'
+        self.name = 'maxpool2d'
+        self.inputheight = 1
+        self.inputwidth = 32
+        self.inputchannels = 128
+
+        for key in self.__dict__:
+            if key in conf_opt.keys():
+                if key in strset:
+                    self.__dict__[key] = conf_opt[key]
+                else:
+                    self.__dict__[key] = eval(conf_opt[key])
+        self.inputdim = [self.inputheight, self.inputwidth, self.inputchannels]
+        self.pool_size = [self.pool_height, self.pool_width]
+        self.strides = [self.height_strides, self.width_strides]
+        return
+    # input_feats it's [batch, height, width, channels]
+    def __call__(self, input_feats):
+        return tf.layers.max_pooling2d(input_feats, pool_size = self.pool_size,
+                strides = self.strides,
+                padding = self.padding,
+                data_format = self.data_format,
+                name = self.name)
+
+    def GetOutputDim(self):
+        outputheight = int((self.inputheight - self.pool_height)/self.height_strides + 1)
+        outputwidth = int((self.inputwidth - self.pool_width)/self.width_strides + 1)
+        outputchannels = self.inputchannels
+        return [outputheight, outputwidth, outputchannels]
+
+
 # enum layer 
 g_layer_dict={'AffineTransformLayer':AffineTransformLayer,
         'LstmLayer':LstmLayer,
-        'BLstmLayer':BLstmLayer
+        'BLstmLayer':BLstmLayer,
+        'Cnn2d':Cnn2d
         }

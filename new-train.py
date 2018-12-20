@@ -101,12 +101,20 @@ class TrainClass(object):
     # multi computers construct train graph
     def ConstructGraph(self, device, server):
         with tf.device(device):
-            self.X = tf.placeholder(tf.float32, [None, None, self.input_dim], 
-                    name='feature')
-            if self.criterion_cf == 'ctc':
+            if 'cnn' in self.criterion_cf:
+                self.X = tf.placeholder(tf.float32, [None, self.input_dim[0], self.input_dim[1], 1],
+                        name='feature')
+            else:
+                self.X = tf.placeholder(tf.float32, [None, self.batch_size_cf, self.input_dim], 
+                        name='feature')
+            
+            if 'ctc' in self.criterion_cf:
                 self.Y = tf.sparse_placeholder(tf.int32, name="labels")
-            elif self.criterion_cf == 'ce':
+            elif 'whole' in self.criterion_cf:
+                self.Y = tf.placeholder(tf.int32, [self.batch_size_cf, None], name="labels")
+            elif 'ce' in self.criterion_cf:
                 self.Y = tf.placeholder(tf.int32, [self.batch_size_cf, self.num_frames_batch_cf], name="labels")
+
             self.seq_len = tf.placeholder(tf.int32,[None], name = 'seq_len')
             
             #self.learning_rate_var_tf = tf.Variable(float(self.learning_rate_cf), 
@@ -136,11 +144,15 @@ class TrainClass(object):
             loss = None
             rnn_state_zero_op = None
             rnn_keep_state_op = None
-            if self.criterion_cf == 'ctc':
+            if 'ctc' in self.criterion_cf:
                 ctc_mean_loss, ctc_loss , label_error_rate, _ = nnet_model.CtcLoss(self.X, self.Y, self.seq_len)
                 mean_loss = ctc_mean_loss
                 loss = ctc_loss
-            elif self.criterion_cf == 'ce':
+#            elif 'ce' in self.criterion_cf and 'cnn' in self.criterion_cf and 'whole' in self.criterion_cf:
+#                ce_mean_loss, ce_loss , label_error_rate, rnn_keep_state_op, rnn_state_zero_op = nnet_model.CeCnnBlstmLoss(self.X, self.Y, self.seq_len)
+#                mean_loss = ce_mean_loss
+#                loss = ce_loss
+            elif 'ce' in self.criterion_cf:
                 ce_mean_loss, ce_loss , label_error_rate, rnn_keep_state_op, rnn_state_zero_op = nnet_model.CeLoss(self.X, self.Y, self.seq_len)
                 mean_loss = ce_mean_loss
                 loss = ce_loss
@@ -225,18 +237,30 @@ class TrainClass(object):
     def InputFeat(self, input_lock):
         while True:
             input_lock.acquire()
-            if self.criterion_cf == 'ctc':
-                feat,label,length = self.kaldi_io_nstream.LoadNextNstreams()
+            if 'ctc' in self.criterion_cf or 'whole' in self.criterion_cf:
+                if 'cnn' in self.criterion_cf:
+                    feat,label,length = self.kaldi_io_nstream.CnnLoadNextNstreams()
+                else:
+                    feat,label,length = self.kaldi_io_nstream.LoadNextNstreams()
                 if length is None:
                     break
+                print(np.shape(feat),np.shape(label), np.shape(length))
                 if len(label) != self.batch_size_cf:
                     break
-                sparse_label = sparse_tuple_from(label)
-                self.input_queue.put((feat,sparse_label,length))
-            elif self.criterion_cf == 'ce':
-                feat_array, label_array, length_array = self.kaldi_io_nstream.SliceLoadNextNstreams()
+                if 'ctc' in self.criterion_cf:
+                    sparse_label = sparse_tuple_from(label)
+                    self.input_queue.put((feat,sparse_label,length))
+                else:
+                    self.input_queue.put((feat,label,length))
+
+            elif 'ce' in self.criterion_cf:
+                if 'cnn' in self.criterion_cf:
+                    feat_array, label_array, length_array = self.kaldi_io_nstream.CnnSliceLoadNextNstreams()
+                else:
+                    feat_array, label_array, length_array = self.kaldi_io_nstream.SliceLoadNextNstreams()
                 if length_array is None:
                     break
+                print(np.shape(feat_array),np.shape(label_array), np.shape(length_array))
                 if len(label_array[0]) != self.batch_size_cf:
                     break
                 self.input_queue.put((feat_array, label_array, length_array))
@@ -303,12 +327,12 @@ class TrainClass(object):
             logging.info('TrainLogic train start.')
             self.kaldi_io_nstream = self.kaldi_io_nstream_train
             # set run operation
-            if self.criterion_cf == 'ctc':
+            if 'ctc' in self.criterion_cf or 'whole' in self.criterion_cf:
                 run_op = {'train_op':self.run_ops['train_op'],
                         'label_error_rate': self.run_ops['label_error_rate'],
                         'mean_loss':self.run_ops['mean_loss'],
                         'loss':self.run_ops['loss']}
-            elif self.criterion_cf == 'ce':
+            elif 'ce' in self.criterion_cf:
                 run_op = {'train_op':self.run_ops['train_op'],
                         'label_error_rate': self.run_ops['label_error_rate'],
                         'mean_loss':self.run_ops['mean_loss'],
@@ -326,10 +350,10 @@ class TrainClass(object):
         threadinput = self.ThreadInputFeatAndLab()
         time.sleep(3)
         with tf.device(device):
-            if self.criterion_cf == 'ctc':
-                self.CtcTrainFunction(0, run_op, 'train_ctc_thread_hubo')
-            elif self.criterion_cf == 'ce':
-                self.CeTrainFunction(0, run_op, 'train_ce_thread_hubo')
+            if 'ctc' in self.criterion_cf or 'whole' in self.criterion_cf:
+                self.WholeTrainFunction(0, run_op, 'train_ctc_thread_hubo')
+            elif 'ce' in self.criterion_cf:
+                self.SliceTrainFunction(0, run_op, 'train_ce_thread_hubo')
         
         tmp_label_error_rate = self.GetAverageLabelErrorRate()
         logging.info("current averagelabel error rate : %f" % tmp_label_error_rate)
@@ -349,7 +373,7 @@ class TrainClass(object):
         self.ResetAccuracy()
         return tmp_label_error_rate
 
-    def CtcTrainFunction(self, gpu_id, run_op, thread_name):
+    def WholeTrainFunction(self, gpu_id, run_op, thread_name):
         logging.info('******start TrainFunction******')
         total_acc_error_rate = 0.0
         num_batch = 0
@@ -359,16 +383,17 @@ class TrainClass(object):
         #print_trainable_variables(self.sess, 'save.model.txt')
         while True:
             time1=time.time()
-            feat, sparse_label, length = self.GetFeatAndLabel()
+            feat, label, length = self.GetFeatAndLabel()
             if feat is None:
                 logging.info('train thread end : %s' % thread_name)
                 break
             time2=time.time()
 
-            feed_dict = {self.X : feat, self.Y : sparse_label, self.seq_len : length}
+            feed_dict = {self.X : feat, self.Y : label, self.seq_len : length}
             time3 = time.time()
             calculate_return = self.sess.run(run_op, feed_dict = feed_dict)
             time4 = time.time()
+
 
             print("thread_name: ", thread_name,  num_batch, " time:",time2-time1,time3-time2,time4-time3,time4-time1)
             print('label_error_rate:',calculate_return['label_error_rate'])
@@ -380,7 +405,7 @@ class TrainClass(object):
             self.num_batch[gpu_id] += 1
         logging.info('******end TrainFunction******')
 
-    def CeTrainFunction(self, gpu_id, run_op, thread_name):
+    def SliceTrainFunction(self, gpu_id, run_op, thread_name):
         logging.info('******start TrainFunction******')
         total_acc_error_rate = 0.0
         num_batch = 0

@@ -94,11 +94,11 @@ def PackageFeatAndAli(scp_file, ali_file, nstreams, skip_frame = 1,  max_input_s
         except KeyError:
             logging.info('no '+ utt_id + ' align')
             continue
-        if criterion == 'ce':
+        if 'ce' in criterion:
             if len(utt_mat) != len(ali_utt):
                 logging.info(utt_id + ' feat and ali isn\'t equal length')
                 continue
-        elif criterion == 'ctc':
+        elif 'ctc' in criterion :
             if len(utt_mat) < len(ali_utt) * 2 - 1:
                 logging.info(utt_id + ' feat < ali * 2 - 1 :%d < %d * 2 - 1' % (len(utt_mat), len(ali_utt)))
                 continue
@@ -140,6 +140,7 @@ class KaldiDataReadParallel(object):
                 self.__dict__[key] = conf_dict[key]
         self.scp_file = ''   # path to the .scp file
         self.label = ''
+        self.criterion = criterion
         if scp_file != None:
             self.scp_file = scp_file
         if label != None:
@@ -165,6 +166,10 @@ class KaldiDataReadParallel(object):
             self.feature_transform = feature_transform
             self.input_feat_dim = self.feature_transform.GetInDim()
             self.output_feat_dim = self.feature_transform.GetOutDim()
+            self.output_dim = self.output_feat_dim
+            # cnn must be in nnet the first layer!!!
+            if 'cnn' in criterion:
+                self.output_feat_dim = [int(self.output_feat_dim/self.input_feat_dim), self.input_feat_dim]
         else:
             logging.info('no feature transform file.')
             sys.exit(1)
@@ -173,18 +178,18 @@ class KaldiDataReadParallel(object):
         self.package_feat_ali = PackageFeatAndAli(scp_file, label, self.batch_size, self.skip_frame, self.max_input_seq_length, criterion)
         end_package = time.time()
         logging.info('package time is : %f s' % (end_package - start_package))
-        if self.shuffle == True:
+        if self.shuffle is True:
             random.shuffle(self.package_feat_ali)
-        if criterion == 'ce':
+        if 'ce' in criterion or 'whole' in criterion:
             self.do_skip_lab = True
-        elif criterion == 'ctc':
+        elif 'ctc' in criterion:
             self.do_skip_lab = False
         return self.output_feat_dim
 
     def Reset(self, shuffle = False, skip_offset = 0 ):
         self.skip_offset = skip_offset % self.skip_frame
         self.read_offset = 0
-        if shuffle == True or self.shuffle == True:
+        if shuffle is True or self.shuffle is True:
             self.shuffle = True
             random.shuffle(self.package_feat_ali)
 
@@ -226,9 +231,10 @@ class KaldiDataReadParallel(object):
         return
     
     # Cnn frames features train.
+    # slice load
     def CnnSliceLoadNextNstreams(self):
         array_feat , array_label , array_length = self.SliceLoadNextNstreams()
-        if array_feat == None:
+        if array_feat is None:
             return None, None, None
         outdim = self.feature_transform.GetOutDim()
         inputdim = self.feature_transform.GetInDim()
@@ -236,23 +242,28 @@ class KaldiDataReadParallel(object):
         cnn_feat = []
         for feat in array_feat:
             # -1 it's frames, splicedim it's time, inputdim it's feature dim
-            cnn_feat.append(feat.reshape(-1, splicedim, inputdim))
+            cnn_feat.append(feat.reshape(-1, splicedim, inputdim, 1))
         assert len(cnn_feat) == numpy.shape(array_feat)[0]
         return numpy.array(cnn_feat), array_label, array_length
 
+    # whole sentence load
     def CnnLoadNextNstreams(self):
-        feat , label , length = self.LoadNextNstreams()
-        if feat == None:
+        if 'whole' in self.criterion:
+            feat , label , length = self.WholeLoadNextNstreams()
+        else:
+            feat , label , length = self.LoadNextNstreams()
+        #print(numpy.shape(feat),numpy.shape(label), numpy.shape(length))
+        if feat is None:
             return None, None, None
         outdim = self.feature_transform.GetOutDim()
         inputdim = self.feature_transform.GetInDim()
         splicedim = int(outdim / inputdim)
-        return feat.reshape(-1, splicedim, inputdim), label, length
+        return feat.reshape(-1, splicedim, inputdim, 1), label, length
 
     # load batch_size features and labels, it's whole sentence train.
     def LoadNextNstreams(self):
         feat_mat, label, length, max_frame_num = self.LoadOnePackage()
-        if feat_mat == None:
+        if feat_mat is None:
             return None, None, None
         # zero fill
         i = 0
@@ -262,17 +273,32 @@ class KaldiDataReadParallel(object):
             i += 1
         
         if feat_mat.__len__() == self.batch_size:
-            feat_mat_nstream = numpy.hstack(feat_mat).reshape(-1, self.batch_size, self.output_feat_dim)
+            feat_mat_nstream = numpy.hstack(feat_mat).reshape(-1, self.batch_size, self.output_dim)
             np_length = numpy.vstack(length).reshape(-1)
             return feat_mat_nstream , label , np_length
         else:
             logging.info('It\'s shouldn\'t happen. feat is less then batch_size.')
             return None, None, None
 
+    # load batch_size features and labels, it's whole sentence train.
+    def WholeLoadNextNstreams(self):
+        feat, label, length = self.LoadNextNstreams()
+        if feat is None:
+            return None, None, None
+        max_frame_num = numpy.shape(feat)[0]
+        nsent = 0
+        while nsent < numpy.shape(label)[0]:
+            numzeros = max_frame_num - numpy.shape(label[nsent])[0]
+            if numzeros != 0:
+                label[nsent] = numpy.hstack((label[nsent], 
+                    numpy.zeros((numzeros), dtype=numpy.float32)))
+            nsent += 1
+        return feat, label, length
+
     # load batch size features and labels,it's ce train, cut sentence.
     def SliceLoadNextNstreams(self):
         feat_mat, label, length, max_frame_num = self.LoadOnePackage()
-        if feat_mat == None:
+        if feat_mat is None:
             return None, None, None
         
         if max_frame_num % self.num_frames_batch != 0:
@@ -285,7 +311,7 @@ class KaldiDataReadParallel(object):
                 feat_mat[i] = numpy.vstack((feat_mat[i], numpy.zeros((max_frame_num-length[i], feat_mat[i].shape[1]),dtype=numpy.float32)))
             i += 1
         if feat_mat.__len__() == self.batch_size:
-            feat_mat_nstream = numpy.hstack(feat_mat).reshape(-1, self.batch_size, self.output_feat_dim)
+            feat_mat_nstream = numpy.hstack(feat_mat).reshape(-1, self.batch_size, self.output_dim)
             np_length = numpy.vstack(length).reshape(-1)
             array_feat = numpy.split(feat_mat_nstream, int(max_frame_num / self.num_frames_batch))
             array_label = []
@@ -342,15 +368,16 @@ if __name__ == '__main__':
     io_read = KaldiDataReadParallel()
     io_read.Initialize(conf_dict, scp_file=path+'/abc.scp',
             label = path+'/merge_sort_cv.labels',
-            feature_transform = feat_trans, criterion = 'ctc')
+            feature_transform = feat_trans, criterion = 'whole')
 
             #label = path+'/sort_tr.labels.4026.ce',
     start = time.time()
     while True:
         #feat_mat, label, length = io_read.LoadNextNstreams()
         feat_mat, label, length = io_read.CnnLoadNextNstreams()
+        print(numpy.shape(feat_mat),numpy.shape(label),numpy.shape(length))
         #feat_mat, label, length = io_read.SliceLoadNextNstreams()
-        print(numpy.shape(feat_mat))
+        #print(numpy.shape(feat_mat),numpy.shape(label),numpy.shape(length))
         if feat_mat is None:
             break
 #        else:

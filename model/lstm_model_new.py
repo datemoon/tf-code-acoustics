@@ -33,6 +33,9 @@ class LstmModel(NnetBase):
 
         # Initial nnet parameter
         self.nnet_conf_opt = NnetBase().ReadNnetConf(self.nnet_conf_cf)
+
+        self.cnn_conf_opt = None
+        self.rnn_conf_opt = None
         
     def PrevLayerIs(self, layers, nntype):
         if len(layers) != 0:
@@ -40,11 +43,18 @@ class LstmModel(NnetBase):
                 return True
         return False
 
+    def LayerIs(self, layers, nntype, n):
+        if len(layers) > n:
+            if layers[n][0] == nntype:
+                return True
+        return False
     
-    def CreateModelGraph(self):
+    def CreateModelGraph(self, nnet_conf = None):
         layers = []
+        if nnet_conf == None:
+            nnet_conf = self.nnet_conf_opt
         # analysis config and construct nnet graph
-        for layer_opt in self.nnet_conf_opt:
+        for layer_opt in nnet_conf:
             if layer_opt['layer_flag'] == 'AffineTransformLayer':
                 if self.PrevLayerIs(layers, 'AffineTransformLayer'):
                     layers[-1].append(nnet_compoment.AffineTransformLayer(layer_opt))
@@ -68,6 +78,21 @@ class LstmModel(NnetBase):
                 else:
                     layers.append(['BLstmLayer' ,
                         nnet_compoment.BLstmLayer(layer_opt)])
+            elif layer_opt['layer_flag'] == 'Cnn2d':
+                if self.PrevLayerIs(layers, 'Cnn2d'):
+                    layers[-1].append(nnet_compoment.Cnn2d(layer_opt))
+                else:
+                    layers.append(['Cnn2d' ,
+                        nnet_compoment.Cnn2d(layer_opt)])
+            elif layer_opt['layer_flag'] == 'MaxPool2d':
+                if self.PrevLayerIs(layers, 'MaxPool2d'):
+                    layers[-1].append(nnet_compoment.MaxPool2d(layer_opt))
+                else:
+                    layers.append(['MaxPool2d',
+                        nnet_compoment.MaxPool2d(layer_opt)])
+            else:
+                logging.info('No this layer '+ layer_opt['layer_flag'] + '...')
+                assert 'no this layer' and False
         return layers
 
     def KeepLstmHiddenState(self, tuple_state, new_states):
@@ -94,15 +119,79 @@ class LstmModel(NnetBase):
         # The tuple's actual value should not be used.
         rnn_state_zero_op = tf.tuple(update_ops)
         return rnn_state_zero_op                                                                                                                        
+    def CreateCnnModel(self, input_feats):
+        layers = self.CreateModelGraph()
+        outputs = [input_feats]
+        shape = np.shape(input_feats)
+        # [hight, weight, channels]
+        output_dim = [shape[1], shape[2], shape[3]]
+        for layer in layers:
+            if layer[0] == 'Cnn2d':
+                for cnn in layer[1:]:
+                    outputs.append(cnn(outputs[-1]))
+                output_dim = layer[-1].GetOutputDim()
+            elif layer[0] == 'MaxPool2d':
+                for maxpool in layer[1:]:
+                    outputs.append(maxpool(outputs[-1]))
+                output_dim = layer[-1].GetOutputDim()
+            else:
+                break
+                logging.info('No this layer '+ layer[0] + '...')
+                assert 'no this layer' and False
+        
+        output_dim = output_dim[0] * output_dim[1] * output_dim[2]
+        if self.time_major_cf:
+            outputs[-1] = tf.reshape(outputs[-1],
+                    [-1, self.batch_size_cf, output_dim])
+        else:
+            outputs[-1] = tf.reshape(outputs[-1],
+                    [self.batch_size_cf, -1, output_dim])
+
+        self.output_size = output_dim
+        return outputs[-1]
+
 
     def CreateModel(self, input_feats, seq_len):
+        '''
+        feature_shape it's for cnn feature reshape,it;it splice info for example [11, 40],
+        11 it's frame, 40 it's dim.
+        '''
         layers = self.CreateModelGraph()
         outputs = [input_feats]
         output_dim = np.shape(input_feats)[-1]
         rnn_keep_state_op = None
         rnn_state_zero_op = None
-        for layer in layers:
-            if layer[0] == 'AffineTransformLayer':
+        nlayer = len(layers)
+        n = 0
+        while n < nlayer:
+#        for layer in layers:
+            layer = layers[n]
+            n+=1
+            if layer[0] == 'Cnn2d':
+                shape = np.shape(input_feats)
+                output_dim = [shape[1], shape[2], shape[3]]
+                for cnn in layer[1:]:
+                    outputs.append(cnn(outputs[-1]))
+                output_dim = layer[-1].GetOutputDim()
+                if not self.LayerIs(layers, 'MaxPool2d', n):
+                    assert 'Cnn2d next layer it\'s MaxPool2d' and False
+            elif layer[0] == 'MaxPool2d':
+                for maxpool in layer[1:]:
+                    outputs.append(maxpool(outputs[-1]))
+                output_dim = layer[-1].GetOutputDim()
+                # judge next layer it's cnn or other
+                if self.LayerIs(layers, 'Cnn2d', n):
+                    continue
+                else:
+                    # exchange dim
+                    output_dim = output_dim[0] * output_dim[1] * output_dim[2]
+                    if self.time_major_cf:
+                        outputs[-1] = tf.reshape(outputs[-1],
+                                [-1, self.batch_size_cf, output_dim])
+                    else:
+                        outputs[-1] = tf.reshape(outputs[-1],
+                                [self.batch_size_cf, -1, output_dim])
+            elif layer[0] == 'AffineTransformLayer':
                 assert output_dim == layer[1].GetInputDim()
                 for mlp in layer[1:]:
                     outputs.append(mlp(outputs[-1]))
@@ -245,9 +334,16 @@ class LstmModel(NnetBase):
 
                 outputs.append(brnn_outputs)
                 output_dim = layer[-1].GetOutputDim()
+            else:
+                continue
 
-        last_output = tf.reshape(outputs[-1], 
-                [-1, self.batch_size_cf, output_dim])
+        if self.time_major_cf:
+            last_output = tf.reshape(outputs[-1],
+                    [-1, self.batch_size_cf, output_dim])
+        else:
+            last_output = tf.reshape(outputs[-1],
+                    [self.batch_size_cf, -1, output_dim])
+
         self.output_size = output_dim
         return last_output, rnn_keep_state_op, rnn_state_zero_op
 
@@ -322,13 +418,18 @@ class LstmModel(NnetBase):
         last_output = tf.reshape(output[-1], 
                 [-1, self.batch_size_cf, self.output_dim])
         return last_output, rnn_keep_state_op, rnn_state_zero_op
+
+    # define model
+    def CeCnnBlstmLoss(self, input_feats, labels, seq_len):
+        cnn_output = self.CreateCnnModel(input_feats)
+        return self.CeLoss(cnn_output, labels, seq_len)
     #
     #
     def CtcLoss(self, input_feats, labels, seq_len):
         #last_output, rnn_keep_state_op, rnn_state_zero_op = self.CreateRnnModel(
         #        input_feats, seq_len)
         last_output, rnn_keep_state_op, rnn_state_zero_op = self.CreateModel(
-               input_feats, seq_len)
+                input_feats, seq_len)
 
         if True:
             decoded, log_prob = tf.nn.ctc_greedy_decoder(last_output,
@@ -361,8 +462,11 @@ class LstmModel(NnetBase):
             print('********************',labels.shape,input_feats.shape)
             ce_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=labels, logits=last_output, name="ce_loss")
             print('********************',ce_loss.shape)
+            #mask = tf.cast(tf.reshape(tf.transpose(tf.sequence_mask(
+            #        seq_len, self.num_frames_batch_cf)), [-1]), tf.float32)
+            nframes = tf.shape(labels)[0]
             mask = tf.cast(tf.reshape(tf.transpose(tf.sequence_mask(
-                    seq_len, self.num_frames_batch_cf)), [-1]), tf.float32)
+                    seq_len, nframes)), [-1]), tf.float32)
 
             total_frames = tf.cast(tf.reduce_sum(seq_len) ,tf.float32)
             ce_mean_loss = tf.reduce_sum(mask * tf.reshape(ce_loss,[-1])) / total_frames
