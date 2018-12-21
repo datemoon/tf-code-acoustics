@@ -146,6 +146,16 @@ def parse_args(args_list):
             help='learning rate for NN training'
             ' (float, default = 1.0)')
 
+    train_common_opt.add_argument('--learning-rate-decay-steps', dest='learning_rate_decay_steps',
+            type=int, default=10000, 
+            help='learning rate decay step for NN training'
+            ' (int, default = 10000)')
+
+    train_common_opt.add_argument('--learning-rate-decay-rate', dest='learning_rate_decay_rate',
+            type=float, default=0.96, 
+            help='learning rate decay rate for NN training'
+            ' (float, default = 0.96)')
+
     train_common_opt.add_argument('--batch-size', dest='batch_size', type=int, 
             default=1,
             help='Number of streams in the Multi-stream training'

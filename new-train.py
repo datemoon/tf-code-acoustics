@@ -40,8 +40,10 @@ class TrainClass(object):
         self.task_index_cf = -1
         self.grad_clip_cf = 5.0
         self.feature_transfile_cf = None
-        self.learning_rate_cf = 0.001
-        self.batch_size_cf = 10
+        self.learning_rate_cf = 0.1
+        self.learning_rate_decay_steps_cf = 100000
+        self.learning_rate_decay_rate_cf = 0.96
+        self.batch_size_cf = 16
         self.num_frames_batch_cf = 20
 
         self.steps_per_checkpoint_cf = 1000
@@ -125,12 +127,24 @@ class TrainClass(object):
             if exponential_decay == True:
                 self.learning_rate_var_tf = tf.train.exponential_decay(
                         float(self.learning_rate_cf), global_step,
-                        10000, 0.96, staircase=True)
+                        self.learning_rate_decay_steps_cf,
+                        self.learning_rate_decay_rate_cf,
+                        staircase=True, 
+                        name = 'learning_rate_exponential_decay')
             elif piecewise_constant == True:
                 boundaries = [100000, 110000]
                 values = [1.0, 0.5, 0.1]
                 self.learning_rate_var_tf = tf.train.piecewise_constant(
                         global_step, boundaries, values)
+            elif inverse_time_decay == True:
+                # decayed_learning_rate = learning_rate / (1 + decay_rate * floor(global_step / decay_step))
+                # decay_rate = 0.5 , decay_step = 100000
+                self.learning_rate_var_tf =  tf.train.inverse_time_decay(
+                        float(self.learning_rate_cf), global_step,
+                        self.learning_rate_decay_steps_cf,
+                        self.learning_rate_decay_rate_cf,
+                        staircase=True,
+                        name = 'learning_rate_inverse_time_decay')
 
 
             if self.use_sgd_cf:
@@ -440,6 +454,8 @@ class TrainClass(object):
                 total_acc_error_rate += calculate_return['label_error_rate']
                 self.acc_label_error_rate[gpu_id] += calculate_return['label_error_rate']
                 self.num_batch[gpu_id] += 1
+                if self.num_batch[gpu_id] % self.steps_per_checkpoint_cf == 0:
+                    logging.info("Batch: %d current averagelabel error rate : %f" % (self.num_batch[gpu_id], self.acc_label_error_rate[gpu_id] / self.num_batch[gpu_id]))
         logging.info('******end TrainFunction******')
 
     def GetFeatAndLabel(self):
@@ -516,11 +532,12 @@ if __name__ == "__main__":
 
         iter = 0
         err_rate = 1.0
-        while iter < 100:
+        while iter < 15:
             train_start_t = time.time()
             tmp_tr_err_rate = train_class.TrainLogic(device, shuffle = False, train_loss = True, skip_offset = iter)
 
-            train_end_t = time.time() 
+            train_end_t = time.time()
+            logging.info("******train iter time is %f ******" % (train_end_t-train_start_t))
 #            tmp_cv_err_rate = train_class.TrainLogic(device, shuffle = False, train_loss = False, skip_offset = iter)
             iter += 1
 
