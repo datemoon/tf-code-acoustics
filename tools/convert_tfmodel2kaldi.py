@@ -9,10 +9,16 @@ def GetDim(line):
     else:
         return int(rows), int(cols)
 
+def GetCnnDim(line):
+    [height, width, inchannel, outchannel] = line.split('(')[1].split(')')[0].replace(' ','').split(',')
+    return int(height), int(width), int(inchannel), int(outchannel)
+
 def ReadMatrix(model_file, rows, cols):
     matrix = []
     num_line = 0
     for line in  model_file:
+        if len(line.rstrip()) == 0:
+            continue
         assert line.split()[0][0] == '[' 
         matrix.append(line.replace('[','').replace(']','').split())
         assert len(matrix[num_line]) == cols
@@ -92,6 +98,86 @@ def WriteLstm(fp, w_para, lstm_input, lstm_cell_dim, lstm_proj_dim):
     token = '<!EndOfComponent> \n'
     fp.write(token)
 
+def WriteLstmWeight(fp, w_para, lstm_input, lstm_cell_dim, lstm_proj_dim):
+    weights = w_para['weights']
+    biases = w_para['biases']
+    np_w = np.array(weights ,dtype = np.float32)
+    # tf    is i j f o
+    # kaldi is g i f o
+    np_w_ijfo_x = np.transpose(np_w[0 : lstm_input])
+    np_w_ijfo_m = np.transpose(np_w[lstm_input : lstm_input + lstm_proj_dim])
+
+    np_w_gifo_x = LstmTf2KaldiMatrix(np_w_ijfo_x, lstm_cell_dim)
+    np_w_gifo_m = LstmTf2KaldiMatrix(np_w_ijfo_m, lstm_cell_dim)
+
+    np_b_ijfo = np.array(biases, dtype = np.float32).reshape(-1,1)
+
+    np_b_gifo = LstmTf2KaldiMatrix(np_b_ijfo, lstm_cell_dim).reshape(1, -1)
+
+    # write model parameters
+    #if lstm_cell_dim == lstm_proj_dim:
+    #    token = '<TfLstm> ' + str(lstm_proj_dim) + ' ' +str(lstm_input) + '\n'
+    #else:
+    #    token = '<LstmProjected> ' + str(lstm_proj_dim) + ' ' + str(lstm_input) + '\n'
+    #    token += '<CellDim> ' + str(lstm_cell_dim) + '\n'
+    #fp.write(token)
+    WriteMatrix(fp, np_w_gifo_x, lstm_cell_dim*4, lstm_input, 0)
+    WriteMatrix(fp, np_w_gifo_m, lstm_cell_dim*4, lstm_proj_dim, 0)
+    WriteMatrix(fp, np_b_gifo, np_b_gifo.shape[0], np_b_gifo.shape[1])
+    proj_weights = None
+    for key in ['w_i_diag', 'w_f_diag', 'w_o_diag']:
+        try:
+            w_ifo_diag = w_para[key]
+            np_w_ifo_diag = np.array(w_ifo_diag, dtype = np.float32).reshape(1, -1)
+            WriteMatrix(fp, np_w_ifo_diag, np_w_ifo_diag.shape[0], np_w_ifo_diag.shape[1], 0)
+        except KeyError:
+            print('no i f o diag parameters')
+            break
+    try:
+        proj_weights = w_para['proj_weights']
+        np_proj_weights = np.transpose( np.array(proj_weights ,dtype = np.float32))
+        WriteMatrix(fp, np_proj_weights, np_proj_weights.shape[0], np_proj_weights.shape[1])
+    except KeyError:
+        print('no project parameters')
+    #token = '<!EndOfComponent> \n'
+    #fp.write(token)
+
+def WriteBlstm(fp, fp_out, blstm_para):
+    fw_cell_key = blstm_para[0][0]
+    bw_cell_key = blstm_para[0][1]
+    fw_lstm_para = blstm_para[1][0]
+    bw_lstm_para = blstm_para[1][1]
+    assert fw_lstm_para[0] == bw_lstm_para[0]
+    
+    kaldi_input = fw_lstm_para[0]
+    
+    fw_lstm_cell_dim = fw_lstm_para[1]
+    bw_lstm_cell_dim = bw_lstm_para[1] 
+    assert fw_lstm_cell_dim == bw_lstm_cell_dim
+    kaldi_cell = fw_lstm_cell_dim 
+    
+    fw_lstm_proj_dim = fw_lstm_para[2]
+    bw_lstm_proj_dim = bw_lstm_para[2]
+    kaldi_output = fw_lstm_proj_dim + bw_lstm_proj_dim
+
+    token = '<BlstmProjected> ' + str(kaldi_output) + ' ' + str(kaldi_input) + ' \n'
+    token += '<CellDim> ' + str(kaldi_cell) + ' <LearnRateCoef> 1 <BiasLearnRateCoef> 1 <CellClip> 50 <DiffClip> 1 <CellDiffClip> 0 <GradClip> 5\n'
+    fp_out.write(token)
+    # read blstm
+    blstm_para = ConvertBLstmLayer(fp, blstm_para)
+    
+    # write forward parameter
+    fw_para = blstm_para['fw_para']
+    WriteLstmWeight(fp_out, fw_para, kaldi_input, fw_lstm_cell_dim, fw_lstm_proj_dim)
+    # write backward parameter
+    bw_para = blstm_para['bw_para']
+    WriteLstmWeight(fp_out, bw_para, kaldi_input, bw_lstm_cell_dim, bw_lstm_proj_dim)
+
+    token = '<!EndOfComponent> \n'
+    fp_out.write(token)
+
+    return blstm_para
+
 def WriteLstmOld(fp, weights, biases, lstm_input, lstm_cell_dim, lstm_proj_dim):
     token = '<TfLstm> ' + str(lstm_cell_dim) + ' ' +str(lstm_input) + '\n'
     fp.write(token)
@@ -122,6 +208,7 @@ def WriteLstmOld(fp, weights, biases, lstm_input, lstm_cell_dim, lstm_proj_dim):
 
 def WriteAffineTransfrom(fp, weights, biases, input_dim, output_dim):
     token = '<AffineTransform> ' + str(output_dim) + ' ' + str(input_dim) + ' \n'
+    token += '<LearnRateCoef> 2.5 <BiasLearnRateCoef> 2.5 <MaxNorm> 0\n'
     fp.write(token)
 
     np_w = np.transpose(np.array(weights ,dtype = np.float32))
@@ -145,13 +232,13 @@ def ConvertLstmLayer(model_file, cell_key, lstm_para):
     lstm_proj_dim = lstm_para[2]
     parameters = {}
     for line in model_file:
-        if cell_key in line and 'lstm_cell/weights' in line:
+        if cell_key in line and 'lstm_cell/kernel' in line:
             rows , cols = GetDim(line)
             assert rows == lstm_input + lstm_proj_dim
             assert cols == 4 * lstm_cell_dim
             weights = ReadMatrix(model_file, rows, cols)
             parameters['weights'] = weights
-        elif cell_key in line and 'lstm_cell/biases' in line:
+        elif cell_key in line and 'lstm_cell/bias' in line:
             rows , cols = GetDim(line)
             assert cols == 4 * lstm_cell_dim
             biases = ReadMatrix(model_file, rows, cols)
@@ -173,7 +260,7 @@ def ConvertLstmLayer(model_file, cell_key, lstm_para):
             assert cols == lstm_cell_dim
             w_o_diag = ReadMatrix(model_file, rows, cols)
             parameters['w_o_diag'] = w_o_diag
-        elif cell_key in line and 'lstm_cell/projection/weights' in line:
+        elif cell_key in line and 'lstm_cell/projection/kernel' in line:
             rows , cols = GetDim(line)
             assert cols == lstm_proj_dim
             assert rows == lstm_cell_dim
@@ -181,25 +268,107 @@ def ConvertLstmLayer(model_file, cell_key, lstm_para):
             parameters['proj_weights'] = proj_weight
     return parameters
 
-def ConvertSoftmaxLayer(model_file, cell_key, layer_para):
+def ConvertBLstmLayer(model_file, blstm_para):
+    fw_cell_key = blstm_para[0][0]
+    bw_cell_key = blstm_para[0][1]
+    fw_lstm_para = blstm_para[1][0]
+    bw_lstm_para = blstm_para[1][1]
+    parameters = {}
+    parameters['fw_para'] = ConvertLstmLayer(model_file, fw_cell_key, fw_lstm_para)
+    parameters['bw_para'] = ConvertLstmLayer(model_file, bw_cell_key, bw_lstm_para)
+    return parameters
+
+
+def ConvertCnnLayer(model_file, cell_key, cnn_para):
+    model_file.seek(0)
+    h = cnn_para[0]
+    w = cnn_para[1]
+    i = cnn_para[2]
+    o = cnn_para[3]
+    parameters = {}
+    for line in model_file:
+        if cell_key in line and '_w' in line:
+            height, width, inchannel, outchannel = GetCnnDim(line)
+            assert h == height
+            assert w == width
+            assert i == inchannel
+            assert o == outchannel
+            rows = h * w * i
+            cols = outchannel
+            cnn_weight = ReadMatrix(model_file, rows, cols)
+            parameters['weights'] = cnn_weight
+            break
+    parameters['biases'] = np.zeros(o, dtype=np.float32).reshape((1, o))
+
+    return parameters
+
+def WriteCnnLayer(out_file, cnn_para, cnn_kaldi_para):
+    # nnet para
+    indim = cnn_kaldi_para[0]
+    outdim = cnn_kaldi_para[1]
+    patchdim = cnn_kaldi_para[2]
+    patchstep = cnn_kaldi_para[3]
+    patchstrid = cnn_kaldi_para[4]
+    token = '<ConvolutionalComponent> ' + str(outdim) + ' ' + str(indim) + ' \n'
+    token += '<PatchDim> ' + str(patchdim) + ' <PatchStep> ' + str(patchstep) + ' <PatchStride> ' + str(patchstrid) + ' \n'
+    token += '<LearnRateCoef> 2.5 <BiasLearnRateCoef> 2.5 <MaxNorm> 0\n'
+    token += '<Filters>\n'
+    out_file.write(token)
+
+    #weight
+    weights = cnn_para['weights']
+    np_w = np.array(weights ,dtype = np.float32)
+    #np_wt = np_w.transpose((1,0))
+    np_wt = np.transpose(np_w)
+    rows, cols = np.shape(np_wt)
+    WriteMatrix(out_file, np_wt, rows, cols, 0)
+
+    # write bias
+    token = '<Bias>\n'
+    out_file.write(token)
+    bias = cnn_para['biases']
+    rows, cols = np.shape(bias)
+    WriteMatrix(out_file, bias, rows, cols, 0)
+    token = '<!EndOfComponent> \n'
+    out_file.write(token)
+
+
+def ConvertAffineTransfromLayer(model_file, cell_key, layer_para):
     model_file.seek(0)
     input_dim = layer_para[0]
     output_dim =  layer_para[1]
     weights=[]
     biases=[]
     for line in model_file:
-        if cell_key in line and 'softmax_w' in line:
+        if cell_key in line and '_w' in line:
             rows , cols = GetDim(line)
             assert rows == input_dim 
             assert cols == output_dim
             weights = ReadMatrix(model_file, rows, cols)
 
-        elif cell_key in line and 'softmax_b' in line:
+        elif cell_key in line and '_b' in line:
             rows , cols = GetDim(line)
             assert cols == output_dim
             biases = ReadMatrix(model_file, rows, cols)
 
     return weights, biases
+
+def WriteMaxPool(out_file, cell_para):
+    poolinput = cell_para[0]
+    pooloutput = cell_para[1]
+    poolsize = cell_para[2]
+    poolstep = cell_para[3]
+    # outchannel
+    poolstride = cell_para[4]
+    maxpoolnnet = '<MaxPoolingComponent> ' + str(pooloutput) + ' ' + str(poolinput) + ' \n'
+    maxpoolnnet += '<PoolSize> ' + str(poolsize) + ' <PoolStep> ' + str(poolstep) + ' <PoolStride> ' + str(poolstride) + ' <!EndOfComponent> \n'
+    out_file.write(maxpoolnnet)
+
+
+def WriteSigmoid(out_file, dim):
+    sigmoidnnet = '<Sigmoid> ' + str(dim) + ' ' + str(dim) + ' \n' + '<!EndOfComponent> \n'
+    out_file.write(sigmoidnnet)
+
 
 def ConvertTfToKaldi(model_in_tf, model_out_kaldi, lstm_struct, softmax_struct):
     fp = open(model_in_tf, 'r')
@@ -213,7 +382,7 @@ def ConvertTfToKaldi(model_in_tf, model_out_kaldi, lstm_struct, softmax_struct):
         WriteLstm(fp_out, weights_para, layer_para[0], layer_para[1], layer_para[2])
         weights.append(weights_para)
 
-    w,b = ConvertSoftmaxLayer(fp, softmax_struct[0], softmax_struct[1])
+    w,b = ConvertAffineTransfromLayer(fp, softmax_struct[0], softmax_struct[1])
     WriteAffineTransfrom(fp_out, w, b, softmax_struct[1][0], softmax_struct[1][1])
     WriteSoftmax(fp_out, softmax_struct[1][1])
     weights.append([w, b])

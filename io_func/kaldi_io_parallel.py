@@ -98,7 +98,7 @@ def PackageFeatAndAli(scp_file, ali_file, nstreams, skip_frame = 1,  max_input_s
             if len(utt_mat) != len(ali_utt):
                 # delete one frame ali in utt_mat
                 if len(ali_utt) - len(utt_mat) == 1:
-                    logging.info(utt_id + ' feat length + 1 = ali length , and delete one ali label')
+                    #logging.warn(utt_id + ' feat length + 1 = ali length , and delete one ali label')
                     ali_utt = numpy.delete(ali_utt, -1)
                 else:
                     logging.info(utt_id + ' feat and ali isn\'t equal length')

@@ -201,7 +201,7 @@ class TrainClass(object):
             logging.info('total parameters : %d' % self.total_variables)
             
             # set gpu option
-            gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.95)
+            gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=1.0)
 
             # session config
             sess_config = tf.ConfigProto(intra_op_parallelism_threads=self.num_threads_cf,
@@ -360,7 +360,8 @@ class TrainClass(object):
             self.kaldi_io_nstream = self.kaldi_io_nstream_cv
             run_op = {'label_error_rate':self.run_ops['label_error_rate'],
                     'mean_loss':self.run_ops['mean_loss']}
-        
+        # reset io and start input thread
+        self.kaldi_io_nstream.Reset(shuffle = shuffle, skip_offset = skip_offset)
         threadinput = self.ThreadInputFeatAndLab()
         time.sleep(3)
         with tf.device(device):
@@ -383,7 +384,6 @@ class TrainClass(object):
         for  i in range(len(threadinput)):
             threadinput[i].join()
 
-        self.kaldi_io_nstream.Reset(shuffle = shuffle, skip_offset = skip_offset)
         self.ResetAccuracy()
         return tmp_label_error_rate
 
@@ -417,6 +417,8 @@ class TrainClass(object):
             total_acc_error_rate += calculate_return['label_error_rate']
             self.acc_label_error_rate[gpu_id] += calculate_return['label_error_rate']
             self.num_batch[gpu_id] += 1
+            if self.num_batch[gpu_id] % self.steps_per_checkpoint_cf == 0:
+                logging.info("Batch: %d current averagelabel error rate : %f" % (self.num_batch[gpu_id], self.acc_label_error_rate[gpu_id] / self.num_batch[gpu_id]))
         logging.info('******end TrainFunction******')
 
     def SliceTrainFunction(self, gpu_id, run_op, thread_name):
@@ -529,15 +531,22 @@ if __name__ == "__main__":
         train_class = TrainClass(conf_dict)
         device = tf.train.replica_device_setter(worker_device='/job:worker/task:%d' % task_index, cluster=cluster)
         train_class.ConstructGraph(device,server)
+        #print_trainable_variables(train_class.sess, 'save.model.txt')
 
         iter = 0
         err_rate = 1.0
         while iter < 15:
             train_start_t = time.time()
-            tmp_tr_err_rate = train_class.TrainLogic(device, shuffle = False, train_loss = True, skip_offset = iter)
+            shuffle = False
+            if iter > 0:
+                shuffle = True
+            tmp_tr_err_rate = train_class.TrainLogic(device, shuffle = shuffle, train_loss = True, skip_offset = iter)
 
             train_end_t = time.time()
-            logging.info("******train iter time is %f ******" % (train_end_t-train_start_t))
+            logging.info("******train %d iter time is %f ******" % (iter, train_end_t-train_start_t))
+            # write text model
+            if task_index == 0:
+                print_trainable_variables(train_class.sess, conf_dict["checkpoint_dir"] + '/save.model.txt-' + str(iter))
 #            tmp_cv_err_rate = train_class.TrainLogic(device, shuffle = False, train_loss = False, skip_offset = iter)
             iter += 1
 
