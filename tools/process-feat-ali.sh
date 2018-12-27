@@ -1,9 +1,9 @@
 #!/bin/bash
 
 
-if [ $# != 3 ]
+if [ $# != 4 ]
 then
-	echo $0 ali feat.scp split(0) outdir
+	echo $0 ali feat.scp "split(0)" outdir
 	exit 1
 fi
 ali=$1
