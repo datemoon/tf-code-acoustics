@@ -339,6 +339,7 @@ class TrainClass(object):
     def TrainLogic(self, device, shuffle = False, train_loss = True, skip_offset = 0):
         if train_loss == True:
             logging.info('TrainLogic train start.')
+            logging.info('Start global step is %d---learn_rate is %f' % (self.sess.run(global_step), self.sess.run(self.learning_rate_var_tf)))
             self.kaldi_io_nstream = self.kaldi_io_nstream_train
             # set run operation
             if 'ctc' in self.criterion_cf or 'whole' in self.criterion_cf:
@@ -417,7 +418,7 @@ class TrainClass(object):
             total_acc_error_rate += calculate_return['label_error_rate']
             self.acc_label_error_rate[gpu_id] += calculate_return['label_error_rate']
             self.num_batch[gpu_id] += 1
-            if self.num_batch[gpu_id] % self.steps_per_checkpoint_cf == 0:
+            if self.num_batch[gpu_id] % int(self.steps_per_checkpoint_cf/5) == 0:
                 logging.info("Batch: %d current averagelabel error rate : %f" % (self.num_batch[gpu_id], self.acc_label_error_rate[gpu_id] / self.num_batch[gpu_id]))
         logging.info('******end TrainFunction******')
 
@@ -456,7 +457,7 @@ class TrainClass(object):
                 total_acc_error_rate += calculate_return['label_error_rate']
                 self.acc_label_error_rate[gpu_id] += calculate_return['label_error_rate']
                 self.num_batch[gpu_id] += 1
-                if self.num_batch[gpu_id] % self.steps_per_checkpoint_cf == 0:
+                if self.num_batch[gpu_id] % int(self.steps_per_checkpoint_cf/5) == 0:
                     logging.info("Batch: %d current averagelabel error rate : %f" % (self.num_batch[gpu_id], self.acc_label_error_rate[gpu_id] / self.num_batch[gpu_id]))
         logging.info('******end TrainFunction******')
 
