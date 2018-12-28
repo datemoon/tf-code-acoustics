@@ -339,7 +339,7 @@ class TrainClass(object):
     def TrainLogic(self, device, shuffle = False, train_loss = True, skip_offset = 0):
         if train_loss == True:
             logging.info('TrainLogic train start.')
-            logging.info('Start global step is %d---learn_rate is %f' % (self.sess.run(global_step), self.sess.run(self.learning_rate_var_tf)))
+            logging.info('Start global step is %d---learn_rate is %f' % (self.sess.run(tf.train.get_or_create_global_step()), self.sess.run(self.learning_rate_var_tf)))
             self.kaldi_io_nstream = self.kaldi_io_nstream_train
             # set run operation
             if 'ctc' in self.criterion_cf or 'whole' in self.criterion_cf:
