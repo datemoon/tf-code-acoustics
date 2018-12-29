@@ -2,7 +2,6 @@
 
 if [ $# != 4 ]
 then
-	echo $#
 	echo $0 bin feat_pre split  outdir
 	exit 0
 fi
