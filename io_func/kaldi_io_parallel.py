@@ -74,8 +74,10 @@ def read_next_utt(next_scp_line):
 
     return utt_id, utt_mat
 
-def PackageFeatAndAli(scp_file, ali_file, nstreams, skip_frame = 1,  max_input_seq_length = 1500, criterion = 'ce'):
-    all_package = []
+def PackageFeatAndAli(all_package, input_lock, package_end, scp_file, ali_file, nstreams, skip_frame = 1,  max_input_seq_length = 1500, criterion = 'ce'):
+    logging.info('------start package------')
+    start_package = time.time()
+    #all_package = []
     # first read ali
     alignment_dict = read_alignment(ali_file)
 
@@ -110,16 +112,23 @@ def PackageFeatAndAli(scp_file, ali_file, nstreams, skip_frame = 1,  max_input_s
         scp_list.append(line)
         ali_list.append(ali_utt)
         if len(scp_list) == nstreams:
+            input_lock.acquire()
             all_package.append([scp_list, ali_list])
+            input_lock.release()
             scp_list = []
             ali_list = []
     if len(scp_list) != 0:
         while len(scp_list) < nstreams:
             scp_list.append(scp_list[0])
             ali_list.append(ali_list[0])
+        input_lock.acquire()
         all_package.append([scp_list, ali_list])
+        package_end.append(True)
+        input_lock.release()
 
-    return all_package
+    end_package = time.time()
+    logging.info('------PackageFeatAndAli end. Package time is : %f s' % (end_package - start_package))
+    return True
 
 class KaldiDataReadParallel(object):
     '''
@@ -173,34 +182,68 @@ class KaldiDataReadParallel(object):
             self.output_feat_dim = self.feature_transform.GetOutDim()
             self.output_dim = self.output_feat_dim
             # cnn must be in nnet the first layer!!!
-            if 'cnn' in criterion:
+            if 'cnn' in self.criterion:
                 self.output_feat_dim = [int(self.output_feat_dim/self.input_feat_dim), self.input_feat_dim]
         else:
             logging.info('no feature transform file.')
             sys.exit(1)
-        start_package = time.time()
-        # prepare data
-        self.package_feat_ali = PackageFeatAndAli(scp_file, label, self.batch_size, self.skip_frame, self.max_input_seq_length, criterion)
-        end_package = time.time()
-        logging.info('package time is : %f s' % (end_package - start_package))
-        if self.shuffle is True:
-            random.shuffle(self.package_feat_ali)
-        if 'ce' in criterion or 'whole' in criterion:
+        # prepare data, The first loop train must be order for add speed.
+        self.input_lock = threading.Lock()
+
+        self.ThreadPackageFeatAndAli()
+        #self.package_feat_ali = 
+        #start_package = time.time()
+        #PackageFeatAndAli(self.package_feat_ali, self.input_lock, self.scp_file, self.label, self.batch_size, self.skip_frame, self.max_input_seq_length, self.criterion)
+        #end_package = time.time()
+        #logging.info('package time is : %f s' % (end_package - start_package))
+        
+        #if self.shuffle is True:
+        #    random.shuffle(self.package_feat_ali)
+        if 'ce' in self.criterion or 'whole' in self.criterion:
             self.do_skip_lab = True
-        elif 'ctc' in criterion:
+        elif 'ctc' in self.criterion:
             self.do_skip_lab = False
         return self.output_feat_dim
+
+    def ThreadPackageFeatAndAli(self):
+        self.package_feat_ali = []
+        self.package_end=[False]
+        load_thread = threading.Thread(group=None, target=PackageFeatAndAli,
+                args=(self.package_feat_ali, self.input_lock, self.package_end, 
+                    self.scp_file, self.label, 
+                    self.batch_size, self.skip_frame, 
+                    self.max_input_seq_length, self.criterion,),
+                kwargs={}, name='PackageFeatAndAli_thread')
+        load_thread.start()
+        logging.info('PackageFeatAndAli thread start.')
 
     def Reset(self, shuffle = False, skip_offset = 0 ):
         self.skip_offset = skip_offset % self.skip_frame
         self.read_offset = 0
         if shuffle is True or self.shuffle is True:
             self.shuffle = True
-            random.shuffle(self.package_feat_ali)
+            self.input_lock.acquire()
+            if self.package_end[-1] is True:
+                random.shuffle(self.package_feat_ali)
+                logging.info('Reset and shuffle package_feat_ali')
+                self.input_lock.release()
+                return 
+            self.input_lock.release()
+        logging.info('Reset and no shuffle package_feat_ali')
 
     def LoadOnePackage(self):
-        if self.read_offset >= len(self.package_feat_ali):
-            return None, None, None, None
+        while True:
+            self.input_lock.acquire()
+            if self.read_offset >= len(self.package_feat_ali):
+                if self.package_end[-1] is True:
+                    self.input_lock.release()
+                    return None, None, None, None
+                else:
+                    self.input_lock.release()
+                    continue
+            else:
+                self.input_lock.release()
+                break
 
         package = self.package_feat_ali[self.read_offset]
         self.read_offset += 1
@@ -380,13 +423,22 @@ if __name__ == '__main__':
     while True:
         #feat_mat, label, length = io_read.LoadNextNstreams()
         feat_mat, label, length = io_read.CnnLoadNextNstreams()
-        print(numpy.shape(feat_mat),numpy.shape(label),numpy.shape(length))
+        logging.info(str(numpy.shape(feat_mat))+str(numpy.shape(label))+str(numpy.shape(length)))
         #feat_mat, label, length = io_read.SliceLoadNextNstreams()
         #print(numpy.shape(feat_mat),numpy.shape(label),numpy.shape(length))
         if feat_mat is None:
             break
-#        else:
-#            print(length)
+    
+    io_read.Reset(shuffle = True)
+    while True:
+        #feat_mat, label, length = io_read.LoadNextNstreams()
+        feat_mat, label, length = io_read.CnnLoadNextNstreams()
+        logging.info(str(numpy.shape(feat_mat))+str(numpy.shape(label))+str(numpy.shape(length)))
+        #feat_mat, label, length = io_read.SliceLoadNextNstreams()
+        #print(numpy.shape(feat_mat),numpy.shape(label),numpy.shape(length))
+        if feat_mat is None:
+            break
+
     end = time.time()
     logging.info('load time is : %f s' % (end - start))
 
