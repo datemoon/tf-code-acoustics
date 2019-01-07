@@ -276,7 +276,16 @@ class KaldiDataReadParallel(object):
     
     # load batch frames features train.The order it's not important.
     def LoadBatch(self):
-        return
+        if 'cnn' in self.criterion:
+            if 'whole' in self.criterion or 'ctc' in self.criterion:
+                return self.CnnLoadNextNstreams()
+            else:
+                return self.CnnSliceLoadNextNstreams()
+        else:
+            if 'whole' in self.criterion or 'ctc' in self.criterion:
+                return self.WholeLoadNextNstreams()
+            else:
+                return self.SliceLoadNextNstreams()
     
     # Cnn frames features train.
     # slice load

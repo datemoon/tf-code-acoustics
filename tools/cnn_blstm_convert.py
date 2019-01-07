@@ -3,7 +3,7 @@ from convert_tfmodel2kaldi import *
 
 if __name__ == '__main__':
     if len(sys.argv) != 3:
-        print(sys.argv[0] + 'tf.cnn_blstm kaldi.cnn_blstm')
+        print(sys.argv[0] + ' tf.cnn_blstm kaldi.cnn_blstm')
         sys.exit(1)
     cnn_struct = ['cnn2d_0/cnn2d_0', 11, 9 , 1, 192]
     cnn_kaldi_para = [781, 6144, 9, 2, 71]

@@ -255,7 +255,7 @@ class TrainClass(object):
                 if 'cnn' in self.criterion_cf:
                     feat,label,length = self.kaldi_io_nstream.CnnLoadNextNstreams()
                 else:
-                    feat,label,length = self.kaldi_io_nstream.LoadNextNstreams()
+                    feat,label,length = self.kaldi_io_nstream.WholeLoadNextNstreams()
                 if length is None:
                     break
                 print(np.shape(feat),np.shape(label), np.shape(length))
@@ -418,7 +418,7 @@ class TrainClass(object):
             total_acc_error_rate += calculate_return['label_error_rate']
             self.acc_label_error_rate[gpu_id] += calculate_return['label_error_rate']
             self.num_batch[gpu_id] += 1
-            if self.num_batch[gpu_id] % int(self.steps_per_checkpoint_cf/5) == 0:
+            if self.num_batch[gpu_id] % int(self.steps_per_checkpoint_cf/10) == 0:
                 logging.info("Batch: %d current averagelabel error rate : %f" % (self.num_batch[gpu_id], self.acc_label_error_rate[gpu_id] / self.num_batch[gpu_id]))
         logging.info('******end TrainFunction******')
 
@@ -457,7 +457,7 @@ class TrainClass(object):
                 total_acc_error_rate += calculate_return['label_error_rate']
                 self.acc_label_error_rate[gpu_id] += calculate_return['label_error_rate']
                 self.num_batch[gpu_id] += 1
-                if self.num_batch[gpu_id] % int(self.steps_per_checkpoint_cf/5) == 0:
+                if self.num_batch[gpu_id] % int(self.steps_per_checkpoint_cf/10) == 0:
                     logging.info("Batch: %d current averagelabel error rate : %f" % (self.num_batch[gpu_id], self.acc_label_error_rate[gpu_id] / self.num_batch[gpu_id]))
         logging.info('******end TrainFunction******')
 
