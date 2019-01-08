@@ -251,6 +251,7 @@ class TrainClass(object):
     def InputFeat(self, input_lock):
         while True:
             input_lock.acquire()
+            '''
             if 'ctc' in self.criterion_cf or 'whole' in self.criterion_cf:
                 if 'cnn' in self.criterion_cf:
                     feat,label,length = self.kaldi_io_nstream.CnnLoadNextNstreams()
@@ -278,6 +279,16 @@ class TrainClass(object):
                 if len(label_array[0]) != self.batch_size_cf:
                     break
                 self.input_queue.put((feat_array, label_array, length_array))
+            '''
+            feat,label,length = self.kaldi_io_nstream.LoadBatch()
+            if length is None:
+                break
+            print(np.shape(feat),np.shape(label), np.shape(length))
+            if 'ctc' in self.criterion_cf:
+                sparse_label = sparse_tuple_from(label)
+                self.input_queue.put((feat,sparse_label,length))
+            else:
+                self.input_queue.put((feat,label,length))
             self.num_batch_total += 1
 #            if self.num_batch_total % 3000 == 0:
 #                self.SaveModel()

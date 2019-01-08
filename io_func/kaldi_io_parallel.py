@@ -240,6 +240,7 @@ class KaldiDataReadParallel(object):
                     return None, None, None, None
                 else:
                     self.input_lock.release()
+                    time.sleep(1.0)
                     continue
             else:
                 self.input_lock.release()
