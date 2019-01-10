@@ -7,6 +7,122 @@ import os
 
 
 strset=('name', 'padding', 'data_format')
+class NormalizeLayer(object):
+    '''
+    '''
+    def __init__(self, conf_opt):
+        self.name = 'NormalizeLayer'
+        self.input_dim = 0
+        self.target_rms = 1.0
+        self.axis = -1
+        self.epsilon = 1.3552527156068805425e-20 # 2^-66
+        for key in self.__dict__:
+            if key in conf_opt.keys():
+                if key in strset:
+                    self.__dict__[key] = conf_opt[key]
+                else:
+                    self.__dict__[key] = eval(conf_opt[key])
+
+        self.scale = self.target_rms * self.target_rms * self.input_dim
+        self.scale = pow(self.scale, 1/2)
+
+    def __call__(self, input_feats):
+        with tf.name_scope(self.name, "Normalize", input_feats) as name:
+            #axis = deprecated_argument_lookup("axis", self.axis, "dim", None)
+            input_feats = tf.convert_to_tensor(input_feats, dtype=tf.float32, name="input_feats")
+            square_sum = tf.reduce_sum(
+                    tf.square(input_feats), self.axis, keepdims=True)
+            x_inv_norm = tf.rsqrt(tf.maximum(square_sum, self.epsilon))
+            x_inv_norm = tf.multiply(x_inv_norm, self.scale)
+
+            return tf.multiply(input_feats, x_inv_norm, name=name)
+
+    def GetOutputDim(self):
+        return self.input_dim
+
+class ReluLayer(object):
+    '''
+    '''
+    def __init__(self, conf_opt):
+        self.name = 'ReluLayer'
+        self.input_dim = 0
+        self.output_dim = 0
+        for key in self.__dict__:
+            if key in conf_opt.keys():
+                if key in strset:
+                    self.__dict__[key] = conf_opt[key]
+                else:
+                    self.__dict__[key] = eval(conf_opt[key])
+
+        assert self.input_dim == self.output_dim
+
+        def __call__(self, input_feats):
+            return tf.nn.relu(input_feats, self.name)
+
+        def GetOutputDim(self):
+            return self.output_dim
+
+class SpliceLayer(object):
+    '''
+    '''
+    def __init__(self, conf_opt):
+        self.splice = [-1,0,1]
+        self.input_dim = 0
+        self.name = 'SpliceLayer'
+        self.time_major = True
+        for key in self.__dict__:
+            if key in conf_opt.keys():
+                if key in strset:
+                    self.__dict__[key] = conf_opt[key]
+                else:
+                    self.__dict__[key] = eval(conf_opt[key])
+        if self.time_major is True:
+            self.time = 0
+        else:
+            self.time = 1
+
+    def __call__(self, input_feats):
+        output = None
+        start_nframe = 0
+        end_nframe = 0
+        for i in self.splice:
+            if i < 0:
+                start = input_feats[:1]
+                start_end = input_feats[:i]
+                while i < 0:
+                    start_end = tf.concat([start, start_end], self.time)
+                    i += 1
+                concat_input = start_end
+                start_nframe += 1
+            elif i == 0:
+                concat_input = input_feats
+            elif i > 0:
+                end = input_feats[-1:]
+                end_start = input_feats[i:]
+                while i > 0:
+                    end_start = tf.concat([end_start, end], self.time)
+                    i -= 1
+                concat_input = end_start
+                end_nframe += 1
+
+            if output is None:
+                output = concat_input
+            else:
+                output = tf.concat([output, concat_input], -1)
+
+        #first = input_feats[:1]
+        #end = input_feats[-1:]
+        #f = input_feats[:-1]
+        #b = input_feats[1:]
+        #fi = tf.concat([first, f],0)
+        #bi = tf.concat([b, end], 0)
+        #out = tf.concat([fi, input_feats, bi],-1)
+        return output[start_nframe:-end_nframe]
+
+    def GetOutputDim(self):
+        return len(self.splice) * self.input_dim
+
+
 class AffineTransformLayer(object):
     '''
     '''
@@ -233,5 +349,6 @@ class MaxPool2d(object):
 g_layer_dict={'AffineTransformLayer':AffineTransformLayer,
         'LstmLayer':LstmLayer,
         'BLstmLayer':BLstmLayer,
-        'Cnn2d':Cnn2d
+        'Cnn2d':Cnn2d,
+        'SpliceLayer':SpliceLayer
         }
