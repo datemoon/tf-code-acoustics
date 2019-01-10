@@ -25,6 +25,7 @@ class NormalizeLayer(object):
 
         self.scale = self.target_rms * self.target_rms * self.input_dim
         self.scale = pow(self.scale, 1/2)
+        self.scale = 1.0
 
     def __call__(self, input_feats):
         with tf.name_scope(self.name, "Normalize", input_feats) as name:
@@ -76,12 +77,14 @@ class SpliceLayer(object):
                     self.__dict__[key] = conf_opt[key]
                 else:
                     self.__dict__[key] = eval(conf_opt[key])
+        assert self.splice[0] <= 0
+        assert self.splice[-1] >= 0
         if self.time_major is True:
             self.time = 0
         else:
             self.time = 1
 
-    def __call__(self, input_feats):
+    def SpliceFeats(self, input_feats):
         output = None
         start_nframe = 0
         end_nframe = 0
@@ -117,7 +120,43 @@ class SpliceLayer(object):
         #fi = tf.concat([first, f],0)
         #bi = tf.concat([b, end], 0)
         #out = tf.concat([fi, input_feats, bi],-1)
-        return output[start_nframe:-end_nframe]
+        return output
+        #return output[start_nframe:-end_nframe]
+
+    # b=tf.pad(input_feats,[[1,1],[0,0],[0,0]],"SYMMETRIC")
+    def __call__(self, input_feats, add_head_tail = True):
+        '''
+        in advance at head and tail add frames, 
+        so extract need features
+        '''
+        if add_head_tail is True:
+            output = None
+            start_nframe = -1 * self.splice[0]
+            end_nframe = self.splice[-1]
+            for i in self.splice:
+                #if i < 0:
+                start = start_nframe + i
+                end = end_nframe - i
+                if end == 0:
+                    concat_input = input_feats[start:]
+                else:
+                    concat_input = input_feats[start:-1*end]
+                
+                #concat_input = input_feats[start:-1*end]
+                #elif i == 0:
+                #    concat_input = input_feats[start_nframe:-1*end_nframe]
+                #elif i > 0:
+                #    start = start_nframe + i
+                #    end = end_nframe-i
+                
+                if output is None:
+                    output = concat_input
+                else:
+                    output = tf.concat([output, concat_input], -1)
+            return output
+
+        else:
+            return self.SpliceFeats(input_feats)
 
     def GetOutputDim(self):
         return len(self.splice) * self.input_dim
