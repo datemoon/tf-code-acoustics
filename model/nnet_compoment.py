@@ -16,6 +16,7 @@ class NormalizeLayer(object):
         self.target_rms = 1.0
         self.axis = -1
         self.epsilon = 1.3552527156068805425e-20 # 2^-66
+        self.dtype = tf.float32
         for key in self.__dict__:
             if key in conf_opt.keys():
                 if key in strset:
@@ -25,12 +26,11 @@ class NormalizeLayer(object):
 
         self.scale = self.target_rms * self.target_rms * self.input_dim
         self.scale = pow(self.scale, 1/2)
-        self.scale = 1.0
 
     def __call__(self, input_feats):
         with tf.name_scope(self.name, "Normalize", input_feats) as name:
             #axis = deprecated_argument_lookup("axis", self.axis, "dim", None)
-            input_feats = tf.convert_to_tensor(input_feats, dtype=tf.float32, name="input_feats")
+            input_feats = tf.convert_to_tensor(input_feats, dtype=self.dtype, name="input_feats")
             square_sum = tf.reduce_sum(
                     tf.square(input_feats), self.axis, keepdims=True)
             x_inv_norm = tf.rsqrt(tf.maximum(square_sum, self.epsilon))
@@ -202,6 +202,46 @@ class AffineTransformLayer(object):
 
     def GetInputDim(self):
         return self.input_dim
+
+    def GetOutputDim(self):
+        return self.output_dim
+
+class TdnnLayer(object):
+    '''
+    '''
+    def __init__(self, conf_opt):
+        self.name = 'TdnnLayer'
+        self.input_dim = 0
+        self.output_dim = 0
+        self.time_major = True
+        for key in self.__dict__:
+            if key in conf_opt.keys():
+                if key in strset:
+                    self.__dict__[key] = conf_opt[key]
+                else:
+                    self.__dict__[key] = eval(conf_opt[key])
+
+        self.layers = []
+        # SpliceLayer
+        conf_opt['name'] = conf_opt['name'] + 'splice'
+        self.layers.append(SpliceLayer(conf_opt))
+        # AffineTransformLayer
+        conf_opt['input_dim'] = self.splicelayer.GetOutputDim()
+        conf_opt['name'] = conf_opt['name'] + 'affine'
+        self.layers.append(AffineTransformLayer(conf_opt))
+        # ReluLayer
+        conf_opt['input_dim'] = self.affinelayer.GetOutputDim()
+        conf_opt['name'] = conf_opt['name'] + 'relu'
+        self.layers.append(ReluLayer(conf_opt))
+        # NormalizeLayer
+        conf_opt['name'] = conf_opt['name'] + 'normalize'
+        self.layers.append(NormalizeLayer(conf_opt))
+
+    def __call__(self, input_feats):
+        output = [input_feats]
+        for layer in self.layers:
+            output.append(layer(output[-1]))
+        return output[-1]
 
     def GetOutputDim(self):
         return self.output_dim

@@ -90,6 +90,30 @@ class LstmModel(NnetBase):
                 else:
                     layers.append(['MaxPool2d',
                         nnet_compoment.MaxPool2d(layer_opt)])
+            elif layer_opt['layer_flag'] == 'SpliceLayer':
+                if self.PrevLayerIs(layers, 'SpliceLayer'):
+                    layers[-1].append(nnet_compoment.SpliceLayer(layer_opt))
+                else:
+                    layers.append(['SpliceLayer',
+                        nnet_compoment.SpliceLayer(layer_opt)])
+            elif layer_opt['layer_flag'] == 'NormalizeLayer':
+                if self.PrevLayerIs(layers, 'NormalizeLayer'):
+                    layers[-1].append(nnet_compoment.NormalizeLayer(layer_opt))
+                else:
+                    layers.append(['NormalizeLayer',
+                        nnet_compoment.NormalizeLayer(layer_opt)])
+            elif layer_opt['layer_flag'] == 'ReluLayer':
+                if self.PrevLayerIs(layers, 'ReluLayer'):
+                    layers[-1].append(nnet_compoment.ReluLayer(layer_opt))
+                else:
+                    layers.append(['ReluLayer',
+                        nnet_compoment.ReluLayer(layer_opt)])
+            elif layer_opt['layer_flag'] == 'TdnnLayer':
+                if self.PrevLayerIs(layers, 'TdnnLayer'):
+                    layers[-1].append(nnet_compoment.TdnnLayer(layer_opt))
+                else:
+                    layers.append(['TdnnLayer',
+                        nnet_compoment.TdnnLayer(layer_opt)])
             else:
                 logging.info('No this layer '+ layer_opt['layer_flag'] + '...')
                 assert 'no this layer' and False
@@ -167,6 +191,7 @@ class LstmModel(NnetBase):
 #        for layer in layers:
             layer = layers[n]
             n+=1
+            # add Cnn2d
             if layer[0] == 'Cnn2d':
                 shape = np.shape(input_feats)
                 output_dim = [shape[1], shape[2], shape[3]]
@@ -175,6 +200,7 @@ class LstmModel(NnetBase):
                 output_dim = layer[-1].GetOutputDim()
                 if not self.LayerIs(layers, 'MaxPool2d', n):
                     assert 'Cnn2d next layer it\'s MaxPool2d' and False
+            # add MaxPool2d
             elif layer[0] == 'MaxPool2d':
                 for maxpool in layer[1:]:
                     outputs.append(maxpool(outputs[-1]))
@@ -191,14 +217,34 @@ class LstmModel(NnetBase):
                     else:
                         outputs[-1] = tf.reshape(outputs[-1],
                                 [self.batch_size_cf, -1, output_dim])
+            # add AffineTransformLayer
             elif layer[0] == 'AffineTransformLayer':
                 assert output_dim == layer[1].GetInputDim()
                 for mlp in layer[1:]:
                     outputs.append(mlp(outputs[-1]))
                 output_dim = layer[-1].GetOutputDim()
+            # add SpliceLayer
+            elif layer[0] == 'SpliceLayer':
+                for splice in layer[1:]:
+                    outputs.append(splice(outputs[-1]))
+                output_dim = layer[-1].GetOutputDim()
+            # add sigmoid
             elif layer[0] == 'Sigmoid':
                 for sig in layer[1:]:
                     outputs.append(sig(outputs[-1]))
+            # add ReluLayer
+            elif layer[0] == 'ReluLayer':
+                for relu in layer[1:]:
+                    outputs.append(relu(outputs[-1]))
+            # add NormalizeLayer
+            elif layer[0] == 'NormalizeLayer':
+                for norm in layer[1:]:
+                    outputs.append(norm(outputs[-1]))
+            # add TdnnLayer
+            elif layer[0] == 'TdnnLayer':
+                for tdnn in layer[1:]:
+                    outputs.append(tdnn(outputs[-1]))
+            # add LstmLayer
             elif layer[0] == 'LstmLayer':
                 lstm_layer = []
                 for lstm_nn in layer[1:]:
@@ -263,6 +309,7 @@ class LstmModel(NnetBase):
 
                 outputs.append(rnn_outputs)
                 output_dim = layer[-1].GetOutputDim()
+            # add BLstmLayer
             elif layer[0] == 'BLstmLayer':
                 fw_lstm_layer = []
                 bw_lstm_layer = []
