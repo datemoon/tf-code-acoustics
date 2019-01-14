@@ -68,6 +68,15 @@ def parse_args(args_list):
             default=100,
             help='input data cache' '(int, default = 100)')
 
+    # features parameters
+    parser.add_argument('--tdnn-start-frames', dest='tdnn_start_frames',type=int,
+            default=0,
+            help='tdnn start add frames' '(int, default = 0)')
+    
+    parser.add_argument('--tdnn-end-frames', dest='tdnn_end_frames',type=int,
+            default=0,
+            help='tdnn end add frames' '(int, default = 0)')
+
     parser.add_argument('--max-input-seq-length', dest='max_input_seq_length',type=int,
             default=1500,
             help='allow input max input length' '(int, default = 1500)')

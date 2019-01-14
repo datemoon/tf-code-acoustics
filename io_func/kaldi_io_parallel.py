@@ -147,8 +147,11 @@ class KaldiDataReadParallel(object):
         self.skip_frame = 1
         self.skip_offset = 0
         self.shuffle = False
+        # tdnn parameters
+        self.tdnn_start_frames = 0
+        self.tdnn_end_frames = 0
         
-    def Initialize(self, conf_dict = None, scp_file = None, label = None, feature_transform = None, criterion = 'ce'):
+    def Initialize(self, conf_dict = None, scp_file = None, alabel = None, feature_transform = None, criterion = 'ce'):
         for key in self.__dict__:
             if key in conf_dict.keys():
                 self.__dict__[key] = conf_dict[key]
@@ -282,12 +285,36 @@ class KaldiDataReadParallel(object):
                 return self.CnnLoadNextNstreams()
             else:
                 return self.CnnSliceLoadNextNstreams()
+        elif 'tdnn' in self.criterion:
+            return self.TdnnLoadNextNstreams()
         else:
             if 'whole' in self.criterion or 'ctc' in self.criterion:
                 return self.WholeLoadNextNstreams()
             else:
                 return self.SliceLoadNextNstreams()
-    
+
+    # Tdnn frames features train.
+    def TdnnLoadNextNstreams(self):
+        feat , label , length = self.WholeLoadNextNstreams()
+        if feat is None:
+            return None, None, None
+                    
+        outdim = self.feature_transform.GetOutDim()
+        inputdim = self.feature_transform.GetInDim()
+        head = feat[:1]
+        tail = feat[-1:]
+        # add start frames
+        i = 0
+        while i < self.tdnn_start_frames:
+            feat = numpy.vstack((head, feat), dtype = numpy.float32)
+            i += 1
+        # add end frames
+        i = 0
+        while i < self.tdnn_end_frames:
+            feat = numpy.vstack((feat, tail), dtype = numpy.float32)
+            i += 1
+        return feat , label , length
+
     # Cnn frames features train.
     # slice load
     def CnnSliceLoadNextNstreams(self):

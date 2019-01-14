@@ -161,7 +161,7 @@ def WriteBlstm(fp, fp_out, blstm_para):
     kaldi_output = fw_lstm_proj_dim + bw_lstm_proj_dim
 
     token = '<BlstmProjected> ' + str(kaldi_output) + ' ' + str(kaldi_input) + ' \n'
-    token += '<CellDim> ' + str(kaldi_cell) + ' <LearnRateCoef> 1 <BiasLearnRateCoef> 1 <CellClip> 50 <DiffClip> 1 <CellDiffClip> 0 <GradClip> 5\n'
+    token += '<CellDim> ' + str(kaldi_cell) + ' <LearnRateCoef> 1 <BiasLearnRateCoef> 1 <CellClip> 5 <DiffClip> 1 <CellDiffClip> 0 <GradClip> 5\n'
     fp_out.write(token)
     # read blstm
     blstm_para = ConvertBLstmLayer(fp, blstm_para)
