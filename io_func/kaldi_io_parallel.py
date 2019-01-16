@@ -151,7 +151,7 @@ class KaldiDataReadParallel(object):
         self.tdnn_start_frames = 0
         self.tdnn_end_frames = 0
         
-    def Initialize(self, conf_dict = None, scp_file = None, alabel = None, feature_transform = None, criterion = 'ce'):
+    def Initialize(self, conf_dict = None, scp_file = None, label = None, feature_transform = None, criterion = 'ce'):
         for key in self.__dict__:
             if key in conf_dict.keys():
                 self.__dict__[key] = conf_dict[key]
@@ -306,12 +306,12 @@ class KaldiDataReadParallel(object):
         # add start frames
         i = 0
         while i < self.tdnn_start_frames:
-            feat = numpy.vstack((head, feat), dtype = numpy.float32)
+            feat = numpy.vstack((head, feat))
             i += 1
         # add end frames
         i = 0
         while i < self.tdnn_end_frames:
-            feat = numpy.vstack((feat, tail), dtype = numpy.float32)
+            feat = numpy.vstack((feat, tail))
             i += 1
         return feat , label , length
 

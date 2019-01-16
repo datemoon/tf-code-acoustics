@@ -28,7 +28,7 @@ class NormalizeLayer(object):
         self.scale = pow(self.scale, 1/2)
 
     def __call__(self, input_feats):
-        with tf.name_scope(self.name, "Normalize", input_feats) as name:
+        with tf.name_scope(self.name, "Normalize", [input_feats]) as name:
             #axis = deprecated_argument_lookup("axis", self.axis, "dim", None)
             input_feats = tf.convert_to_tensor(input_feats, dtype=self.dtype, name="input_feats")
             square_sum = tf.reduce_sum(
@@ -223,28 +223,35 @@ class TdnnLayer(object):
 
         self.layers = []
         # SpliceLayer
-        conf_opt['name'] = conf_opt['name'] + 'splice'
+        conf_opt['name'] = self.name + 'splice'
         self.layers.append(SpliceLayer(conf_opt))
         # AffineTransformLayer
-        conf_opt['input_dim'] = self.splicelayer.GetOutputDim()
-        conf_opt['name'] = conf_opt['name'] + 'affine'
+        conf_opt['input_dim'] = str(self.layers[-1].GetOutputDim())
+        conf_opt['name'] = self.name + 'affine'
         self.layers.append(AffineTransformLayer(conf_opt))
         # ReluLayer
-        conf_opt['input_dim'] = self.affinelayer.GetOutputDim()
-        conf_opt['name'] = conf_opt['name'] + 'relu'
+        conf_opt['input_dim'] = str(self.layers[-1].GetOutputDim())
+        conf_opt['name'] = self.name + 'relu'
         self.layers.append(ReluLayer(conf_opt))
         # NormalizeLayer
-        conf_opt['name'] = conf_opt['name'] + 'normalize'
+        conf_opt['name'] = self.name + 'normalize'
         self.layers.append(NormalizeLayer(conf_opt))
 
     def __call__(self, input_feats):
         output = [input_feats]
         for layer in self.layers:
-            output.append(layer(output[-1]))
+            if type(layer) is ReluLayer:
+                tf.nn.relu(output[-1])
+                #layer(output[-1])
+            else:
+                output.append(layer(output[-1]))
         return output[-1]
 
     def GetOutputDim(self):
         return self.output_dim
+
+    def GetInputDim(self):
+        return self.input_dim
 
 class LstmLayer(object):
     '''

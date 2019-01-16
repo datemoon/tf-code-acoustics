@@ -235,7 +235,8 @@ class LstmModel(NnetBase):
             # add ReluLayer
             elif layer[0] == 'ReluLayer':
                 for relu in layer[1:]:
-                    outputs.append(relu(outputs[-1]))
+                    tf.nn.relu(outputs[-1])
+                    #relu(outputs[-1])
             # add NormalizeLayer
             elif layer[0] == 'NormalizeLayer':
                 for norm in layer[1:]:
@@ -243,7 +244,15 @@ class LstmModel(NnetBase):
             # add TdnnLayer
             elif layer[0] == 'TdnnLayer':
                 for tdnn in layer[1:]:
+                    tdnninput_dim = tdnn.GetInputDim()
+                    if self.time_major_cf:
+                        outputs[-1] = tf.reshape(outputs[-1],
+                                [-1, self.batch_size_cf, tdnninput_dim])
+                    else:
+                        outputs[-1] = tf.reshape(outputs[-1],
+                                [self.batch_size_cf, -1, tdnninput_dim])
                     outputs.append(tdnn(outputs[-1]))
+                output_dim = layer[-1].GetOutputDim()
             # add LstmLayer
             elif layer[0] == 'LstmLayer':
                 lstm_layer = []

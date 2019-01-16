@@ -6,7 +6,7 @@ from model.nnet_compoment import *
 
 feat=np.arange(20).reshape(4,5)
 
-norm=NormalizeLayer({})
+norm=NormalizeLayer({'input_dim':'1'})
 sess=tf.Session()
 
 sess.run(norm(feat))

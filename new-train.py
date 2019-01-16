@@ -400,7 +400,7 @@ class TrainClass(object):
         return tmp_label_error_rate
 
     def WholeTrainFunction(self, gpu_id, run_op, thread_name):
-        logging.info('******start TrainFunction******')
+        logging.info('******start WholeTrainFunction******')
         total_acc_error_rate = 0.0
         num_batch = 0
         self.acc_label_error_rate[gpu_id] = 0.0
@@ -429,7 +429,7 @@ class TrainClass(object):
             total_acc_error_rate += calculate_return['label_error_rate']
             self.acc_label_error_rate[gpu_id] += calculate_return['label_error_rate']
             self.num_batch[gpu_id] += 1
-            if self.num_batch[gpu_id] % int(self.steps_per_checkpoint_cf/10) == 0:
+            if self.num_batch[gpu_id] % int(self.steps_per_checkpoint_cf/50) == 0:
                 logging.info("Batch: %d current averagelabel error rate : %f" % (self.num_batch[gpu_id], self.acc_label_error_rate[gpu_id] / self.num_batch[gpu_id]))
         logging.info('******end TrainFunction******')
 
@@ -468,7 +468,7 @@ class TrainClass(object):
                 total_acc_error_rate += calculate_return['label_error_rate']
                 self.acc_label_error_rate[gpu_id] += calculate_return['label_error_rate']
                 self.num_batch[gpu_id] += 1
-                if self.num_batch[gpu_id] % int(self.steps_per_checkpoint_cf/10) == 0:
+                if self.num_batch[gpu_id] % int(self.steps_per_checkpoint_cf/50) == 0:
                     logging.info("Batch: %d current averagelabel error rate : %f" % (self.num_batch[gpu_id], self.acc_label_error_rate[gpu_id] / self.num_batch[gpu_id]))
         logging.info('******end TrainFunction******')
 
