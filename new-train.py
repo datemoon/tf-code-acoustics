@@ -284,6 +284,7 @@ class TrainClass(object):
             if length is None:
                 break
             print(np.shape(feat),np.shape(label), np.shape(length))
+            sys.stdout.flush()
             if 'ctc' in self.criterion_cf:
                 sparse_label = sparse_tuple_from(label)
                 self.input_queue.put((feat,sparse_label,length))
@@ -547,6 +548,10 @@ if __name__ == "__main__":
 
         iter = 0
         err_rate = 1.0
+
+        # every five minutes start one job
+        wait_time = 60 * 5 * task_index
+        time.sleep(wait_time)
         while iter < 15:
             train_start_t = time.time()
             shuffle = False
