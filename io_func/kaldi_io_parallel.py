@@ -28,6 +28,7 @@ import time
 sys.path.append("../")
 from io_func import smart_open, skip_frame
 from feat_process.feature_transform import FeatureTransform
+from io_func.matio import read_next_utt
 
 # read the alignment of all the utterances and keep the alignment in CPU memory.
 def read_alignment(ali_file):
@@ -46,7 +47,7 @@ def read_alignment(ali_file):
     return alignment
 
 # read the feature matrix 
-def read_next_utt(next_scp_line):
+def read_nocompression_next_utt(next_scp_line):
     # this shouldn't happen
     if next_scp_line == '' or next_scp_line == None:    # we are reaching the end of one epoch
         return '', None
@@ -444,7 +445,7 @@ if __name__ == '__main__':
             'do_skip_lab': True,
             'shuffle': False}
     path = '/search/speech/hubo/git/tf-code-acoustics/train-data'
-    feat_trans_file = '/search/speech/hubo/git/tf-code-acoustics/feat_process/transdir/1_final.feature_transform'
+    feat_trans_file = '../conf/final.feature_transform'
     feat_trans = FeatureTransform()
     feat_trans.LoadTransform(feat_trans_file)
 
