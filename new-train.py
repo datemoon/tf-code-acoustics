@@ -402,7 +402,7 @@ class TrainClass(object):
 
     def WholeTrainFunction(self, gpu_id, run_op, thread_name):
         logging.info('******start WholeTrainFunction******')
-        total_acc_error_rate = 0.0
+        total_curr_error_rate = 0.0
         num_batch = 0
         self.acc_label_error_rate[gpu_id] = 0.0
         self.num_batch[gpu_id] = 0
@@ -427,11 +427,13 @@ class TrainClass(object):
             print('mean_loss:',calculate_return['mean_loss'])
 
             num_batch += 1
-            total_acc_error_rate += calculate_return['label_error_rate']
+            total_curr_error_rate += calculate_return['label_error_rate']
             self.acc_label_error_rate[gpu_id] += calculate_return['label_error_rate']
             self.num_batch[gpu_id] += 1
             if self.num_batch[gpu_id] % int(self.steps_per_checkpoint_cf/50) == 0:
-                logging.info("Batch: %d current averagelabel error rate : %f" % (self.num_batch[gpu_id], self.acc_label_error_rate[gpu_id] / self.num_batch[gpu_id]))
+                logging.info("Batch: %d current averagelabel error rate : %f" % (int(self.steps_per_checkpoint_cf/50), total_curr_error_rate / self.num_batch[gpu_id]))
+                total_curr_error_rate = 0.0
+                logging.info("Batch: %d current total averagelabel error rate : %f" % (self.num_batch[gpu_id], self.acc_label_error_rate[gpu_id] / self.num_batch[gpu_id]))
         logging.info('******end TrainFunction******')
 
     def SliceTrainFunction(self, gpu_id, run_op, thread_name):
