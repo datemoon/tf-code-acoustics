@@ -183,8 +183,8 @@ class LstmModel(NnetBase):
         layers = self.CreateModelGraph()
         outputs = [input_feats]
         output_dim = np.shape(input_feats)[-1]
-        rnn_keep_state_op = None
-        rnn_state_zero_op = None
+        rnn_keep_state_op = []
+        rnn_state_zero_op = []
         nlayer = len(layers)
         n = 0
         while n < nlayer:
@@ -256,6 +256,7 @@ class LstmModel(NnetBase):
             # add LstmLayer
             elif layer[0] == 'LstmLayer':
                 lstm_layer = []
+                name = layer[1].Name()
                 for lstm_nn in layer[1:]:
                     lstm_layer.append(lstm_nn())
                 rnn_cells = tf.contrib.rnn.MultiRNNCell(lstm_layer,
@@ -265,7 +266,7 @@ class LstmModel(NnetBase):
                 #        between batches, especially when doing live transcript
                 #        Another way would have been to get the state as an output of the session and feed it every time but
                 #        this way is much more efficient
-                with tf.variable_scope('LstmHidden_state'):
+                with tf.variable_scope('LstmHidden_state' + name):
                     state_variables = []
                     for state_c, state_h in rnn_cells.zero_state(self.batch_size_cf,
                             tf.float32):
@@ -282,17 +283,18 @@ class LstmModel(NnetBase):
                     outputs[-1] = tf.reshape(outputs[-1],
                             [self.batch_size_cf, -1, output_dim])
                 
-                with tf.name_scope("LSTM"):
+                with tf.name_scope("LSTM" + name):
                     rnn_outputs, new_states = tf.nn.dynamic_rnn(cell=rnn_cells,
                             inputs = outputs[-1],
                             sequence_length=seq_len,
                             initial_state=rnn_tuple_state,
                             dtype=tf.float32,
-                            time_major=self.time_major_cf)
+                            time_major=self.time_major_cf,
+                            scope = 'LSTM' + name)
 
-                rnn_keep_state_op = self.KeepLstmHiddenState(rnn_tuple_state, new_states)
+                rnn_keep_state_op.append(self.KeepLstmHiddenState(rnn_tuple_state, new_states))
                 
-                rnn_state_zero_op = self.ResetLstmHiddenState(rnn_tuple_state)
+                rnn_state_zero_op.append(self.ResetLstmHiddenState(rnn_tuple_state))
                 '''# Define an op to keep the hidden state between batches
                 update_ops = []
                 for state_variable, new_state in zip(rnn_tuple_state, new_states):
@@ -322,6 +324,7 @@ class LstmModel(NnetBase):
             elif layer[0] == 'BLstmLayer':
                 fw_lstm_layer = []
                 bw_lstm_layer = []
+                name = layer[1].Name()
                 for blstm_l in layer[1:]:
                     blstm_nn = blstm_l()
                     fw_lstm_layer.append(blstm_nn[0])
@@ -336,23 +339,23 @@ class LstmModel(NnetBase):
                 #        between batches, especially when doing live transcript
                 #        Another way would have been to get the state as an output of the session and feed it every time but
                 #        this way is much more efficient
-                with tf.variable_scope('Blstm_FwHidden_state'):
+                with tf.variable_scope('Blstm_FwHidden_state' + name):
                     state_variables = []
                     for f_lstm in fw_lstm_layer:
                         state_c, state_h = f_lstm.zero_state(self.batch_size_cf, tf.float32)
                         state_variables.append(tf.contrib.rnn.LSTMStateTuple(
-                            tf.Variable(state_c, trainable=False),
-                            tf.Variable(state_h, trainable=False)))
+                            tf.Variable(state_c, name=name, trainable=False),
+                            tf.Variable(state_h, name=name, trainable=False)))
                     fw_rnn_tuple_state = state_variables
                     #fw_rnn_tuple_state = tuple(state_variables)
 
-                with tf.variable_scope('Blstm_BwHidden_state'):
+                with tf.variable_scope('Blstm_BwHidden_state' + name):
                     state_variables = []
                     for b_lstm in bw_lstm_layer:
                         state_c, state_h = b_lstm.zero_state(self.batch_size_cf, tf.float32)
                         state_variables.append(tf.contrib.rnn.LSTMStateTuple(
-                            tf.Variable(state_c, trainable=False),
-                            tf.Variable(state_h, trainable=False)))
+                            tf.Variable(state_c, name = name, trainable=False),
+                            tf.Variable(state_h, name = name, trainable=False)))
                     bw_rnn_tuple_state = state_variables
                     #bw_rnn_tuple_state = tuple(state_variables)
 
@@ -365,7 +368,7 @@ class LstmModel(NnetBase):
                     outputs[-1] = tf.reshape(outputs[-1],
                             [self.batch_size_cf, -1, output_dim])
 
-                with tf.name_scope("BLSTM"):
+                with tf.name_scope("BLSTM" + name):
                     brnn_outputs, output_states_fw, output_states_bw = tf.contrib.rnn.stack_bidirectional_dynamic_rnn(
                             cells_fw = fw_lstm_layer,
                             cells_bw = bw_lstm_layer,
@@ -376,15 +379,15 @@ class LstmModel(NnetBase):
                             sequence_length = seq_len,
                             parallel_iterations = None,
                             time_major = self.time_major_cf,
-                            scope = None)
+                            scope = 'stack_bidirectional_rnn' + name)
 
                 fw_rnn_keep_state_op = self.KeepLstmHiddenState(fw_rnn_tuple_state, output_states_fw)
                 bw_rnn_keep_state_op = self.KeepLstmHiddenState(bw_rnn_tuple_state, output_states_bw)
                 
                 fw_rnn_state_zero_op = self.ResetLstmHiddenState(fw_rnn_tuple_state)
                 bw_rnn_state_zero_op = self.ResetLstmHiddenState(bw_rnn_tuple_state)
-                rnn_keep_state_op = (fw_rnn_keep_state_op, bw_rnn_keep_state_op) 
-                rnn_state_zero_op = (fw_rnn_state_zero_op, bw_rnn_state_zero_op)
+                rnn_keep_state_op.append((fw_rnn_keep_state_op, bw_rnn_keep_state_op))
+                rnn_state_zero_op.append((fw_rnn_state_zero_op, bw_rnn_state_zero_op))
                 if not self.time_major_cf:
                     brnn_outputs = tf.transpose(brnn_outputs, [1, 0, 2]) # [time, batch_size, cell_outdim]
 
