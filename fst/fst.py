@@ -1,4 +1,5 @@
 from __future__ import unicode_literals
+from __future__ import print_function
 import numpy as np
 import struct
 import sys
@@ -65,6 +66,9 @@ class FstHeader(object):
         self._numarcs = numarcs
 
     def Read(self, fp):
+        magicnumber = struct.unpack(str('<i'), fp.read(4))[0]
+        assert 2125659606 == magicnumber
+        
         length = struct.unpack(str('<i'), fp.read(4))[0]
         self._fsttype = fp.read(length)
 
@@ -81,21 +85,37 @@ class FstHeader(object):
     def Write(self, fp):
         pass
 
+    def __repr__(self):
+        pri = 'fstheader parameters:\n'
+        for key in self.__dict__:
+            pri += key + ':\t' + str(self.__dict__[key]) +'\n'
+        return pri
+
 class Arc(object):
-    def __init__(self, weight, ilabel = -1, olabel = -1, n = -1):
+    def __init__(self, weight = Weight, ilabel = -1, olabel = -1, n = -1):
         self._ilabel = ilabel
         self._olabel = olabel
-        self._weight = weight
+        self._weight = weight()
         self._nextstate = n
 
+    def __repr__(self):
+        pri = str(self._nextstate) + '\t' 
+        pri += str(self._ilabel) + '\t'
+        pri += str(self._olabel) + '\t'
+        pri += self._weight.__repr__()
+        return pri
+
 class State(object):
-    def __init__(self):
+    '''
+    weight: it's class
+    '''
+    def __init__(self, weight = Weight):
         # list
         self._arcs = []
-        self._final = float('inf')
+        self._final = weight()
 
-    def Read(self, fp, weight):
-        self._final = weight.Read(fp)
+    def Read(self, fp, weight = Weight):
+        self._final.Read(fp)
         #self._final = struct.unpack(str('<f'), fp.read(4))[0]
         arcs_num = struct.unpack(str('<q'), fp.read(8))[0] # int64
         n = 0
@@ -113,6 +133,18 @@ class State(object):
     def GetArcs(self):
         return self._arcs
 
+    def IsFinal(self):
+        if self._final.IsZero():
+            return False
+        else:
+            return True
+
+    def AddArc(self, arc):
+        self._arcs.append(arc)
+
+    def SetFinal(self, weight):
+        self._final = weight
+
 class Fst(object):
     def __init__(self):
         # list
@@ -123,28 +155,10 @@ class Fst(object):
         pass
 
     def Read(self, fp):
-        magicnumber = struct.unpack(str('<i'), fp.read(4))[0]
-        assert 2125659606 == magicnumber
-
         self._fstheader.Read(fp)
-
-#        length = struct.unpack(str('<i'), fp.read(4))[0]
-#        fsttype = fp.read(length)
-
-#        length = struct.unpack(str('<i'), fp.read(4))[0]
-#        arctype = fp.read(length)
-
-#        version = struct.unpack(str('<i'), fp.read(4))[0]
-#        flags = struct.unpack(str('<i'), fp.read(4))[0]
-#        properties = struct.unpack(str('<Q'), fp.read(8))[0]
-#        start = struct.unpack(str('<q'), fp.read(8))[0]
-#        numstates = struct.unpack(str('<q'), fp.read(8))[0]
-#        numarcs = struct.unpack(str('<q'), fp.read(8))[0]
-
         nstate = 0
         while nstate < self._fstheader.NumStates():
-            weight = Weight()
-            self._states.append(State().Read(fp, weight))
+            self._states.append(State(Weight).Read(fp, weight))
             nstate += 1
 
     def Write(self, fp = None):
@@ -152,7 +166,11 @@ class Fst(object):
             nstate = 0
             for state in self._states:
                 for arc in state.GetArcs():
-                    print('%d %d %d %d %f' % (nstate, arc._nextstate, arc._ilabel,arc._olabel, arc._weight.Value()))
+                    print('%d %d %d %d ' % (nstate, arc._nextstate, arc._ilabel,arc._olabel), end = '')
+                    print(arc._weight)
+                if state.IsFinal():
+                    print('%d\t' % (nstate), end = '')
+                    print(state._final)
                 nstate += 1
                 
 if __name__ == "__main__":
