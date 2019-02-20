@@ -4,7 +4,7 @@ import array
 import math
 from fst_math import *
 
-def LatticeStateTimes(lat, times):
+def LatticeStateTimes(lat):
     # top sort lat
     # check top sort
     num_states = lat.NumStates()
@@ -28,7 +28,7 @@ def LatticeStateTimes(lat, times):
                     assert times[arc._nextstate] == cur_time
         # end this state
 
-    return max_time
+    return max_time, times
 
 
 def LatticeForwardBackward(lat):
@@ -37,8 +37,7 @@ def LatticeForwardBackward(lat):
     assert lat.Start() == 0
 
     num_states = lat.NumStates()
-    state_times = []
-    max_time = LatticeStateTimes(lat, state_times)
+    max_time, state_times= LatticeStateTimes(lat)
     post = [ {} for x in range(max_time) ]
 
     alpha = array.array('d',[ kLogZero for x in range(num_states) ])
@@ -72,7 +71,7 @@ def LatticeForwardBackward(lat):
             if arc._ilabel != 0 or acoustic_like_sum is not None:
                 posterior = math.exp(alpha[s] + arc_beta - tot_forward_prob)
                 if arc._ilabel != 0: # Arc has a transition-id on it [not epsilon]
-                    pdf = arc._ilabel - 1
+                    pdf = arc._ilabel
                     try:
                         post[state_times[s]][pdf] += posterior
                     except KeyError:
@@ -95,4 +94,16 @@ def LatticeForwardBackward(lat):
     #for t in range(max_time):
         
     return tot_backward_prob, acoustic_like_sum, post
+
+def ScaleLattice(lat, lm_scale, acoustic_scale):
+    # weight is LatticeWeightFloat
+    for state in lat._states:
+        for arc in state.GetArcs():
+            arc._weight._value1 *= lm_scale
+            arc._weight._value2 *= acoustic_scale
+        if state.IsFinal():
+            state._final._value1 *= lm_scale
+            state._final._value2 *= acoustic_scale
+
+
 

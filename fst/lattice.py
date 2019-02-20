@@ -3,11 +3,12 @@ import numpy as np
 import struct
 import sys
 from fst import *
-
+from topsort import TopSort
 
 sys.path.append("../")
 from io_func import smart_open
 from io_func.matio import read_token
+from lattice_functions import *
 
 class Lattice(FstHeader, object):
     def __init__(self):
@@ -69,6 +70,12 @@ class Lattice(FstHeader, object):
         assert s < len(self._states)
         return self._states[s]
 
+    def GetArcs(self, s):
+        return self._states[s].GetArcs()
+
+    def SetState(self, s, state):
+        self._states[s] = state
+
 def ConvertLattice(compactlat):
     '''
     convert compact lattice to fst lattice
@@ -84,7 +91,8 @@ def ConvertLattice(compactlat):
         s += 1
 
     lat.SetStart(compactlat.Start())
-
+    
+    tot_arc = 0
     s = 0
     while s < num_states:
         compact_final = compactlat.Final(s)
@@ -103,6 +111,7 @@ def ConvertLattice(compactlat):
                 else:
                     arc._weight = compact_final._weight.One()
                 lat.AddArc(cur_state, arc)
+                tot_arc += 1
                 cur_state = next_state
                 n += 1
             # add final
@@ -130,6 +139,7 @@ def ConvertLattice(compactlat):
                     new_arc._weight = arc._weight._weight.One()
                     new_arc._olabel = 0
                 lat.AddArc(cur_state, new_arc)
+                tot_arc += 1
                 cur_state = next_state
                 n += 1
             new_arc = Arc(lat._wclass)
@@ -145,7 +155,11 @@ def ConvertLattice(compactlat):
                 new_arc._weight = arc._weight._weight.One()
             new_arc._nextstate = arc._nextstate
             lat.AddArc(cur_state, new_arc)
+            tot_arc += 1
         s += 1
+    lat.SetNumStates(len(lat._states))
+    lat.SetNumArcs(tot_arc)
+    lat.SetStart(0)
     return lat
 
 
@@ -161,5 +175,9 @@ if __name__ == "__main__":
         lattice.Write()
         lat = ConvertLattice(lattice)
         lat.Write()
-        break
+        TopSort(lat)
+        lat.Write()
+        ScaleLattice(lat, 1.0, 0.083)
+        tot_backward_prob, acoustic_like_sum, post = LatticeForwardBackward(lat)
+        #break
     fp.close()

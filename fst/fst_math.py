@@ -2,13 +2,13 @@
 
 import math
 
-kLogZero = -math.inf
+kLogZero = -float('inf')
 FLT_EPSILON = 1.19209290e-7
 kMinLogDiffFloat = math.log(1.19209290e-7)
 
 def Log1p(x):
     cutoff = 1.0e-08
-    if (x < cutoff)
+    if x < cutoff:
         return x - 0.5 * x * x
     else:
         return Log(1.0 + x)

@@ -30,17 +30,16 @@ class DfsState(object):
 def DfsVisit(fst, visitor, arcfilter = AnyArcFilter, access_only = False):
     start = fst.Start()
     if start == kNoStateId:
-        visitor->FinishVisit()
+        visitor.FinishVisit()
         return
     
     # An FST state's DFS status
-    kDfsWhite = 0  // Undiscovered.
-    kDfsGrey = 1   // Discovered but unfinished.
-    kDfsBlack = 2  // Finished.
+    kDfsWhite = 0  # Undiscovered.
+    kDfsGrey = 1   # Discovered but unfinished.
+    kDfsBlack = 2  # Finished.
 
     state_color = array.array('B',[])
     state_stack = list() # DFS execution stack.
-    state_pool = list()  # Pool for DFSStates.
 
     nstates = start + 1  # Number of known states in general case.
     expanded = False
@@ -52,7 +51,7 @@ def DfsVisit(fst, visitor, arcfilter = AnyArcFilter, access_only = False):
     
     dfs = True
     root = start
-    while dfs && root < nstates:
+    while dfs and root < nstates:
         state_color[root] = kDfsGrey
         state_stack.append(DfsState(fst, root))
         dfs = visitor.InitState(root, root)
@@ -88,14 +87,13 @@ def DfsVisit(fst, visitor, arcfilter = AnyArcFilter, access_only = False):
             next_color = state_color[arc._nextstate]
             if next_color == kDfsWhite:
                 dfs = visitor.TreeArc(s, arc)
-                if dfs is False:
-                    break
-                state_color[arc._nextstate] = kDfsGrey
-                state_stack.append(DfsState(fst, arc._nextstate))
-                dfs = visitor->InitState(arc._nextstate, root)
+                if dfs is True:
+                    state_color[arc._nextstate] = kDfsGrey
+                    state_stack.append(DfsState(fst, arc._nextstate))
+                    dfs = visitor.InitState(arc._nextstate, root)
 
             elif next_color == kDfsGrey:
-                dfs = visitor->BackArc(s, arc)
+                dfs = visitor.BackArc(s, arc)
                 dfs_state.Next()
 
             elif next_color == kDfsBlack:

@@ -5,6 +5,8 @@ import struct
 import sys
 from weight import *
 
+kNoStateId = -1
+
 class FstHeader(object):
     def __init__(self):
         self._fsttype = ''    # E.g. "vector".
