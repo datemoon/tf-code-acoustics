@@ -5,76 +5,80 @@ import sys
 from fst import *
 from topsort import TopSort
 
+from lattice_functions import *
+from convert_lattice_to_sparsematrix import *
 sys.path.append("../")
 from io_func import smart_open
 from io_func.matio import read_token
-from lattice_functions import *
 
-class Lattice(FstHeader, object):
-    def __init__(self):
-        self._states = []
-        self._wclass = LatticeWeightFloat
-    
-    def Read(self, fp):
-        FstHeader.Read(self, fp)
-        if self.ArcType() == 'compactlattice44':
-            self._wclass = CompactLatticeWeightFloat
-        elif self.ArcType() == 'lattice4':
-            self._wclass = LatticeWeightFloat
-            pass
-        nstate = 0
-        while nstate < self.NumStates():
-            self._states.append(State(self._wclass).Read(fp, self._wclass))
-            nstate += 1
+Lattice = Fst
 
-    def Write(self, fp = None):
-        if fp is None:
-            nstate = 0
-            for state in self._states:
-                arcs = state.GetArcs()
-                for arc in arcs:
-                    if self.ArcType() == 'compactlattice44':
-                        print('%d\t%d\t%d\t' % (nstate, arc._nextstate, arc._olabel), end='')
-                    elif self.ArcType() == 'lattice4':
-                        print('%d\t%d\t%d\t%d\t' % (nstate, arc._nextstate, arc._ilabel, arc._olabel), end='')
-                    print(arc._weight, end = '\n')
-                if state.IsFinal():
-                    print('%d\t' % (nstate), end = '')
-                    print(state._final, end ='\n')
-                nstate += 1
+#class Lattice(FstHeader, object):
+#    def __init__(self):
+#        self._states = []
+#        self._wclass = LatticeWeightFloat
+#    
+#    def Read(self, fp):
+#        FstHeader.Read(self, fp)
+#        if self.ArcType() == 'compactlattice44':
+#            self._wclass = CompactLatticeWeightFloat
+#        elif self.ArcType() == 'lattice4':
+#            self._wclass = LatticeWeightFloat
+#        
+#        nstate = 0
+#        while nstate < self.NumStates():
+#            self._states.append(State(self._wclass).Read(fp, self._wclass))
+#            nstate += 1
+#
+#    def Write(self, fp = None):
+#        if fp is None:
+#            nstate = 0
+#            for state in self._states:
+#                arcs = state.GetArcs()
+#                for arc in arcs:
+#                    if self.ArcType() == 'compactlattice44':
+#                        print('%d\t%d\t%d\t' % (nstate, arc._nextstate, arc._olabel), end='')
+#                    elif self.ArcType() == 'lattice4':
+#                        print('%d\t%d\t%d\t%d\t' % (nstate, arc._nextstate, arc._ilabel, arc._olabel), end='')
+#                    print(arc._weight, end = '\n')
+#                if state.IsFinal():
+#                    print('%d\t' % (nstate), end = '')
+#                    print(state._final, end ='\n')
+#                nstate += 1
+#
+#    def SetArcType(self, arctype):
+#        FstHeader.SetArcType(self, arctype)
+#        if self.ArcType() == 'lattice4':
+#            self._wclass = LatticeWeightFloat
+#        elif self.ArcType() == 'compactlattice44':
+#            self._wclass = CompactLatticeWeightFloat
+#
+#    def AddState(self):
+#        self._states.append(State(self._wclass))
+#        return len(self._states) - 1
+#
+#    def AddArc(self, s, arc):
+#        assert s < len(self._states)
+#        self._states[s].AddArc(arc)
+#
+#    def Final(self, s):
+#        assert s < len(self._states)
+#        return self._states[s]._final
+#
+#    def SetFinal(self, s, weight):
+#        assert s < len(self._states)
+#        self._states[s].SetFinal(weight)
+#
+#    def GetState(self, s):
+#        assert s < len(self._states)
+#        return self._states[s]
+#
+#    def GetArcs(self, s):
+#        return self._states[s].GetArcs()
+#
+#    def SetState(self, s, state):
+#        self._states[s] = state
 
-    def SetArcType(self, arctype):
-        FstHeader.SetArcType(self, arctype)
-        if self.ArcType() == 'lattice4':
-            self._wclass = LatticeWeightFloat
-        elif self.ArcType() == 'compactlattice44':
-            self._wclass = CompactLatticeWeightFloat
-
-    def AddState(self):
-        self._states.append(State(self._wclass))
-        return len(self._states) - 1
-
-    def AddArc(self, s, arc):
-        assert s < len(self._states)
-        self._states[s].AddArc(arc)
-
-    def Final(self, s):
-        assert s < len(self._states)
-        return self._states[s]._final
-
-    def SetFinal(self, s, weight):
-        assert s < len(self._states)
-        self._states[s].SetFinal(weight)
-
-    def GetState(self, s):
-        assert s < len(self._states)
-        return self._states[s]
-
-    def GetArcs(self, s):
-        return self._states[s].GetArcs()
-
-    def SetState(self, s, state):
-        self._states[s] = state
 
 def ConvertLattice(compactlat):
     '''
@@ -176,6 +180,8 @@ if __name__ == "__main__":
         lat = ConvertLattice(lattice)
         lat.Write()
         TopSort(lat)
+
+        indexs_info, pdf_values , lmweight_values, amweight_values, statesinfo, shape = ConvertLatticeToSparseMatrix(lat)
         lat.Write()
         ScaleLattice(lat, 1.0, 0.083)
         tot_backward_prob, acoustic_like_sum, post = LatticeForwardBackward(lat)

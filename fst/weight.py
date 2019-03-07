@@ -13,6 +13,10 @@ class LatticeWeightFloat(object):
     def Value(self):
         return self._value1 + self._value2
 
+    def SetValue(value1, value2):
+        self._value1 = value1
+        self._value2 = value2
+
     def __repr__(self):
         pri = str(self._value1) + ',' + str(self._value2)
         return pri
@@ -39,6 +43,9 @@ class Weight(object):
 
     def Value(self):
         return self._value
+    
+    def SetValue(value):
+        self._value = value
     
     def IsZero(self):
         if self.Value() == float('inf'):
@@ -73,6 +80,9 @@ class CompactLatticeWeightFloat(object):
 
     def Value(self):
         return self._weight.Value()
+
+    def SetValue(value1, value2):
+        self._weight.SetValue(value1, value2)
     
     def IsZero(self):
         if self.Value() == float('inf'):
