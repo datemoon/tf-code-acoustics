@@ -327,4 +327,4 @@ template<class I> void Factorize(I m, std::vector<I> *factors) {
 inline double Hypot(double x, double y) {  return hypot(x, y); }
 inline float Hypot(float x, float y) {  return hypotf(x, y); }
 
-#endif  // KALDI_BASE_KALDI_MATH_H_
+#endif  // _BASE_MATH_H_

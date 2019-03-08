@@ -107,6 +107,7 @@ BaseFloat LatticeForwardBackward(Lattice &lat,
 				if (acoustic_like_sum != NULL)
 					*acoustic_like_sum -= posterior * arc._am_weight;
 			}
+			n++;
 		}
 		if (acoustic_like_sum != NULL && lat.IsFinal(s) == true)
 		{
@@ -124,4 +125,71 @@ BaseFloat LatticeForwardBackward(Lattice &lat,
 	   	   << std::endl;
 	}
 	return tot_backward_prob;
+}
+
+int32 LatticeStateTimes(const Lattice &lat, std::vector<int32> *times)
+{
+	int32 num_states = lat.NumStates();
+	times->clear();
+	times->resize(num_states, -1);
+	(*times)[0] = 0;
+	int32 max_times = -1;
+	for (int32 s = 0; s < num_states; s++)
+	{
+		int32 cur_time = (*times)[state];
+		if(cur_time > max_times)
+			max_times = cur_time;
+		int32 n = 0;
+		Arc arc;
+		while(lat.GetArc(s, n, &arc) == true)
+		{
+			if(arc._pdf != 0)
+			{ // Non-epsilon input label on arc
+				if ((*times)[arc._nextstate] == -1) 
+				{
+					(*times)[arc._nextstate] = cur_time + 1;
+				}
+				else
+				{
+					assert((*times)[arc._nextstate] == cur_time + 1);
+				}
+			}
+			else
+			{
+				if ((*times)[arc._nextstate] == -1) 
+				{
+					(*times)[arc._nextstate] = cur_time ;
+				}
+				else
+				{
+					assert((*times)[arc._nextstate] == cur_time );
+				}
+			}
+			n++;
+		}
+	}
+	return max_times;
+}
+
+void LatticeAcousticRescore(const Matrix &log_like,
+		const std::vector<int32> &state_times,
+		Lattice &lat)
+{
+	int32 num_states = lat.NumStates();
+	for (int32 s = 0; s < num_states; s++)
+	{
+		int32 n = 0;
+		Arc arc;
+		while(lat.GetArc(s, n, &arc) == true)
+		{
+			if(arc._pdf != 0)
+			{
+				int32 t = state_times[s];
+				int32 pdf = arc._pdf - 1;
+				arc._am_weight -= log_like(t, pdf);
+				lat.SetArcAmValue(s, n, arc._am_weight);
+				n++;
+			}
+		}
+	}
 }

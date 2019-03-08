@@ -52,6 +52,13 @@ public:
 		return _num_states;
 	}
 
+	void SetArcAmValue(StateId s, int32 arcid, BaseFloat am_value)
+	{
+		int32 offset = statesinfo[s*2];
+		assert(indexs[offset*2] == s);
+		_am_ws[offset] = am_value;
+	}
+
 	bool GetArc(StateId s, int32 arcid, Arc *arc)
 	{
 		if(arcid >= GetStateArcNums(s))
@@ -89,6 +96,7 @@ public:
 		else
 			return -kLogZeroFloat;
 	}
+
 private:
 	BaseFloat *_indexs; // fst cur_state and next_state
 	int32 *_pdf_values; // map [cur_state, next_state]
@@ -97,5 +105,12 @@ private:
 	int32* _statesinfo; // save every state save arcs number [ state_startoffset, number_arc
 	int32 num_states;   // state number
 };
+
+/// This function iterates over the states of a topologically sorted lattice and
+/// counts the time instance corresponding to each state. The times are returned
+/// in a vector of integers 'times' which is resized to have a size equal to the
+/// number of states in the lattice. The function also returns the maximum time
+/// in the lattice (this will equal the number of frames in the file).
+int32 LatticeStateTimes(const Lattice &lat, std::vector<int32> *times);
 
 #endif
