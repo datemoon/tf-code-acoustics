@@ -2,6 +2,8 @@
 #include "lattice-function.h"
 #include "base-math.h"
 
+namespace hubo {
+
 using namespace std;
 
 typedef float BaseFloat;
@@ -193,3 +195,7 @@ void LatticeAcousticRescore(const Matrix &log_like,
 		}
 	}
 }
+
+
+
+} // namespace hubo

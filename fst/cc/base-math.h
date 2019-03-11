@@ -50,9 +50,7 @@
 #define KALDI_ISINF std::isinf
 #define KALDI_ISFINITE(x) std::isfinite(x)
 
-#if !defined(KALDI_SQR)
-# define KALDI_SQR(x) ((x) * (x))
-#endif
+namespace hubo {
 
 
 #if !defined(_MSC_VER) || (_MSC_VER >= 1900)
@@ -149,7 +147,7 @@ void RandGauss2(double *a, double *b, RandomState *state = NULL);
 template<class Float>
 inline Float RandPrune(Float post, BaseFloat prune_thresh,
                        struct RandomState* state = NULL) {
-  KALDI_ASSERT(prune_thresh >= 0.0);
+  assert(prune_thresh >= 0.0);
   if (post == 0.0 || std::abs(post) >= prune_thresh)
     return post;
   return (post >= 0 ? 1.0 : -1.0) *
@@ -249,7 +247,7 @@ static inline bool ApproxEqual(float a, float b,
 static inline void AssertEqual(float a, float b,
                                float relative_tolerance = 0.001) {
   // a==b handles infinities.
-  KALDI_ASSERT(ApproxEqual(a, b, relative_tolerance));
+  assert(ApproxEqual(a, b, relative_tolerance));
 }
 
 
@@ -258,7 +256,7 @@ int32 RoundUpToNearestPowerOfTwo(int32 n);
 
 /// Returns a / b, rounding towards negative infinity in all cases.
 static inline int32 DivideRoundingDown(int32 a, int32 b) {
-  KALDI_ASSERT(b != 0);
+  assert(b != 0);
   if (a * b >= 0)
     return a / b;
   else if (a < 0)
@@ -277,7 +275,7 @@ template<class I> I  Gcd(I m, I n) {
   }
   // could use compile-time assertion
   // but involves messing with complex template stuff.
-  KALDI_ASSERT(std::numeric_limits<I>::is_integer);
+  assert(std::numeric_limits<I>::is_integer);
   while (1) {
     m %= n;
     if (m == 0) return (n > 0 ? n : -n);
@@ -289,7 +287,7 @@ template<class I> I  Gcd(I m, I n) {
 /// Returns the least common multiple of two integers.  Will
 /// crash unless the inputs are positive.
 template<class I> I  Lcm(I m, I n) {
-  KALDI_ASSERT(m > 0 && n > 0);
+  assert(m > 0 && n > 0);
   I gcd = Gcd(m, n);
   return gcd * (m/gcd) * (n/gcd);
 }
@@ -301,8 +299,8 @@ template<class I> void Factorize(I m, std::vector<I> *factors) {
   // algorithm, which is mainly intended for use in the
   // mixed-radix FFT computation (where we assume most factors
   // are small).
-  KALDI_ASSERT(factors != NULL);
-  KALDI_ASSERT(m >= 1);  // Doesn't work for zero or negative numbers.
+  assert(factors != NULL);
+  assert(m >= 1);  // Doesn't work for zero or negative numbers.
   factors->clear();
   I small_factors[10] = { 2, 3, 5, 7, 11, 13, 17, 19, 23, 29 };
 
@@ -327,4 +325,5 @@ template<class I> void Factorize(I m, std::vector<I> *factors) {
 inline double Hypot(double x, double y) {  return hypot(x, y); }
 inline float Hypot(float x, float y) {  return hypotf(x, y); }
 
+} // namespace hubo
 #endif  // _BASE_MATH_H_

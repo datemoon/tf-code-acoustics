@@ -1,9 +1,11 @@
-#ifndef __LATTICE_FUNCTION_H__
-#define __LATTICE_FUNCTION_H__
+#ifndef __SPARSE_LATTICE_FUNCTION_H__
+#define __SPARSE_LATTICE_FUNCTION_H__
 #include <vector>
 #include <limits>
 #include <cassert>
 
+
+namespace hubo {
 
 typedef float BaseFloat;
 typedef int int32;
@@ -106,11 +108,12 @@ private:
 	int32 num_states;   // state number
 };
 
-/// This function iterates over the states of a topologically sorted lattice and
+/// This function iterates over the states of a topologically sorted Sparse lattice and
 /// counts the time instance corresponding to each state. The times are returned
 /// in a vector of integers 'times' which is resized to have a size equal to the
-/// number of states in the lattice. The function also returns the maximum time
-/// in the lattice (this will equal the number of frames in the file).
+/// number of states in the Sparse lattice. The function also returns the maximum time
+/// in the Sparse lattice (this will equal the number of frames in the file).
 int32 LatticeStateTimes(const Lattice &lat, std::vector<int32> *times);
 
+} // namespace hubo
 #endif
