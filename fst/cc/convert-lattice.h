@@ -12,13 +12,13 @@
 namespace kaldi
 {
 bool MallocSparseLattice(int num_states, int num_arcs,
-		BaseFloat **indexs,
+		int32 **indexs,
 		int32 **pdf_values,
 		BaseFloat **lm_ws,
 		BaseFloat **am_ws,
 		int32 **stateinfo)
 {
-	*indexs = (BaseFloat *)malloc(num_arcs * 2 * sizeof(BaseFloat));
+	*indexs = (int32 *)malloc(num_arcs * 2 * sizeof(int32));
 	*pdf_values = (int32 *)malloc(num_arcs * sizeof(int32));
 
 	*lm_ws = (BaseFloat *)malloc(num_arcs  * sizeof(BaseFloat));
@@ -32,7 +32,7 @@ bool MallocSparseLattice(int num_states, int num_arcs,
  * return : number states
  **/
 int ConvertKaldiLatticeToSparseLattice(Lattice &inlat, 
-		BaseFloat **indexs,
+		int32 **indexs,
 		int32 **pdf_values,
 		BaseFloat **lm_ws,
 		BaseFloat **am_ws,

@@ -3,14 +3,15 @@
 #include <vector>
 #include <limits>
 #include <cassert>
-
+#include <sys/types.h>
+#include <stdio.h>
+#include "base-math.h"
+#include "matrix.h"
 
 namespace hubo {
 
-typedef float BaseFloat;
-typedef int int32;
 typedef int StateId;
-const double kLogZeroDouble = -std::numeric_limits<double>::infinity();
+//const double kLogZeroDouble = -std::numeric_limits<double>::infinity();
 
 struct Arc
 {
@@ -19,6 +20,7 @@ struct Arc
 	BaseFloat _lm_weight;
 	BaseFloat _am_weight;
 	
+	Arc() { }
 	Arc(int32 pdf, StateId nextstate, BaseFloat lm_weight, BaseFloat am_weight):
 		_pdf(pdf), _nextstate(nextstate), 
 		_lm_weight(lm_weight), _am_weight(am_weight) { }
@@ -40,14 +42,22 @@ struct Arc
 class Lattice
 {
 public:
-	Lattice(BaseFloat *indexs,int32 *pdf_values,
+	Lattice(int32 *indexs,int32 *pdf_values,
 			BaseFloat* lm_ws, BaseFloat* am_ws, int32* statesinfo, 
 			int32 num_states):
 		_indexs(indexs), _pdf_values(pdf_values),_lm_ws(lm_ws), 
 		_am_ws(am_ws), _statesinfo(statesinfo), _num_states(num_states){ }
 	Lattice():
 		_indexs(NULL), _pdf_values(NULL),_lm_ws(NULL),
-		_am_ws(NULL), _statesinfo(NULL), _num_states(NULL){ }
+		_am_ws(NULL), _statesinfo(NULL), _num_states(0){ }
+//	{
+//		_indexs = NULL;
+//		_pdf_values = NULL;
+//	   	_lm_ws = NULL;
+//		_am_ws = NULL;
+//		_statesinfo = NULL; 
+//		_num_states = NULL;
+//	}
 
 	StateId NumStates()
 	{
@@ -56,8 +66,8 @@ public:
 
 	void SetArcAmValue(StateId s, int32 arcid, BaseFloat am_value)
 	{
-		int32 offset = statesinfo[s*2];
-		assert(indexs[offset*2] == s);
+		int32 offset = _statesinfo[s*2];
+		assert(_indexs[offset*2] == s);
 		_am_ws[offset] = am_value;
 	}
 
@@ -67,12 +77,12 @@ public:
 			return false;
 		else
 		{
-			int32 offset = statesinfo[s*2];
-			assert(indexs[offset*2] == s)
-			StateId nextstate = indexs[offset*2+1];
+			int32 offset = _statesinfo[s*2] + arcid;
+			assert(_indexs[offset*2] == s);
+			StateId nextstate = _indexs[offset*2+1];
 			BaseFloat lm_weight = _lm_ws[offset];
 			BaseFloat am_weight = _am_ws[offset];
-			int32 pdf = _pdf_values[offset]
+			int32 pdf = _pdf_values[offset];
 			arc->SetArc(pdf, nextstate, lm_weight, am_weight);
 			return true;
 		}
@@ -80,7 +90,7 @@ public:
 	
 	int32 GetStateArcNums(StateId s)
 	{
-		return statesinfo[s*2+1];
+		return _statesinfo[s*2+1];
 	}
 
 	bool IsFinal(StateId s)
@@ -99,13 +109,37 @@ public:
 			return -kLogZeroFloat;
 	}
 
+	void Print()
+	{
+		for(int s=0;s<_num_states;++s)
+		{
+			int32 n = 0;
+			Arc arc;
+			while(GetArc(s, n, &arc) == true)
+			{
+				// instate tostate ilabel olabel lm_ws am_ws
+				printf("%d %d %d %f,%f\n",
+						s, arc._nextstate,
+						arc._pdf, arc._lm_weight, arc._am_weight);
+				n++;
+			}
+			/*int offset = _statesinfo[s*2];
+			for(int n = offset ; n < offset+_statesinfo[s*2+1]; ++n)
+			{
+				// instate tostate ilabel olabel lm_ws am_ws
+				printf("%d %d %d %f,%f\n",
+						_indexs[2*n], _indexs[2*n+1],
+						_pdf_values[n], _lm_ws[n], _am_ws[n]);
+			}*/
+		}
+	}
 private:
-	BaseFloat *_indexs; // fst cur_state and next_state
+	int32 *_indexs; // fst cur_state and next_state
 	int32 *_pdf_values; // map [cur_state, next_state]
 	BaseFloat* _lm_ws;  // map [cur_state, next_state]
 	BaseFloat* _am_ws;  // map [cur_state, next_state]
 	int32* _statesinfo; // save every state save arcs number [ state_startoffset, number_arc
-	int32 num_states;   // state number
+	int32 _num_states;   // state number
 };
 
 /// This function iterates over the states of a topologically sorted Sparse lattice and
@@ -113,7 +147,15 @@ private:
 /// in a vector of integers 'times' which is resized to have a size equal to the
 /// number of states in the Sparse lattice. The function also returns the maximum time
 /// in the Sparse lattice (this will equal the number of frames in the file).
-int32 LatticeStateTimes(const Lattice &lat, std::vector<int32> *times);
+int32 LatticeStateTimes(Lattice &lat, std::vector<int32> *times);
+
+void LatticeAcousticRescore(const Matrix<float> &log_like,
+		const std::vector<int32> &state_times,
+		Lattice &lat);
+
+BaseFloat LatticeForwardBackward(Lattice &lat,
+		BaseFloat* acoustic_like_sum , Matrix<float> &nnet_diff_h);
+
 
 } // namespace hubo
 #endif

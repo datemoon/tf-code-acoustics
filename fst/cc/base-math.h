@@ -9,6 +9,7 @@
 #include <cmath>
 #include <limits>
 #include <vector>
+#include <iostream>
 
 #ifndef DBL_EPSILON
 #define DBL_EPSILON 2.2204460492503131e-16
@@ -52,6 +53,9 @@
 
 namespace hubo {
 
+
+typedef float BaseFloat;
+typedef int int32;
 
 #if !defined(_MSC_VER) || (_MSC_VER >= 1900)
 inline double Exp(double x) { return exp(x); }
@@ -122,9 +126,13 @@ bool WithProb(BaseFloat prob, struct RandomState* state = NULL);
 // that it should work even if prob is very small.
 
 /// Returns a random number strictly between 0 and 1.
-inline float RandUniform(struct RandomState* state = NULL) {
-  return static_cast<float>((Rand(state) + 1.0) / (RAND_MAX+2.0));
+inline float RandUniform(struct RandomState* state = NULL)
+{
+	return 0.1;
 }
+//
+//  return static_cast<float>((Rand(state) + 1.0) / (RAND_MAX+2.0));
+//}
 
 inline float RandGauss(struct RandomState* state = NULL) {
   return static_cast<float>(sqrtf (-2 * Log(RandUniform(state)))
@@ -201,7 +209,7 @@ inline double LogSub(double x, double y) {
     if (y == x)
       return kLogZeroDouble;
     else
-      KALDI_ERR << "Cannot subtract a larger from a smaller number.";
+      std::cerr << "Cannot subtract a larger from a smaller number.";
   }
 
   double diff = y - x;  // Will be negative.
@@ -220,7 +228,7 @@ inline float LogSub(float x, float y) {
     if (y == x)
       return kLogZeroDouble;
     else
-      KALDI_ERR << "Cannot subtract a larger from a smaller number.";
+      std::cerr << "Cannot subtract a larger from a smaller number.";
   }
 
   float diff = y - x;  // Will be negative.
@@ -268,7 +276,7 @@ static inline int32 DivideRoundingDown(int32 a, int32 b) {
 template<class I> I  Gcd(I m, I n) {
   if (m == 0 || n == 0) {
     if (m == 0 && n == 0) {  // gcd not defined, as all integers are divisors.
-      KALDI_ERR << "Undefined GCD since m = 0, n = 0.";
+      std::cerr << "Undefined GCD since m = 0, n = 0.";
     }
     return (m == 0 ? (n > 0 ? n : -n) : ( m > 0 ? m : -m));
     // return absolute value of whichever is nonzero

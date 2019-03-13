@@ -1,5 +1,4 @@
 
-
 #include "base/kaldi-common.h"
 #include "util/common-utils.h"
 #include "fstext/fstext-lib.h"
@@ -7,6 +6,7 @@
 #include "lat/lattice-functions.h"
 
 #include "convert-lattice.h"
+#include "sparse-lattice-function.h"
 
 namespace kaldi {
   int32 CopySubsetLattices(std::string filename, 
@@ -206,16 +206,24 @@ int main(int argc, char *argv[]) {
 		float tot_backward_prob = LatticeForwardBackward(lat, &post, &acoustic_like_sum);
 
 		// hubo test sparse convert and sparse forward and backward
-		BaseFloat *indexs = NULL;
+		int32 *indexs = NULL;
 		int32 *pdf_values = NULL;
 		BaseFloat *lm_ws = NULL;
 		BaseFloat *am_ws = NULL;
-		int32 *stateinfo = NULL;
+		int32 *statesinfo = NULL;
 
 		//MallocSparseLattice(&indexs, &pdf_values, &lm_ws, &am_ws, &stateinfo);
-		int num_states = ConvertKaldiLatticeToSparseLattice(lat, &indexs, &pdf_values, &lm_ws, &am_ws, &stateinfo);
+		int num_states = ConvertKaldiLatticeToSparseLattice(lat, &indexs, &pdf_values, &lm_ws, &am_ws, &statesinfo);
 
+		hubo::Lattice hlat(indexs, pdf_values, lm_ws, am_ws, statesinfo, num_states);
+		BaseFloat sparse_acoustic_like_sum = 0.0;
 
+		hlat.Print();
+		std::vector<int32> htimes;
+		int hmax_time = hubo::LatticeStateTimes(hlat, &htimes);
+		float *data= (float *)malloc(sizeof(float)*20000* hmax_time);
+		hubo::Matrix<float> mat(data, 20000, hmax_time);
+		float sparse_tot_backward_prob = hubo::LatticeForwardBackward(hlat, &sparse_acoustic_like_sum, mat);
 		// end 
         lattice_writer.Write(lattice_reader.Key(), lattice_reader.Value());
 		if( indexs != NULL)
@@ -224,8 +232,10 @@ int main(int argc, char *argv[]) {
 			free(pdf_values);
 			free(lm_ws);
 			free(am_ws);
-			free(stateinfo);
+			free(statesinfo);
 		}
+		free(data);
+
 	  }
     }
     KALDI_LOG << "Done copying " << n_done << " lattices.";

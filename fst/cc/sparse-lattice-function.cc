@@ -1,7 +1,8 @@
 #include <vector>
-#include "lattice-function.h"
+#include <iostream>
+#include "sparse-lattice-function.h"
 #include "base-math.h"
-
+#include "matrix.h"
 namespace hubo {
 
 using namespace std;
@@ -24,29 +25,30 @@ typedef int StateId;
  * frame_rate      : the frame rate
  * return          : loss
  * */
-BaseFloat MMILoss(BaseFloat *indexs,int32 *pdf_values,
-	   	BaseFloat* lm_ws, BaseFloat* am_ws, int32 statesinfo, int32 statesnum,
-		BaseFloat* nnet_out, BaseFloat acoustic_scale,
+BaseFloat MMILoss(int32 *indexs,int32 *pdf_values,
+	   	BaseFloat* lm_ws, BaseFloat* am_ws, int32 *statesinfo, int32 num_states,
+		BaseFloat* nnet_out, BaseFloat acoustic_scale, 
 		BaseFloat* gradient, BaseFloat *frame_rate)
 {
 	Lattice lat(indexs, pdf_values, lm_ws, am_ws, statesinfo, num_states);
+	return 0.0;
 }
 
 /*
  * only calculate one sentence LatticeForwardBackward
  * */
 BaseFloat LatticeForwardBackward(Lattice &lat,
-		BaseFloat* acoustic_like_sum , Matrix &nnet_diff_h)
+		BaseFloat* acoustic_like_sum , Matrix<float> &nnet_diff_h)
 {
 	*acoustic_like_sum = 0.0;
 	nnet_diff_h.SetZero();
-	StateId num_states = lat.NumStates()
+	StateId num_states = lat.NumStates();
 
 	// Make sure the lattice is topologically sorted.
-	std::vector<int32> state_times;
-	state_times.resize(num_states, -1)
-	std::vector<double> alpha(num_states, kLogZeroDouble);
-	std::vector<double> &beta(alpha); // we re-use the same memory for
+	vector<int32> state_times;
+	state_times.resize(num_states, -1);
+	vector<double> alpha(num_states, kLogZeroDouble);
+	vector<double> &beta(alpha); // we re-use the same memory for
 	// this, but it's semantically distinct so we name it differently.
 	double tot_forward_prob = kLogZeroDouble;
 
@@ -122,14 +124,14 @@ BaseFloat LatticeForwardBackward(Lattice &lat,
 	double tot_backward_prob = beta[0];
 	if (!ApproxEqual(tot_forward_prob, tot_backward_prob, 1e-8))
 	{
-		std::cout << "Total forward probability over lattice = " << tot_forward_prob
+		cout << "Total forward probability over lattice = " << tot_forward_prob
 		   << ", while total backward probability = " << tot_backward_prob
-	   	   << std::endl;
+	   	   << endl;
 	}
 	return tot_backward_prob;
 }
 
-int32 LatticeStateTimes(const Lattice &lat, std::vector<int32> *times)
+int32 LatticeStateTimes(Lattice &lat, vector<int32> *times)
 {
 	int32 num_states = lat.NumStates();
 	times->clear();
@@ -138,7 +140,7 @@ int32 LatticeStateTimes(const Lattice &lat, std::vector<int32> *times)
 	int32 max_times = -1;
 	for (int32 s = 0; s < num_states; s++)
 	{
-		int32 cur_time = (*times)[state];
+		int32 cur_time = (*times)[s];
 		if(cur_time > max_times)
 			max_times = cur_time;
 		int32 n = 0;
@@ -173,8 +175,8 @@ int32 LatticeStateTimes(const Lattice &lat, std::vector<int32> *times)
 	return max_times;
 }
 
-void LatticeAcousticRescore(const Matrix &log_like,
-		const std::vector<int32> &state_times,
+void LatticeAcousticRescore(const Matrix<float> &log_like,
+		const vector<int32> &state_times,
 		Lattice &lat)
 {
 	int32 num_states = lat.NumStates();
