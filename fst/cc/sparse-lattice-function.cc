@@ -7,32 +7,7 @@ namespace hubo {
 
 using namespace std;
 
-typedef float BaseFloat;
-typedef int int32;
-typedef int StateId;
 
-/*
- * indexs (input): fst cur_state and next_state
- * pdf_values    : map [cur_state, next_state]
- * lm_ws         : map [cur_state, next_state]
- * am_ws         : map [cur_state, next_state]
- * statesinfo    : save every state save arcs number [ state_startoffset, number_arc
- * statesnum     : state number
- * nnet_out      : nnet forward out, it's matrix [time, sentences, frames]
- * acoustic_scale: acoustic_scale
- * 
- * gradient(output): the same shape as nnet_out
- * frame_rate      : the frame rate
- * return          : loss
- * */
-BaseFloat MMILoss(int32 *indexs,int32 *pdf_values,
-	   	BaseFloat* lm_ws, BaseFloat* am_ws, int32 *statesinfo, int32 num_states,
-		BaseFloat* nnet_out, BaseFloat acoustic_scale, 
-		BaseFloat* gradient, BaseFloat *frame_rate)
-{
-	Lattice lat(indexs, pdf_values, lm_ws, am_ws, statesinfo, num_states);
-	return 0.0;
-}
 
 /*
  * only calculate one sentence LatticeForwardBackward

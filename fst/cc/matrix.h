@@ -37,6 +37,8 @@ public:
 		assert(r < _num_rows && c < _num_cols);
 		return *(_data + r * _stride + c);
 	}
+	int NumRows() { return _num_rows; }
+	int NumCols() { return _num_cols; }
 private:
 	Real *_data;
 	int _num_rows;

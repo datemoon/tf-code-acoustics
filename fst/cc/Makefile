@@ -5,10 +5,10 @@ include ../kaldi.mk
 
 EXTRA_CXXFLAGS += -Wno-sign-compare
 
-OBJFILES = sparse-lattice-function.o 
+OBJFILES = sparse-lattice-function.o loss.o
 
 
-LIBNAME = sparse-lattice
+LIBNAME = mmi-loss
 
 TESTFILES = convert-lattice-test
 

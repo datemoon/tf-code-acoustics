@@ -42,8 +42,8 @@ struct Arc
 class Lattice
 {
 public:
-	Lattice(int32 *indexs,int32 *pdf_values,
-			BaseFloat* lm_ws, BaseFloat* am_ws, int32* statesinfo, 
+	Lattice(const int32 *indexs, const int32 *pdf_values,
+			BaseFloat* lm_ws, BaseFloat* am_ws, const int32* statesinfo, 
 			int32 num_states):
 		_indexs(indexs), _pdf_values(pdf_values),_lm_ws(lm_ws), 
 		_am_ws(am_ws), _statesinfo(statesinfo), _num_states(num_states){ }
@@ -109,6 +109,12 @@ public:
 			return -kLogZeroFloat;
 	}
 
+	void ScaleAmWeight(BaseFloat acoustic_scale)
+	{
+		for(int i = 0; 
+				i < _statesinfo[(_num_states-1)*2]+_statesinfo[(_num_states-1)*2+1];i++)
+			_am_ws[i] *= acoustic_scale;
+	}
 	void Print()
 	{
 		for(int s=0;s<_num_states;++s)
@@ -134,11 +140,11 @@ public:
 		}
 	}
 private:
-	int32 *_indexs; // fst cur_state and next_state
-	int32 *_pdf_values; // map [cur_state, next_state]
+	const int32 *_indexs; // fst cur_state and next_state
+	const int32 *_pdf_values; // map [cur_state, next_state]
 	BaseFloat* _lm_ws;  // map [cur_state, next_state]
 	BaseFloat* _am_ws;  // map [cur_state, next_state]
-	int32* _statesinfo; // save every state save arcs number [ state_startoffset, number_arc
+	const int32* _statesinfo; // save every state save arcs number [ state_startoffset, number_arc
 	int32 _num_states;   // state number
 };
 

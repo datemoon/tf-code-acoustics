@@ -203,8 +203,13 @@ int main(int argc, char *argv[]) {
 		Posterior post;
 		double acoustic_like_sum = 0.0;
 		fst::ScaleLattice(fst::LatticeScale(1.0, 0.083), &lat);
+		std::vector<int32> times;
+		int max_time = LatticeStateTimes(lat, &times);
 		float tot_backward_prob = LatticeForwardBackward(lat, &post, &acoustic_like_sum);
 
+		std::cout << lattice_reader.Key() << " : frames " << max_time 
+			<< " acoustic_like_sum " << acoustic_like_sum 
+			<< " tot_backward_prob "  << tot_backward_prob << std::endl;
 		// hubo test sparse convert and sparse forward and backward
 		int32 *indexs = NULL;
 		int32 *pdf_values = NULL;
@@ -218,12 +223,15 @@ int main(int argc, char *argv[]) {
 		hubo::Lattice hlat(indexs, pdf_values, lm_ws, am_ws, statesinfo, num_states);
 		BaseFloat sparse_acoustic_like_sum = 0.0;
 
-		hlat.Print();
+		//hlat.Print();
 		std::vector<int32> htimes;
 		int hmax_time = hubo::LatticeStateTimes(hlat, &htimes);
 		float *data= (float *)malloc(sizeof(float)*20000* hmax_time);
 		hubo::Matrix<float> mat(data, 20000, hmax_time);
 		float sparse_tot_backward_prob = hubo::LatticeForwardBackward(hlat, &sparse_acoustic_like_sum, mat);
+		std::cout << lattice_reader.Key() << " : frames " << hmax_time 
+			<< " sparse_acoustic_like_sum " << sparse_acoustic_like_sum 
+			<< " sparse_tot_backward_prob "  << sparse_tot_backward_prob << std::endl;
 		// end 
         lattice_writer.Write(lattice_reader.Key(), lattice_reader.Value());
 		if( indexs != NULL)
