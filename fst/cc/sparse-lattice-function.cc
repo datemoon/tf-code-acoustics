@@ -167,9 +167,10 @@ void LatticeAcousticRescore(const Matrix<float> &log_like,
 				int32 pdf = arc._pdf - 1;
 				arc._am_weight -= log_like(t, pdf);
 				lat.SetArcAmValue(s, n, arc._am_weight);
-				n++;
 			}
+			n++;
 		}
+		//std::cout << s << " "  << n << std::endl;
 	}
 }
 

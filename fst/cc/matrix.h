@@ -12,7 +12,7 @@ template <typename Real>
 class Matrix
 {
 public:
-	Matrix(Real *data, int cols, int rows, int stride=0):
+	Matrix(Real *data, int rows, int cols, int stride=0):
 		_data(data), _num_rows(rows), _num_cols(cols)
 	{
 		if(stride == 0)
@@ -36,6 +36,11 @@ public:
 	{
 		assert(r < _num_rows && c < _num_cols);
 		return *(_data + r * _stride + c);
+	}
+
+	inline void SetRowZero(int32 r)
+	{
+		memset(_data + r*_stride, 0x00, sizeof(Real) * _num_cols);
 	}
 	int NumRows() { return _num_rows; }
 	int NumCols() { return _num_cols; }

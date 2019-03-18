@@ -2,11 +2,9 @@
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/shape_inference.h"
 
-using namespace tensorflow;
-
-using shape_inference::DimensionHandle;
-using shape_inference::InferenceContext;
-using shape_inference::ShapeHandle;
+using tensorflow::shape_inference::DimensionHandle;
+using tensorflow::shape_inference::InferenceContext;
+using tensorflow::shape_inference::ShapeHandle;
 
 REGISTER_OP("MMI_loss")
 	.Input("inputs: float")
@@ -18,9 +16,10 @@ REGISTER_OP("MMI_loss")
 	.Input("am_ws: float")
 	.Input("statesinfo: float")
 	.Input("num_states: int32")
+	.Attr("acoustic_scale: float = 1.0")
 	.Output("loss: float")
 	.Output("gradient: float")
-	.SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c)
+	.SetShapeFn([](InferenceContext* c)
 	{
 		ShapeHandle inputs;         // nnet forward output
 		ShapeHandle sequence_length;// every sequence length,it's vector

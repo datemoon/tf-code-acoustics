@@ -44,7 +44,8 @@ bool MMILoss(const int32 *indexs, const int32 *pdf_values,
 		int32 rows, int32 batch_size, int32 cols,
 		const int32 *labels,
 		const int32 *sequence_length, 
-		BaseFloat acoustic_scale, BaseFloat* gradient, BaseFloat *loss)
+		BaseFloat acoustic_scale, BaseFloat* gradient,
+		BaseFloat *loss, bool drop_frames)
 {
 	//int32 num_classes_raw = cols;
 	std::vector<Lattice> lat_v;
@@ -75,7 +76,7 @@ bool MMILoss(const int32 *indexs, const int32 *pdf_values,
 		
 		// calculate mmi gradient.
 		// threading calculate.
-		threads.push_back(std::thread(MMIOneLoss, &lat_v[i], &nnet_out_h_v[i], labels_v[i], &nnet_diff_h_v[i], acoustic_scale, &loss[i]));
+		threads.push_back(std::thread(MMIOneLoss, &lat_v[i], &nnet_out_h_v[i], labels_v[i], &nnet_diff_h_v[i], acoustic_scale, &loss[i], drop_frames));
 
 	}
 
@@ -96,7 +97,7 @@ bool MMILoss(const int32 *indexs, const int32 *pdf_values,
  * return              : loss
  * */
 void MMIOneLoss(Lattice *lat, Matrix<BaseFloat> *nnet_out_h, const int32 *labels,
-		Matrix<BaseFloat> *nnet_diff_h, BaseFloat acoustic_scale, BaseFloat *loss)
+		Matrix<BaseFloat> *nnet_diff_h, BaseFloat acoustic_scale, BaseFloat *loss, bool drop_frames)
 {
 	//Lattice lat(indexs, pdf_values, lm_ws, am_ws, statesinfo, num_states);
 	//Matrix<BaseFloat> nnet_out_h(nnet_out, length, cols);
@@ -153,6 +154,30 @@ void MMIOneLoss(Lattice *lat, Matrix<BaseFloat> *nnet_out_h, const int32 *labels
 	{
 		int32 pdf = labels[t];
 		(*nnet_diff_h)(t, pdf) -= 1.0;
+	}
+
+	// Search for the frames with num/den mismatch,
+	int32 frm_drop = 0;
+	std::vector<int32> frm_drop_vec;
+	for(int32 t=0; t<num_frames; t++)
+	{
+		int32 pdf = labels[t];
+		double posterior = (*nnet_diff_h)(t, pdf);
+		if (posterior < 1e-20)
+		{
+			frm_drop++;
+			frm_drop_vec.push_back(t);
+		}
+	}
+	int32 num_frm_drop = 0;
+	// Drop mismatched frames from the training by zeroing the derivative,
+	if (drop_frames)
+	{
+		for (int32 i = 0; i < frm_drop_vec.size(); i++)
+		{
+			nnet_diff_h->SetRowZero(frm_drop_vec[i]);
+		}
+		num_frm_drop += frm_drop;
 	}
 	*loss = mmi_obj/num_frames;
 }

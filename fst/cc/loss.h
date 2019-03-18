@@ -3,6 +3,7 @@
 
 #include "matrix.h"
 #include "base-math.h"
+#include "sparse-lattice-function.h"
 namespace hubo
 {
 
@@ -40,7 +41,8 @@ bool MMILoss(const int32 *indexs, const int32 *pdf_values,
 		int32 rows, int32 batch_size, int32 cols,
 		const int32 *labels,
 		const int32 *sequence_length, 
-		BaseFloat acoustic_scale, BaseFloat* gradient, BaseFloat *loss);
+		BaseFloat acoustic_scale, BaseFloat* gradient, 
+		BaseFloat *loss, bool drop_frames = true);
 
 /* lat (input)         :
  * nnet_out_h          :
@@ -51,7 +53,8 @@ bool MMILoss(const int32 *indexs, const int32 *pdf_values,
  * return              : loss
  * */
 void MMIOneLoss(Lattice *lat, Matrix<BaseFloat> *nnet_out_h, const int32 *labels,
-		Matrix<BaseFloat> *nnet_diff_h, BaseFloat acoustic_scale, BaseFloat *loss);
+		Matrix<BaseFloat> *nnet_diff_h, BaseFloat acoustic_scale,
+	   	BaseFloat *loss, bool drop_frames = true);
 
 
 } // namespace

@@ -68,7 +68,7 @@ public:
 	{
 		int32 offset = _statesinfo[s*2];
 		assert(_indexs[offset*2] == s);
-		_am_ws[offset] = am_value;
+		_am_ws[offset+arcid] = am_value;
 	}
 
 	bool GetArc(StateId s, int32 arcid, Arc *arc)

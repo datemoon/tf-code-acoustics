@@ -8,6 +8,7 @@
 #include <fst/fst-decl.h>
 
 #include "lat/kaldi-lattice.h"
+#include "hmm/transition-model.h"
 
 namespace kaldi
 {
@@ -19,11 +20,16 @@ bool MallocSparseLattice(int num_states, int num_arcs,
 		int32 **stateinfo)
 {
 	*indexs = (int32 *)malloc(num_arcs * 2 * sizeof(int32));
+	memset(*indexs, 0x00, num_arcs * 2 * sizeof(int32));
 	*pdf_values = (int32 *)malloc(num_arcs * sizeof(int32));
-
+	memset(*pdf_values, 0x00, num_arcs * sizeof(int32));
+	
 	*lm_ws = (BaseFloat *)malloc(num_arcs  * sizeof(BaseFloat));
+	memset(*lm_ws, 0x00, num_arcs * sizeof(BaseFloat));
 	*am_ws = (BaseFloat *)malloc(num_arcs  * sizeof(BaseFloat));
+	memset(*am_ws, 0x00, num_arcs * sizeof(BaseFloat));
 	*stateinfo = (int32 *)malloc(num_states * 2 * sizeof(int32));
+	memset(*stateinfo , 0x00, num_states * 2 * sizeof(int32));
 
 	return true;
 }
@@ -42,8 +48,9 @@ int ConvertKaldiLatticeToSparseLattice(Lattice &inlat,
 
 	typedef Lattice::Arc Arc;
 
-	// inlat must be topsort and it's super final lattice(have only final state and final-probs are One()).
 	fst::CreateSuperFinal(&inlat);
+	TopSort(&inlat);
+	// inlat must be topsort and it's super final lattice(have only final state and final-probs are One()).
 	int32 num_states = inlat.NumStates();
 	int32 num_arcs = 0;
 	for(int s=0; s<num_states; s++)
@@ -77,6 +84,16 @@ int ConvertKaldiLatticeToSparseLattice(Lattice &inlat,
 		state_offset += state_arcs;
 	}
 	return num_states;
+}
+
+void AliToPdfOffset(int *ali, int n, TransitionModel &trans_model, int offset=0)
+{
+	for(int i=0; i<n; ++i)
+	{
+		if(ali[i] == 0)
+			continue;
+		ali[i] = trans_model.TransitionIdToPdf(ali[i]) + offset;
+	}
 }
 
 } // end namespace
