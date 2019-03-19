@@ -14,6 +14,8 @@ using tensorflow::shape_inference::DimensionHandle;
 using tensorflow::shape_inference::InferenceContext;
 using tensorflow::shape_inference::ShapeHandle;
 
+namespace tf = tensorflow;
+
 REGISTER_OP("MMI_loss")
 	.Input("inputs: float")
 	.Input("sequence_length: int32")
@@ -25,6 +27,7 @@ REGISTER_OP("MMI_loss")
 	.Input("statesinfo: float")
 	.Input("num_states: int32")
 	.Attr("acoustic_scale: float = 1.0")
+	.Attr("drop_frames: bool = true")
 	.Output("loss: float")
 	.Output("gradient: float")
 	.SetShapeFn([](InferenceContext* c)
@@ -62,23 +65,23 @@ REGISTER_OP("MMI_loss")
 		c->set_output(0, c->Vector(batch_size));
 		c->set_output(1, inputs);
 
-		return Status::OK();
-	})
+		return tf::Status::OK();
+	});
+/*
 	.Doc(R"doc(
 	Calculates the MMI Loss (log probability) for each batch entry.  Also calculates
 	the gradient. 
-   	inputs:  3-D, shape: `(max_time x batch_size x num_classes)`, the logits.
+   	inputs:  3-D, shape: (max_time x batch_size x num_classes), the logits.
 	sequence_length:  A vector containing sequence lengths (batch).
-   	indexs:  The indexs of a `Tensor<int32, 3>`.
-	  `indexs(i, :) == [b, instate, tostate]` means lattice arc instate and tostate,
+   	indexs:  The indexs of a Tensor<int32, 3>.
+	  indexs(i, :) == [b, instate, tostate] means lattice arc instate and tostate,
 	pdf_values:
 	lm_ws:
 	am_ws:
 	statesinfo:
-	)doc");;
+	)doc");
+*/
 
-
-namespace tf = tensorflow;
 //using namespace tensorflow;
 
 namespace distinguish_loss
@@ -89,6 +92,7 @@ public:
 	explicit MMILossOp(tf::OpKernelConstruction* ctx) : tf::OpKernel(ctx) 
 	{
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("acoustic_scale", &_acoustic_scale));
+		OP_REQUIRES_OK(ctx, ctx->GetAttr("drop_frames", &_drop_frames));
 	}
 
 	void Compute(tf::OpKernelContext* ctx) override 
@@ -118,7 +122,7 @@ public:
 		OP_REQUIRES(ctx, tf::TensorShapeUtils::IsVector(sequence_length->shape()),
 				tf::errors::InvalidArgument("sequence_length is not a vector"));
 
-		OP_REQUIRES(ctx, tf::indexs->shape().dims() == 3,
+		OP_REQUIRES(ctx, indexs->shape().dims() == 3,
 				tf::errors::InvalidArgument("indexs is not a 3-Tensor"));
 	
 		OP_REQUIRES(ctx, tf::TensorShapeUtils::IsMatrix(pdf_values->shape()),
@@ -146,17 +150,17 @@ public:
 
 		// check num_classes_raw less then std::numeric_limits<int>::max()
 		OP_REQUIRES(
-				ctx, FastBoundsCheck(num_classes_raw, std::numeric_limits<int>::max()),
+				ctx, tf::FastBoundsCheck(num_classes_raw, std::numeric_limits<int>::max()),
 				tf::errors::InvalidArgument("num_classes cannot exceed max int"));
 		const int num_classes = static_cast<const int>(num_classes_raw);
 
 		// check sequence length equal batch size
 		OP_REQUIRES(
-				ctx, batch_size == seq_len->dim_size(0),
-				errors::InvalidArgument("len(sequence_length) != batch_size.  "
+				ctx, batch_size == sequence_length->dim_size(0),
+				tf::errors::InvalidArgument("len(sequence_length) != batch_size.  "
 					"len(sequence_length):  ", sequence_length->dim_size(0),
 					" batch_size: ", batch_size));
-		auto seq_len_t = seq_len->vec<int32>();
+		auto seq_len_t = sequence_length->vec<tf::int32>();
 
 		// malloc loss space
 		tf::Tensor* loss = nullptr;
@@ -184,23 +188,25 @@ public:
 		auto sequence_length_t = sequence_length->vec<int>();
 
 
-		bool ret_mmi = hubo::MMILoss(indexs_t.data(), pdf_values_t.data()
-				lm_ws_t.data(), am_ws_t.data(),
+		bool ret_mmi = hubo::MMILoss(indexs_t.data(), pdf_values_t.data(),
+				(float *)lm_ws_t.data(), (float *)am_ws_t.data(),
 				statesinfo_t.data(), num_states_t.data(),
 				max_num_arcs, max_num_states,
 				inputs_t.data(),
 				max_time, batch_size, num_classes_raw,
 				labels_t.data(),
 				sequence_length_t.data(),
-				_acoustic_scale, gradient_t.data(), loss_t.data());
+				_acoustic_scale, gradient_t.data(), loss_t.data(),
+				_drop_frames);
 
-		return ret_mmi;
+		//return ret_mmi;
 	}
 private:
-	tf::float32 _acoustic_scale;
+	float _acoustic_scale;
+	bool _drop_frames;
 	TF_DISALLOW_COPY_AND_ASSIGN(MMILossOp);
 };
 
-REGISTER_KERNEL_BUILDER(Name("MMIoss").Device(::tensorflow::DEVICE_CPU), MMILossOp);
+REGISTER_KERNEL_BUILDER(Name("MMILoss").Device(::tensorflow::DEVICE_CPU), MMILossOp);
 
 } // namespace

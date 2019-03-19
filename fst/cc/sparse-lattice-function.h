@@ -155,7 +155,7 @@ private:
 /// in the Sparse lattice (this will equal the number of frames in the file).
 int32 LatticeStateTimes(Lattice &lat, std::vector<int32> *times);
 
-void LatticeAcousticRescore(const Matrix<float> &log_like,
+void LatticeAcousticRescore(const Matrix<const float> &log_like,
 		const std::vector<int32> &state_times,
 		Lattice &lat);
 

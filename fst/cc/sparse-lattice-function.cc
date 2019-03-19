@@ -150,7 +150,7 @@ int32 LatticeStateTimes(Lattice &lat, vector<int32> *times)
 	return max_times;
 }
 
-void LatticeAcousticRescore(const Matrix<float> &log_like,
+void LatticeAcousticRescore(const Matrix<const float> &log_like,
 		const vector<int32> &state_times,
 		Lattice &lat)
 {

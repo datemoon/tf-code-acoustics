@@ -38,7 +38,7 @@ public:
 		return *(_data + r * _stride + c);
 	}
 
-	inline void SetRowZero(int32 r)
+	inline void SetRowZero(int r)
 	{
 		memset(_data + r*_stride, 0x00, sizeof(Real) * _num_cols);
 	}

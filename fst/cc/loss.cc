@@ -40,7 +40,7 @@ bool MMILoss(const int32 *indexs, const int32 *pdf_values,
 		BaseFloat* lm_ws, BaseFloat* am_ws, 
 		const int32 *statesinfo, const int32 *num_states,
 		const int32 max_num_arcs, const int32 max_num_states,
-		BaseFloat* nnet_out, 
+		const BaseFloat* nnet_out, 
 		int32 rows, int32 batch_size, int32 cols,
 		const int32 *labels,
 		const int32 *sequence_length, 
@@ -49,7 +49,7 @@ bool MMILoss(const int32 *indexs, const int32 *pdf_values,
 {
 	//int32 num_classes_raw = cols;
 	std::vector<Lattice> lat_v;
-	std::vector<Matrix<BaseFloat> > nnet_out_h_v;
+	std::vector<Matrix<const BaseFloat> > nnet_out_h_v;
 	std::vector<Matrix<BaseFloat> > nnet_diff_h_v;
 	std::vector<const int32*> labels_v;
 	std::vector<std::thread> threads;
@@ -69,7 +69,7 @@ bool MMILoss(const int32 *indexs, const int32 *pdf_values,
 		lat_v.push_back(Lattice(cur_indexs, cur_pdf_values, cur_lm_ws, cur_am_ws, cur_statesinfo, cur_num_states));
 
 		// process nnet_out
-		nnet_out_h_v.push_back(Matrix<BaseFloat>(nnet_out + i * cols * rows, sequence_length[i], cols, batch_size * cols));
+		nnet_out_h_v.push_back(Matrix<const BaseFloat>(nnet_out + i * cols * rows, sequence_length[i], cols, batch_size * cols));
 		nnet_diff_h_v.push_back(Matrix<BaseFloat>(gradient + i * cols * rows, sequence_length[i], cols, batch_size * cols));
 
 		labels_v.push_back(labels + i * rows);
@@ -96,7 +96,7 @@ bool MMILoss(const int32 *indexs, const int32 *pdf_values,
  * loss                : 
  * return              : loss
  * */
-void MMIOneLoss(Lattice *lat, Matrix<BaseFloat> *nnet_out_h, const int32 *labels,
+void MMIOneLoss(Lattice *lat, Matrix<const BaseFloat> *nnet_out_h, const int32 *labels,
 		Matrix<BaseFloat> *nnet_diff_h, BaseFloat acoustic_scale, BaseFloat *loss, bool drop_frames)
 {
 	//Lattice lat(indexs, pdf_values, lm_ws, am_ws, statesinfo, num_states);
