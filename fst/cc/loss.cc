@@ -104,6 +104,18 @@ void MMIOneLoss(Lattice *lat, Matrix<const BaseFloat> *nnet_out_h, const int32 *
 	//Lattice lat(indexs, pdf_values, lm_ws, am_ws, statesinfo, num_states);
 	//Matrix<BaseFloat> nnet_out_h(nnet_out, length, cols);
 	
+	// print input
+	{
+		lat->PrintInfo();
+		std::cout << "h_nnet_out_h:";
+		nnet_out_h->Print();
+		std::cout << "pdf_ali:" << 1 << std::endl;
+		for(int t=0;t<nnet_out_h->NumRows();++t)
+		{
+			std::cout << labels[t] << " ";
+		}
+		std::cout << std::endl;
+	}
 	std::vector<int32> state_times;
 	int32 max_time = LatticeStateTimes(*lat, &state_times);
 
@@ -185,6 +197,12 @@ void MMIOneLoss(Lattice *lat, Matrix<const BaseFloat> *nnet_out_h, const int32 *
 		num_frm_drop += frm_drop;
 	}
 	*loss = mmi_obj/num_frames;
+
+	// print output
+	{
+		std::cout << "gradient:";
+		nnet_diff_h->Print();
+	}
 }
 
 

@@ -182,7 +182,7 @@ public:
 		auto indexs_t = indexs->tensor<int, 3>();
 		auto pdf_values_t = pdf_values->matrix<int>();
 		auto lm_ws_t = lm_ws->matrix<float>();
-		auto am_ws_t = lm_ws->matrix<float>();
+		auto am_ws_t = am_ws->matrix<float>();
 		auto statesinfo_t = statesinfo->tensor<int, 3>();
 		auto num_states_t = num_states->vec<int>();
 		auto labels_t = labels->matrix<int>();

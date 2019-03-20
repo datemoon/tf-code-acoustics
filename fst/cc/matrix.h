@@ -44,6 +44,19 @@ public:
 	}
 	int NumRows() { return _num_rows; }
 	int NumCols() { return _num_cols; }
+
+	void Print()
+	{
+		std::cout << _num_rows << " " << _num_cols << std::endl;
+		for(int r=0;r<_num_rows;++r)
+		{
+			for(int c=0;c<_num_cols;++c)
+			{
+				std::cout << _data[r*_stride+c] << " ";
+			}
+			std::cout << std::endl;
+		}
+	}
 private:
 	Real *_data;
 	int _num_rows;

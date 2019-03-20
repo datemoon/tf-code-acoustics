@@ -139,12 +139,46 @@ public:
 			}*/
 		}
 	}
+	void PrintInfo()
+	{
+		int num_arcs = _statesinfo[2*(_num_states-1)] + _statesinfo[2*(_num_states-1)+1];
+		std::cout << "indexs:" << num_arcs << std::endl;
+		for(int a=0;a<num_arcs;a++)
+		{
+			std::cout << _indexs[2*a] << " " << _indexs[2*a+1] << std::endl;
+		}
+		std::cout << "pdf_values:" << 1 << std::endl;
+		for(int a=0;a<num_arcs;a++)
+		{
+			std::cout << _pdf_values[a] << " ";
+		}
+		std::cout << std::endl;
+		std::cout << "lm_ws:" << 1 << std::endl;
+		for(int a=0;a<num_arcs;a++)
+		{
+			std::cout << _lm_ws[a] << " ";
+		}
+		std::cout << std::endl;
+
+		std::cout << "am_ws:" << 1 << std::endl;
+		for(int a=0;a<num_arcs;a++)
+		{
+			std::cout << _am_ws[a] << " ";
+		}
+		std::cout << std::endl;
+
+		std::cout << "statesinfo:" << _num_states << std::endl;
+		for(int s=0;s<_num_states;s++)
+		{
+			std::cout << _statesinfo[2*s] << " " << _statesinfo[2*s+1] << std::endl;
+		}
+	}
 private:
 	const int32 *_indexs; // fst cur_state and next_state
 	const int32 *_pdf_values; // map [cur_state, next_state]
 	BaseFloat* _lm_ws;  // map [cur_state, next_state]
 	BaseFloat* _am_ws;  // map [cur_state, next_state]
-	const int32* _statesinfo; // save every state save arcs number [ state_startoffset, number_arc
+	const int32* _statesinfo; // save every state save arcs number [ state_startoffset, number_arc]
 	int32 _num_states;   // state number
 };
 

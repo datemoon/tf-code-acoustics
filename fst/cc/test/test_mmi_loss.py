@@ -48,8 +48,8 @@ class MMILossTest(tf.test.TestCase):
         with self.test_session(use_gpu=False) as sess:
             if expected_error is None:
                 (tf_costs, tf_grad) = sess.run([costs, grad])
-                #self.assertAllClose(tf_costs, expected_costs, atol=1e-6)
-                self.assertAllClose(tf_grad, expected_gradients, atol=1e-6)
+                #self.assertAllClose(tf_costs, expected_costs, atol=1e-5)
+                self.assertAllClose(tf_grad, expected_gradients, atol=1e-5)
             else:
                 with self.assertRaisesOpError(expected_error):
                     sess.run([costs, grad])
