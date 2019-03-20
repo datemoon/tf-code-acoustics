@@ -16,7 +16,7 @@ using tensorflow::shape_inference::ShapeHandle;
 
 namespace tf = tensorflow;
 
-REGISTER_OP("MMI_loss")
+REGISTER_OP("MMILoss")
 	.Input("inputs: float")
 	.Input("sequence_length: int32")
 	.Input("labels: int32")
@@ -24,8 +24,9 @@ REGISTER_OP("MMI_loss")
 	.Input("pdf_values: int32")
 	.Input("lm_ws: float")
 	.Input("am_ws: float")
-	.Input("statesinfo: float")
+	.Input("statesinfo: int32")
 	.Input("num_states: int32")
+	.Attr("old_acoustic_scale: float = 0.0")
 	.Attr("acoustic_scale: float = 1.0")
 	.Attr("drop_frames: bool = true")
 	.Output("loss: float")
@@ -91,6 +92,7 @@ class MMILossOp: public tf::OpKernel
 public:
 	explicit MMILossOp(tf::OpKernelConstruction* ctx) : tf::OpKernel(ctx) 
 	{
+		OP_REQUIRES_OK(ctx, ctx->GetAttr("old_acoustic_scale", &_old_acoustic_scale));
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("acoustic_scale", &_acoustic_scale));
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("drop_frames", &_drop_frames));
 	}
@@ -196,12 +198,14 @@ public:
 				max_time, batch_size, num_classes_raw,
 				labels_t.data(),
 				sequence_length_t.data(),
+				_old_acoustic_scale,
 				_acoustic_scale, gradient_t.data(), loss_t.data(),
 				_drop_frames);
 
 		//return ret_mmi;
 	}
 private:
+	float _old_acoustic_scale;
 	float _acoustic_scale;
 	bool _drop_frames;
 	TF_DISALLOW_COPY_AND_ASSIGN(MMILossOp);

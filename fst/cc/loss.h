@@ -41,6 +41,7 @@ bool MMILoss(const int32 *indexs, const int32 *pdf_values,
 		int32 rows, int32 batch_size, int32 cols,
 		const int32 *labels,
 		const int32 *sequence_length, 
+		BaseFloat old_acoustic_scale,
 		BaseFloat acoustic_scale, BaseFloat* gradient, 
 		BaseFloat *loss, bool drop_frames = true);
 
@@ -53,7 +54,8 @@ bool MMILoss(const int32 *indexs, const int32 *pdf_values,
  * return              : loss
  * */
 void MMIOneLoss(Lattice *lat, Matrix<const BaseFloat> *nnet_out_h, const int32 *labels,
-		Matrix<BaseFloat> *nnet_diff_h, BaseFloat acoustic_scale,
+		Matrix<BaseFloat> *nnet_diff_h, BaseFloat old_acoustic_scale,
+		BaseFloat acoustic_scale,
 	   	BaseFloat *loss, bool drop_frames = true);
 
 

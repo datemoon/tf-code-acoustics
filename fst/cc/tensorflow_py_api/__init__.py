@@ -3,12 +3,13 @@ import tensorflow as tf
 from tensorflow.python.framework import ops
 from tensorflow.python.ops.nn_grad import _BroadcastMul
 
-lib_file = imp.find_module('kernels', __path__)[1]
-_warpmmi = tf.load_op_library(lib_file)
+#lib_file = imp.find_module('kernels', __path__)[1]
+_warpmmi = tf.load_op_library('../tensorflow_api/tf_mmi_api.so')
 
 
 def mmi(inputs, sequence_length, labels, 
         indexs, pdf_values, lm_ws, am_ws, statesinfo, num_states,
+        old_acoustic_scale = 0.0,
         acoustic_scale = 1.0, drop_frames = True, time_major = True):
     '''Calculates the MMI Loss (log probability) for each batch entry.  
     Also calculates the gradient.
@@ -19,8 +20,8 @@ def mmi(inputs, sequence_length, labels,
                  the nnet forward logits weihout softmax and logit.
         sequence_length: A 1-D Tensor of ints, 
                          one taining sequence lengths (batch).
-        labels: A 1-D Tensor of ints, a concatenation of all the
-                labels for the minibatch.
+        labels: A 2-D Tensor of ints, The dimensions (batch_size, max_time)
+                a concatenation of all the labels for the minibatch.
         indexs: A 3-D Tensor of ints, The dimensions (batch_size, arc_num, 2)
                  indexs(i, :) == [b, instate, tostate] 
                  means lattice arc instate and tostate
@@ -41,8 +42,11 @@ def mmi(inputs, sequence_length, labels,
 
     loss, _ = _warpmmi.mmi_loss(inputs, sequence_length, labels,
             indexs, pdf_values, lm_ws, am_ws, statesinfo, num_states,
+            old_acoustic_scale=old_acoustic_scale,
             acoustic_scale=acoustic_scale,
-            drop_frames=drop_frames);
+            drop_frames=drop_frames)
+
+    return loss
 
 @ops.RegisterGradient("MMILoss")
 def _MMILossGrad(op, grad_loss, _):

@@ -276,14 +276,77 @@ int main(int argc, char *argv[]) {
 	  AliToPdfOffset(pdf_ali.data(), pdf_ali.size(),trans_model,0);
 	  AliToPdfOffset(pdf_values, max_num_arcs, trans_model, 1);
 	  KALDI_ASSERT(max_time == num_ali.size());
+	  // save input 
+	  {
+		  std::cout << "indexs:" << max_num_arcs << std::endl;
+		  for(int a=0;a<max_num_arcs;a++)
+		  {
+			  std::cout << indexs[2*a] << " " << indexs[2*a+1] << std::endl;
+		  }
+		  std::cout << "pdf_values:" << 1 << std::endl;
+		  for(int a=0;a<max_num_arcs;a++)
+		  {
+			  std::cout << pdf_values[a] << " ";
+		  }
+		  std::cout << std::endl;
+		  std::cout << "lm_ws:" << 1 << std::endl;
+		  for(int a=0;a<max_num_arcs;a++)
+		  {
+			  std::cout << lm_ws[a] << " ";
+		  }
+		  std::cout << std::endl;
+		  std::cout << "am_ws:" << 1 << std::endl;
+		  for(int a=0;a<max_num_arcs;a++)
+		  {
+			  std::cout << am_ws[a] << " ";
+		  }
+		  std::cout << std::endl;
+
+		  std::cout << "statesinfo:" << max_num_states << std::endl;
+		  for(int s=0;s<max_num_states;s++)
+		  {
+			  std::cout << statesinfo[2*s] << " " << statesinfo[2*s+1] << std::endl;
+		  }
+		  std::cout << "h_nnet_out_h:"  
+			  << nnet_out_h.NumRows() << std::endl;
+		  for(int r=0;r<nnet_out_h.NumRows();r++)
+		  {
+			  for(int c=0;c<nnet_out_h.NumCols();c++)
+			  {
+				  std::cout << h_nnet_out_h[nnet_out_h.NumCols()*r+c] << " ";
+			  }
+			  std::cout << std::endl;
+		  }
+		  std::cout << "pdf_ali:" << 1 << std::endl;
+		  for(int t=0;t<max_time;++t)
+		  {
+			  std::cout << pdf_ali[t] << " ";
+		  }
+		  std::cout << std::endl;
+	  }
+
 	  bool ret = hubo::MMILoss(indexs, pdf_values, lm_ws, am_ws, statesinfo,
 			  &num_states, max_num_arcs, max_num_states,
 			  h_nnet_out_h, 
 			  nnet_out_h.NumRows(), 1, nnet_out_h.NumCols(),
 			  pdf_ali.data(),
 			  &max_time,
+			  old_acoustic_scale,
 			  acoustic_scale, gradient, &loss);
 
+	  // save output
+	  {
+		  std::cout << "gradient:" 
+			  << nnet_out_h.NumRows() << std::endl;
+		  for(int r=0;r<nnet_out_h.NumRows();r++)
+		  {
+			  for(int c=0;c<nnet_out_h.NumCols();c++)
+			  {
+				  std::cout << gradient[nnet_out_h.NumCols()*r+c] << " ";
+			  }
+			  std::cout << std::endl;
+		  }
+	  }
 
 	  delete[] h_nnet_out_h;
 	  delete[] gradient;
