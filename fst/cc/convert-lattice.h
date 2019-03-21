@@ -19,16 +19,21 @@ bool MallocSparseLattice(int num_states, int num_arcs,
 		BaseFloat **am_ws,
 		int32 **stateinfo)
 {
-	*indexs = (int32 *)malloc(num_arcs * 2 * sizeof(int32));
+	*indexs = new int32[num_arcs * 2];
+	//*indexs = (int32 *)malloc(num_arcs * 2 * sizeof(int32));
 	memset(*indexs, 0x00, num_arcs * 2 * sizeof(int32));
-	*pdf_values = (int32 *)malloc(num_arcs * sizeof(int32));
+	*pdf_values = new int32[num_arcs];
+	//*pdf_values = (int32 *)malloc(num_arcs * sizeof(int32));
 	memset(*pdf_values, 0x00, num_arcs * sizeof(int32));
 	
-	*lm_ws = (BaseFloat *)malloc(num_arcs  * sizeof(BaseFloat));
+	*lm_ws = new BaseFloat[num_arcs];
+	//*lm_ws = (BaseFloat *)malloc(num_arcs  * sizeof(BaseFloat));
 	memset(*lm_ws, 0x00, num_arcs * sizeof(BaseFloat));
-	*am_ws = (BaseFloat *)malloc(num_arcs  * sizeof(BaseFloat));
+	*am_ws = new BaseFloat[num_arcs];
+	//*am_ws = (BaseFloat *)malloc(num_arcs  * sizeof(BaseFloat));
 	memset(*am_ws, 0x00, num_arcs * sizeof(BaseFloat));
-	*stateinfo = (int32 *)malloc(num_states * 2 * sizeof(int32));
+	*stateinfo = new int32[num_states * 2];
+	//*stateinfo = (int32 *)malloc(num_states * 2 * sizeof(int32));
 	memset(*stateinfo , 0x00, num_states * 2 * sizeof(int32));
 
 	return true;

@@ -10,7 +10,7 @@ sys.path.append("../")
 from tensorflow_py_api import mmi
 from tensorflow.python.client import device_lib
 from io_test import *
-
+import time
 
 class MMILossTest(tf.test.TestCase):
 
@@ -47,7 +47,10 @@ class MMILossTest(tf.test.TestCase):
                 device_count={'GPU': 0})
         with self.test_session(use_gpu=False) as sess:
             if expected_error is None:
+                start_time = time.time()
                 (tf_costs, tf_grad) = sess.run([costs, grad])
+                end_time = time.time()
+                print("session run mmi time:",end_time-start_time)
                 #self.assertAllClose(tf_costs, expected_costs, atol=1e-5)
                 self.assertAllClose(tf_grad, expected_gradients, atol=1e-5)
             else:
@@ -56,15 +59,25 @@ class MMILossTest(tf.test.TestCase):
 
     def testBasic(self):
         '''Test one batch'''
-        indexs, pdf_values, lm_ws, am_ws, statesinfo, h_nnet_out_h, pdf_ali, gradient = ReadInput('python.source')
+        #indexs, pdf_values, lm_ws, am_ws, statesinfo, h_nnet_out_h, pdf_ali, gradient = ReadInput('python.source')
+
+        batch_indexs, batch_pdf_values, batch_lm_ws, batch_am_ws, batch_statesinfo, batch_h_nnet_out_h, batch_pdf_ali, batch_gradient, batch_sequence_length, batch_num_states, batch_expected_costs = BatchIo('python.source', 16)
         
-        inputs = h_nnet_out_h
-        sequence_length = np.array([pdf_ali.shape[1]],dtype=np.int32)
-        labels = pdf_ali
-        num_states = np.array([statesinfo.shape[1]],dtype=np.int32)
-        expected_gradients = gradient
-        expected_costs = np.array([0.0],dtype=np.float32)
-        self._run_mmi(inputs, sequence_length, labels,
+        inputs = batch_h_nnet_out_h
+        sequence_length = batch_sequence_length
+        labels = batch_pdf_ali
+        num_states = batch_num_states
+        expected_gradients = batch_gradient
+        expected_costs = batch_expected_costs
+
+        indexs = batch_indexs
+        pdf_values = batch_pdf_values
+        lm_ws = batch_lm_ws
+        am_ws = batch_am_ws
+        statesinfo = batch_statesinfo
+        
+        while True:
+            self._run_mmi(inputs, sequence_length, labels,
                 indexs, pdf_values, lm_ws, am_ws, statesinfo, num_states,
                 expected_gradients, expected_costs,
                 old_acoustic_scale = 0.0,

@@ -3,14 +3,16 @@ all:
 
 include ../kaldi.mk
 
-EXTRA_CXXFLAGS += -Wno-sign-compare
+EXTRA_CXXFLAGS += -Wno-sign-compare 
+#-DDEBUG_SPEED
+#-DDEBUG_PRINT
 
 OBJFILES = sparse-lattice-function.o loss.o
 
 
 LIBNAME = mmi-loss
 
-TESTFILES = convert-lattice-test nnet-train-mmi-sequential
+TESTFILES = convert-lattice-test nnet-train-mmi-sequential-batch
 
 ADDLIBS = ../lat/kaldi-lat.a ../lm/kaldi-lm.a ../fstext/kaldi-fstext.a \
           ../hmm/kaldi-hmm.a ../tree/kaldi-tree.a ../util/kaldi-util.a \

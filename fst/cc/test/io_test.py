@@ -55,6 +55,39 @@ def ReadInput(source_file):
     gradient = np.reshape(gradient, h_nnet_out_h.shape)
     return indexs, pdf_values, lm_ws, am_ws, statesinfo, h_nnet_out_h, pdf_ali, gradient
 
+def BatchIo(source_file, batch):
+    indexs, pdf_values, lm_ws, am_ws, statesinfo, h_nnet_out_h, pdf_ali, gradient = ReadInput('python.source')
+    
+    batch_indexs = indexs
+    batch_pdf_values = pdf_values
+    batch_lm_ws = lm_ws
+    batch_am_ws = am_ws
+    batch_statesinfo = statesinfo
+    batch_h_nnet_out_h = h_nnet_out_h
+    batch_pdf_ali = pdf_ali
+    batch_gradient = gradient
+    sequence_length = np.array([pdf_ali.shape[1]],dtype=np.int32)
+    batch_sequence_length = sequence_length
+    num_states = np.array([statesinfo.shape[1]],dtype=np.int32)
+    batch_num_states = num_states
+    expected_costs = np.array([0.0],dtype=np.float32)
+    batch_expected_costs = expected_costs
+    for i in range(batch-1):
+        batch_indexs = np.vstack((batch_indexs, indexs))
+        batch_pdf_values = np.vstack((batch_pdf_values, pdf_values))
+        batch_lm_ws = np.vstack((batch_lm_ws, lm_ws))
+        batch_am_ws = np.vstack((batch_am_ws, am_ws))
+        batch_statesinfo = np.vstack((batch_statesinfo, statesinfo))
+        batch_h_nnet_out_h = np.hstack((batch_h_nnet_out_h, h_nnet_out_h))
+        batch_pdf_ali = np.vstack((batch_pdf_ali, pdf_ali))
+        batch_gradient = np.hstack((batch_gradient, gradient))
+        batch_sequence_length = np.hstack((batch_sequence_length, sequence_length))
+        batch_num_states = np.hstack((batch_num_states, num_states))
+        batch_expected_costs = np.hstack((batch_expected_costs, expected_costs))
+
+    
+    return batch_indexs, batch_pdf_values, batch_lm_ws, batch_am_ws, batch_statesinfo, batch_h_nnet_out_h, batch_pdf_ali, batch_gradient, batch_sequence_length, batch_num_states, batch_expected_costs
 
 if __name__ == '__main__':
     ReadInput(sys.argv[1])
+    BatchIo(sys.argv[1],2)

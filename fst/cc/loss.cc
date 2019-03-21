@@ -6,6 +6,8 @@
 #include "sparse-lattice-function.h"
 #include "matrix.h"
 #include "loss.h"
+#include <sys/time.h>
+#include <cstring>
 
 namespace hubo
 {
@@ -48,12 +50,19 @@ bool MMILoss(const int32 *indexs, const int32 *pdf_values,
 		BaseFloat acoustic_scale, BaseFloat* gradient,
 		BaseFloat *loss, bool drop_frames)
 {
+#ifdef DEBUG_SPEED
+	struct timeval start;
+	struct timeval end;
+	gettimeofday(&start, NULL);
+#endif
 	//int32 num_classes_raw = cols;
 	std::vector<Lattice> lat_v;
 	std::vector<Matrix<const BaseFloat> > nnet_out_h_v;
 	std::vector<Matrix<BaseFloat> > nnet_diff_h_v;
 	std::vector<const int32*> labels_v;
 	std::vector<std::thread> threads;
+	// setzero gradient
+	memset((void*)gradient,0x00,sizeof(BaseFloat) * rows * batch_size * cols);
 	// first process lat_v and nnet_out_h_v
 	for(int32 i=0; i < batch_size; i++)
 	{
@@ -70,22 +79,33 @@ bool MMILoss(const int32 *indexs, const int32 *pdf_values,
 		lat_v.push_back(Lattice(cur_indexs, cur_pdf_values, cur_lm_ws, cur_am_ws, cur_statesinfo, cur_num_states));
 
 		// process nnet_out
-		nnet_out_h_v.push_back(Matrix<const BaseFloat>(nnet_out + i * cols * rows, sequence_length[i], cols, batch_size * cols));
-		nnet_diff_h_v.push_back(Matrix<BaseFloat>(gradient + i * cols * rows, sequence_length[i], cols, batch_size * cols));
+		nnet_out_h_v.push_back(Matrix<const BaseFloat>(nnet_out + i * cols , sequence_length[i], cols, batch_size * cols));
+		nnet_diff_h_v.push_back(Matrix<BaseFloat>(gradient + i * cols , sequence_length[i], cols, batch_size * cols));
 
 		labels_v.push_back(labels + i * rows);
-		
+	}
+
+#ifdef DEBUG_SPEED
+	gettimeofday(&end, NULL);
+	std::cout << "DEBUG_SPEED : " << __FILE__ << " : process thread data time:" 
+		<< (end.tv_sec - start.tv_sec)+(end.tv_usec-start.tv_usec)*1.0/1e6<< std::endl;
+#endif
+	for(int32 i=0; i < batch_size; i++)
+	{
 		// calculate mmi gradient.
 		// threading calculate.
 		threads.push_back(std::thread(MMIOneLoss, &lat_v[i], &nnet_out_h_v[i], labels_v[i], &nnet_diff_h_v[i], old_acoustic_scale, acoustic_scale, &loss[i], drop_frames));
-
 	}
-
 	// pauses until all thread finish.
 	for(int32 i=0; i < batch_size; i++)
 	{
 		threads[i].join();
 	}
+#ifdef DEBUG_SPEED
+	gettimeofday(&end, NULL);
+	std::cout << "DEBUG_SPEED : " << __FILE__ << " : mmi thread time:" 
+		<< (end.tv_sec - start.tv_sec)+(end.tv_usec-start.tv_usec)*1.0/1e6<< std::endl;
+#endif
 	return true;
 }
 
@@ -105,6 +125,7 @@ void MMIOneLoss(Lattice *lat, Matrix<const BaseFloat> *nnet_out_h, const int32 *
 	//Matrix<BaseFloat> nnet_out_h(nnet_out, length, cols);
 	
 	// print input
+#ifdef DEBUG_PRINT
 	{
 		lat->PrintInfo();
 		std::cout << "h_nnet_out_h:";
@@ -116,6 +137,7 @@ void MMIOneLoss(Lattice *lat, Matrix<const BaseFloat> *nnet_out_h, const int32 *
 		}
 		std::cout << std::endl;
 	}
+#endif
 	std::vector<int32> state_times;
 	int32 max_time = LatticeStateTimes(*lat, &state_times);
 
@@ -161,11 +183,12 @@ void MMIOneLoss(Lattice *lat, Matrix<const BaseFloat> *nnet_out_h, const int32 *
 		double posterior = (*nnet_diff_h)(t, pdf);
 		post_on_ali += posterior;
 	}
+#ifdef DEBUG_PRINT
 	// Report
 	std::cout << "Utterance : Average MMI obj. value = "
 		<< (mmi_obj/num_frames) << " over " << num_frames << " frames."
 		<< " (Avg. den-posterior on ali " << post_on_ali / num_frames << ")" << std::endl;
-
+#endif
 	// Search for the frames with num/den mismatch,
 	int32 frm_drop = 0;
 	std::vector<int32> frm_drop_vec;
@@ -199,13 +222,12 @@ void MMIOneLoss(Lattice *lat, Matrix<const BaseFloat> *nnet_out_h, const int32 *
 	*loss = mmi_obj/num_frames;
 
 	// print output
+#ifdef DEBUG_PRINT
 	{
 		std::cout << "gradient:";
 		nnet_diff_h->Print();
 	}
+#endif
 }
-
-
-
 
 } // namespace

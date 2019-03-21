@@ -65,7 +65,31 @@ void LatticeAcousticRescore(const Matrix<BaseFloat> &log_like,
 }  // namespace nnet1
 }  // namespace kaldi
 
-
+template<typename T>
+T* BatchIn(T* input, int size, int batch)
+{
+	T *tmp = new T[size * batch];
+	for(int i=0;i<batch;i++)
+	{
+		memcpy((void*)(tmp+size*i),(void*)input, sizeof(T) * size);
+	}
+	delete []input;
+	return tmp;
+}
+template<typename T>
+T *BatchInT(T* input, int rows, int cols, int batch)
+{
+	T *tmp = new T[rows * cols * batch];
+	for(int r=0;r<rows;r++)
+	{
+		for(int i=0;i<batch;i++)
+		{
+			memcpy((void*)(tmp + r * batch * cols + cols *i),(void*)(input + cols * r), sizeof(T) * cols);
+		}
+	}
+	delete[]input;
+	return tmp;
+}
 int main(int argc, char *argv[]) {
   using namespace kaldi;
   using namespace kaldi::nnet1;
@@ -115,6 +139,10 @@ int main(int argc, char *argv[]) {
     kaldi::int32 max_frames = 6000;
     po.Register("max-frames", &max_frames,
         "Maximum number of frames an utterance can have (skipped if longer)");
+
+	kaldi::int32 batch_size = 1;
+	po.Register("batch-size", &batch_size,
+			"batch size");
 
     bool drop_frames = true;
     po.Register("drop-frames", &drop_frames,
@@ -277,6 +305,7 @@ int main(int argc, char *argv[]) {
 	  AliToPdfOffset(pdf_values, max_num_arcs, trans_model, 1);
 	  KALDI_ASSERT(max_time == num_ali.size());
 	  // save input 
+	  if(false)
 	  {
 		  std::cout << "indexs:" << max_num_arcs << std::endl;
 		  for(int a=0;a<max_num_arcs;a++)
@@ -325,16 +354,47 @@ int main(int argc, char *argv[]) {
 		  std::cout << std::endl;
 	  }
 
+	  // batch io
+	  
+	  BaseFloat *batch_loss = new BaseFloat[1];
+	  batch_loss[0]= loss;
+	  int32 *batch_num_states = new int32[1];
+	  batch_num_states[0] = num_states;
+	  int32 *batch_pdf_ali = new int32[pdf_ali.size()];
+	  memcpy(batch_pdf_ali,pdf_ali.data(), sizeof(int32)*pdf_ali.size());
+	  int32 *batch_sequence_length = new int32[1];
+	  batch_sequence_length[0] = max_time;
+
+	  if(batch_size  > 1)
+	  {
+		  indexs = BatchIn(indexs, max_num_arcs * 2, batch_size);
+		  pdf_values = BatchIn(pdf_values, max_num_arcs, batch_size);
+		  lm_ws = BatchIn(lm_ws, max_num_arcs, batch_size);
+		  am_ws = BatchIn(am_ws, max_num_arcs, batch_size);
+		  statesinfo = BatchIn(statesinfo, max_num_states * 2 , batch_size);
+		  batch_num_states = BatchIn(batch_num_states, 1, batch_size);
+
+		  h_nnet_out_h = BatchInT(h_nnet_out_h, nnet_out_h.NumRows() , nnet_out_h.NumCols(), batch_size);
+
+		  batch_pdf_ali = BatchIn(batch_pdf_ali, pdf_ali.size(), batch_size);
+		  batch_sequence_length = BatchIn(batch_sequence_length, 1, batch_size);
+
+		  gradient = BatchIn(gradient, nnet_out_h.NumRows() * nnet_out_h.NumCols(), batch_size);
+
+		  batch_loss = BatchIn(batch_loss, 1, batch_size);
+
+	  }
 	  bool ret = hubo::MMILoss(indexs, pdf_values, lm_ws, am_ws, statesinfo,
-			  &num_states, max_num_arcs, max_num_states,
+			  batch_num_states, max_num_arcs, max_num_states,
 			  h_nnet_out_h, 
-			  nnet_out_h.NumRows(), 1, nnet_out_h.NumCols(),
-			  pdf_ali.data(),
-			  &max_time,
+			  nnet_out_h.NumRows(), batch_size, nnet_out_h.NumCols(),
+			  batch_pdf_ali,
+			  batch_sequence_length,
 			  old_acoustic_scale,
-			  acoustic_scale, gradient, &loss);
+			  acoustic_scale, gradient, batch_loss);
 
 	  // save output
+	  if(false)
 	  {
 		  std::cout << "gradient:" 
 			  << nnet_out_h.NumRows() << std::endl;
@@ -348,8 +408,6 @@ int main(int argc, char *argv[]) {
 		  }
 	  }
 
-	  delete[] h_nnet_out_h;
-	  delete[] gradient;
 	  // tail hubo
 
       // 4) rescore the latice,
@@ -400,7 +458,7 @@ int main(int argc, char *argv[]) {
         << (mmi_obj/num_frames) << " over " << num_frames << " frames."
         << " (Avg. den-posterior on ali " << post_on_ali / num_frames << ")";
 
-	  assert(loss - mmi_obj/num_frames < 1e-5);
+	  assert(batch_loss[0] - mmi_obj/num_frames < 1e-5);
 
       // 7a) Search for the frames with num/den mismatch,
       int32 frm_drop = 0;
@@ -465,6 +523,18 @@ int main(int argc, char *argv[]) {
       }
 	  kaldi_writer.Write( utt, nnet_diff_h);
 
+	  delete[]indexs;
+	  delete[]pdf_values;
+	  delete[]lm_ws;
+	  delete[]am_ws;
+	  delete[]statesinfo;
+	  delete[]batch_loss;
+	  delete[]batch_num_states;
+	  delete[]batch_pdf_ali;
+	  delete[]batch_sequence_length;
+	  
+	  delete[] h_nnet_out_h;
+	  delete[] gradient;
     }  // main loop over utterances,
 
     time_now = time.Elapsed();

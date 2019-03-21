@@ -10,6 +10,8 @@
 
 #include "loss.h"
 
+#include <sys/time.h>
+
 using tensorflow::shape_inference::DimensionHandle;
 using tensorflow::shape_inference::InferenceContext;
 using tensorflow::shape_inference::ShapeHandle;
@@ -99,6 +101,11 @@ public:
 
 	void Compute(tf::OpKernelContext* ctx) override 
 	{
+#ifdef DEBUG_SPEED
+		struct timeval start;
+		struct timeval end;
+		gettimeofday(&start, NULL);
+#endif
 		const tf::Tensor* inputs;
 		const tf::Tensor* sequence_length; // frames
 		const tf::Tensor* labels;
@@ -173,11 +180,12 @@ public:
 		tf::Tensor* gradient;
 		OP_REQUIRES_OK(ctx,
 				ctx->allocate_output("gradient", inputs_shape, &gradient));
+		
 		auto inputs_t = inputs->tensor<float, 3>();
 		auto gradient_t = gradient->tensor<float, 3>();
-
 		// gradient set zero
-		gradient_t.setZero();
+		// the setZero is so slow,so I decide zet zero in hubo::MMILoss
+		//gradient_t.setZero();
 
 		auto indexs_t = indexs->tensor<int, 3>();
 		auto pdf_values_t = pdf_values->matrix<int>();
@@ -189,6 +197,11 @@ public:
 
 		auto sequence_length_t = sequence_length->vec<int>();
 
+#ifdef DEBUG_SPEED
+		gettimeofday(&end, NULL);
+		std::cout << "DEBUG_SPEED : " << __FILE__ " : mmi_loss_op process data time:"
+			<< (end.tv_sec - start.tv_sec)+(end.tv_usec-start.tv_usec)*1.0/1e6<< std::endl;
+#endif
 
 		bool ret_mmi = hubo::MMILoss(indexs_t.data(), pdf_values_t.data(),
 				(float *)lm_ws_t.data(), (float *)am_ws_t.data(),
@@ -202,6 +215,11 @@ public:
 				_acoustic_scale, gradient_t.data(), loss_t.data(),
 				_drop_frames);
 
+#ifdef DEBUG_SPEED
+		gettimeofday(&end, NULL);
+		std::cout << "DEBUG_SPEED : " << __FILE__ << " : mmi_loss_op calculate mmi time:"
+			<< (end.tv_sec - start.tv_sec)+(end.tv_usec-start.tv_usec)*1.0/1e6<< std::endl;
+#endif
 		//return ret_mmi;
 	}
 private:

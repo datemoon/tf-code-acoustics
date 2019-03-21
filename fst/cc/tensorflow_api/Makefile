@@ -10,7 +10,8 @@ TF_LFLAGS = -L/usr/local/lib/python3.5/dist-packages/tensorflow -ltensorflow_fra
 
 ADDLIBS=../mmi-loss.a
 
-CXXFLAGS += -std=c++11 -fPIC  -I ../
+CXXFLAGS += -std=c++11 -fPIC  -I ../ 
+#-DDEBUG_SPEED
 
 all:tf_mmi_api.so
 
