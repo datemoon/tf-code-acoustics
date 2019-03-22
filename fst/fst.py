@@ -100,6 +100,9 @@ class Arc(object):
         self._weight = weight()
         self._nextstate = n
 
+    def SetWeight(self, w):
+        self._weight = w
+
     def __repr__(self):
         pri = str(self._nextstate) + '\t' 
         pri += str(self._ilabel) + '\t'
