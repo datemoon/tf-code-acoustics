@@ -3,8 +3,9 @@ import tensorflow as tf
 from tensorflow.python.framework import ops
 from tensorflow.python.ops.nn_grad import _BroadcastMul
 
-#lib_file = imp.find_module('kernels', __path__)[1]
-_warpmmi = tf.load_op_library('../tensorflow_api/tf_mmi_api.so')
+lib_file = imp.find_module('mmi', __path__)[1]
+_warpmmi = tf.load_op_library(lib_file)
+#_warpmmi = tf.load_op_library('../tensorflow_api/tf_mmi_api.so')
 
 
 def mmi(inputs, sequence_length, labels, 

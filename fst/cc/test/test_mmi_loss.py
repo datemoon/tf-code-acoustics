@@ -6,7 +6,6 @@ from __future__ import print_function
 import tensorflow as tf
 import numpy as np
 import sys
-sys.path.append("../")
 from tensorflow_py_api import mmi
 from tensorflow.python.client import device_lib
 from io_test import *
