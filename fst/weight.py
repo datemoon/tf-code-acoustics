@@ -27,6 +27,12 @@ class LatticeWeightFloat(object):
         else:
             return False
 
+    def IsOne(self):
+        if self.Value() == float(0.0):
+            return True
+        else:
+            return False
+    
     def Zero(self):
         return LatticeWeightFloat(value1=float('inf'), value2=float('inf'))
 
@@ -53,6 +59,12 @@ class Weight(object):
         else:
             return False
 
+    def IsOne(self):
+        if self.Value() == float(0.0):
+            return True
+        else:
+            return False
+    
     def Zero(self):
         return Weight(value = float('inf'))
 
@@ -86,6 +98,12 @@ class CompactLatticeWeightFloat(object):
     
     def IsZero(self):
         if self.Value() == float('inf'):
+            return True
+        else:
+            return False
+
+    def IsOne(self):
+        if self.Value() == float(0.0):
             return True
         else:
             return False

@@ -4,6 +4,7 @@ import struct
 import sys
 from fst import *
 from topsort import TopSort
+from fst_ops import *
 
 from lattice_functions import *
 from convert_lattice_to_sparsematrix import *
@@ -11,7 +12,37 @@ sys.path.append("../")
 from io_func import smart_open
 from io_func.matio import read_token
 
-Lattice = Fst
+class Lattice(Fst, object):
+    def __init__(self, key = None, wclass = Weight):
+        super(Lattice, self).__init__()
+        self._wclass = wclass
+        self._key = key
+
+    def Read(self, fp):
+        self._key = read_token(fp)
+        if self._key is None:
+            return self._key
+        Fst.Read(self, fp)
+        return self._key
+
+    def Write(self, fp = None):
+        if self._key is not None:
+            print('%s' % (self._key))
+        Fst.Write(self, fp)
+
+    def ReadScp(self, scp_line):
+        if scp_line is None:
+            return None
+        self._key, path_pos = scp_line.replace('\n','').split(' ')
+        path, pos = path_pos.split(':')
+        latfp = smart_open(path, 'rb')
+        latfp.seek(int(pos),0)
+        Fst.Read(self, latfp)
+        latfp.close()
+        return self._key
+
+    def SetKey(self, key):
+        self._key = key
 
 #class Lattice(FstHeader, object):
 #    def __init__(self):
@@ -168,13 +199,25 @@ def ConvertLattice(compactlat):
 
 
 if __name__ == "__main__":
+    with open(sys.argv[1],'r') as lat_scp_fp:
+        for scp_line in lat_scp_fp:
+            lattice = Lattice()
+            key = lattice.ReadScp(scp_line)
+            lattice.Write()
+            lat = ConvertLattice(lattice)
+            lat.SetKey(key)
+            SuperFinalFst(lat)
+            lat.Write()
+            TopSort(lat)
+
+    exit(0)
     fp = open(sys.argv[1],'r')
     while True:
         lattice = Lattice()
-        key = read_token(fp)
+        #key = read_token(fp)
+        key = lattice.Read(fp) 
         if key is None:
             break
-        lattice.Read(fp)
         print(key)
         lattice.Write()
         lat = ConvertLattice(lattice)
