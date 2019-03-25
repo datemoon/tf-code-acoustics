@@ -6,7 +6,7 @@ from fst_ops import *
 
 from lattice_functions import *
 from convert_lattice_to_sparsematrix import *
-sys.path.append("../")
+sys.path.extend(["../","./"])
 from io_func import smart_open
 from io_func.matio import read_token
 
@@ -46,6 +46,8 @@ def ConvertLattice(compactlat):
     '''
     convert compact lattice to fst lattice
     '''
+    if 'compact' not in compactlat.ArcType():
+        return compactlat
     lat = Lattice()
     lat.SetArcType('lattice4')
 
@@ -139,6 +141,8 @@ if __name__ == "__main__":
             lat.SetKey(key)
             SuperFinalFst(lat)
             TopSort(lat)
+            # save lm weight and am weight set zero
+            ScaleLattice(lat, 1.0, 0.0)
             lat.Write()
             indexs_info, pdf_values , lmweight_values, amweight_values, statesinfo, shape = ConvertLatticeToSparseMatrix(lat)
 
