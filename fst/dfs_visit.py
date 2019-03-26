@@ -1,6 +1,8 @@
 from __future__ import print_function
 import array
-from fst import *
+import sys
+sys.path.extend(["../","./"])
+from fst.fst import *
 
 def AnyArcFilter(object):
     def __init__(self, arc):

@@ -1,12 +1,12 @@
 from __future__ import print_function
 import sys
-from fst import *
-from topsort import TopSort
-from fst_ops import *
-
-from lattice_functions import *
-from convert_lattice_to_sparsematrix import *
 sys.path.extend(["../","./"])
+from fst.fst import *
+from fst.topsort import TopSort
+from fst.fst_ops import *
+
+from fst.lattice_functions import *
+from fst.convert_lattice_to_sparsematrix import *
 from io_func import smart_open
 from io_func.matio import read_token
 

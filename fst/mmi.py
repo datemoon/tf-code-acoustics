@@ -1,8 +1,10 @@
 
 import logging
+import sys
 import numpy as np
-from lattice_functions import *
-from posterior import *
+sys.path.extend(["../","./"])
+from fst.lattice_functions import *
+from fst.posterior import *
 
 def LatticeAcousticRescore(nnet_out, state_times, lat):
     # lat must be top sort and ilabel = pdf+1

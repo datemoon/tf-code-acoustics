@@ -3,7 +3,8 @@ import numpy as np
 import sys
 
 
-from lattice import *
+sys.path.extend(["../","./"])
+from fst.lattice import *
 
 
 def ConvertLatticeToSparseMatrix(lat):

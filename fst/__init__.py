@@ -1,8 +1,11 @@
 import numpy as np
-from lattice_functions import *
-from lattice import *
-from convert_lattice_to_sparsematrix import *
-from topsort import *
+import sys
+
+sys.path.extend(["../","./"])
+from fst.lattice_functions import *
+from fst.lattice import *
+from fst.convert_lattice_to_sparsematrix import *
+from fst.topsort import *
 
 # realize lattice package io
 
@@ -110,7 +113,7 @@ if __name__ == '__main__':
     in_lat_list = []
     with open(sys.argv[1],'r') as fp:
         for line in fp:
-            if batch != 0 and batch % 10 == 0:
+            if batch != 0 and batch % 32 == 0:
                 indexs_info_list, pdf_values_list, lmweight_values_list, amweight_values_list, statesinfo_list, statenum_list, time_list = PackageLattice(in_lat_list)
                 in_lat_list = []
                 batch = 0

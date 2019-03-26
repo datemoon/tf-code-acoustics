@@ -1,7 +1,8 @@
-
-from dfs_visit import DfsVisit
-from statesort import StateSort
-from fst import *
+import sys
+sys.path.extend(["../","./"])
+from fst.dfs_visit import DfsVisit
+from fst.statesort import StateSort
+from fst.fst import *
 
 class TopOrderVisitor(object):
     def __init__(self, order, acyclic):

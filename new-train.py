@@ -86,7 +86,7 @@ class TrainClass(object):
         #logging.info(self.kaldi_io_nstream_cv.__repr__())
         
         # Initial input queue.
-        self.input_queue = Queue.Queue(self.queue_cache_cf)
+        #self.input_queue = Queue.Queue(self.queue_cache_cf)
 
         self.acc_label_error_rate = []
         self.all_lab_err_rate = []
@@ -248,80 +248,80 @@ class TrainClass(object):
             if ckpt and ckpt.model_checkpoint_path:
                 print_trainable_variables(self.sess, ckpt.model_checkpoint_path+'.txt')
 
-    def InputFeat(self, input_lock):
-        while True:
-            input_lock.acquire()
-            '''
-            if 'ctc' in self.criterion_cf or 'whole' in self.criterion_cf:
-                if 'cnn' in self.criterion_cf:
-                    feat,label,length = self.kaldi_io_nstream.CnnLoadNextNstreams()
-                else:
-                    feat,label,length = self.kaldi_io_nstream.WholeLoadNextNstreams()
-                if length is None:
-                    break
-                print(np.shape(feat),np.shape(label), np.shape(length))
-                if len(label) != self.batch_size_cf:
-                    break
-                if 'ctc' in self.criterion_cf:
-                    sparse_label = sparse_tuple_from(label)
-                    self.input_queue.put((feat,sparse_label,length))
-                else:
-                    self.input_queue.put((feat,label,length))
+#    def InputFeat(self, input_lock):
+#        while True:
+#            input_lock.acquire()
+#            '''
+#            if 'ctc' in self.criterion_cf or 'whole' in self.criterion_cf:
+#                if 'cnn' in self.criterion_cf:
+#                    feat,label,length = self.kaldi_io_nstream.CnnLoadNextNstreams()
+#                else:
+#                    feat,label,length = self.kaldi_io_nstream.WholeLoadNextNstreams()
+#                if length is None:
+#                    break
+#                print(np.shape(feat),np.shape(label), np.shape(length))
+#                if len(label) != self.batch_size_cf:
+#                    break
+#                if 'ctc' in self.criterion_cf:
+#                    sparse_label = sparse_tuple_from(label)
+#                    self.input_queue.put((feat,sparse_label,length))
+#                else:
+#                    self.input_queue.put((feat,label,length))
+#
+#            elif 'ce' in self.criterion_cf:
+#                if 'cnn' in self.criterion_cf:
+#                    feat_array, label_array, length_array = self.kaldi_io_nstream.CnnSliceLoadNextNstreams()
+#                else:
+#                    feat_array, label_array, length_array = self.kaldi_io_nstream.SliceLoadNextNstreams()
+#                if length_array is None:
+#                    break
+#                print(np.shape(feat_array),np.shape(label_array), np.shape(length_array))
+#                if len(label_array[0]) != self.batch_size_cf:
+#                    break
+#                self.input_queue.put((feat_array, label_array, length_array))
+#            '''
+#            feat,label,length = self.kaldi_io_nstream.LoadBatch()
+#            if length is None:
+#                break
+#            print(np.shape(feat),np.shape(label), np.shape(length))
+#            sys.stdout.flush()
+#            if 'ctc' in self.criterion_cf:
+#                sparse_label = sparse_tuple_from(label)
+#                self.input_queue.put((feat,sparse_label,length))
+#            else:
+#                self.input_queue.put((feat,label,length))
+#            self.num_batch_total += 1
+##            if self.num_batch_total % 3000 == 0:
+##                self.SaveModel()
+##                self.AdjustLearnRate()
+#            print('total_batch_num**********',self.num_batch_total,'***********')
+#            input_lock.release()
+#        self.input_queue.put((None, None, None))
+#
+#    def ThreadInputFeatAndLab(self):
+#        input_thread = []
+#        input_lock = threading.Lock()
+#        for i in range(1):
+#            input_thread.append(threading.Thread(group=None, target=self.InputFeat,
+#                args=(input_lock,),name='read_thread'+str(i)))
+#
+#        for thr in input_thread:
+#            logging.info('ThreadInputFeatAndLab start')
+#            thr.start()
+#
+#        return input_thread
 
-            elif 'ce' in self.criterion_cf:
-                if 'cnn' in self.criterion_cf:
-                    feat_array, label_array, length_array = self.kaldi_io_nstream.CnnSliceLoadNextNstreams()
-                else:
-                    feat_array, label_array, length_array = self.kaldi_io_nstream.SliceLoadNextNstreams()
-                if length_array is None:
-                    break
-                print(np.shape(feat_array),np.shape(label_array), np.shape(length_array))
-                if len(label_array[0]) != self.batch_size_cf:
-                    break
-                self.input_queue.put((feat_array, label_array, length_array))
-            '''
-            feat,label,length = self.kaldi_io_nstream.LoadBatch()
-            if length is None:
-                break
-            print(np.shape(feat),np.shape(label), np.shape(length))
-            sys.stdout.flush()
-            if 'ctc' in self.criterion_cf:
-                sparse_label = sparse_tuple_from(label)
-                self.input_queue.put((feat,sparse_label,length))
-            else:
-                self.input_queue.put((feat,label,length))
-            self.num_batch_total += 1
-#            if self.num_batch_total % 3000 == 0:
-#                self.SaveModel()
-#                self.AdjustLearnRate()
-            print('total_batch_num**********',self.num_batch_total,'***********')
-            input_lock.release()
-        self.input_queue.put((None, None, None))
-
-    def ThreadInputFeatAndLab(self):
-        input_thread = []
-        input_lock = threading.Lock()
-        for i in range(1):
-            input_thread.append(threading.Thread(group=None, target=self.InputFeat,
-                args=(input_lock,),name='read_thread'+str(i)))
-
-        for thr in input_thread:
-            logging.info('ThreadInputFeatAndLab start')
-            thr.start()
-
-        return input_thread
-
-    def SaveModel(self):
-        while True:
-            time.sleep(1.0)
-            if self.input_queue.empty():
-                checkpoint_path = os.path.join(self.checkpoint_dir_cf, 
-                        str(self.num_batch_total)+'_model'+'.ckpt')
-                logging.info('save model: '+checkpoint_path+
-                        ' --- learn_rate: ' +
-                        str(self.sess.run(self.learning_rate_var_tf)))
-                self.saver.save(self.sess, checkpoint_path)
-                break
+#    def SaveModel(self):
+#        while True:
+#            time.sleep(1.0)
+#            if self.input_queue.empty():
+#                checkpoint_path = os.path.join(self.checkpoint_dir_cf, 
+#                        str(self.num_batch_total)+'_model'+'.ckpt')
+#                logging.info('save model: '+checkpoint_path+
+#                        ' --- learn_rate: ' +
+#                        str(self.sess.run(self.learning_rate_var_tf)))
+#                self.saver.save(self.sess, checkpoint_path)
+#                break
 
     # if current label error rate less then previous five
     def AdjustLearnRate(self):
@@ -375,7 +375,7 @@ class TrainClass(object):
                     'mean_loss':self.run_ops['mean_loss']}
         # reset io and start input thread
         self.kaldi_io_nstream.Reset(shuffle = shuffle, skip_offset = skip_offset)
-        threadinput = self.ThreadInputFeatAndLab()
+        #threadinput = self.ThreadInputFeatAndLab()
         time.sleep(3)
         with tf.device(device):
             if 'ctc' in self.criterion_cf or 'whole' in self.criterion_cf:
@@ -394,8 +394,9 @@ class TrainClass(object):
             logging.info('TrainLogic cv end.')
 
         # End input thread
-        for  i in range(len(threadinput)):
-            threadinput[i].join()
+        self.kaldi_io_nstream.JoinInput()
+        #for  i in range(len(threadinput)):
+        #    threadinput[i].join()
 
         self.ResetAccuracy()
         return tmp_label_error_rate
@@ -410,7 +411,7 @@ class TrainClass(object):
         #print_trainable_variables(self.sess, 'save.model.txt')
         while True:
             time1=time.time()
-            feat, label, length = self.GetFeatAndLabel()
+            feat, label, length, lat_list = self.GetFeatAndLabel()
             if feat is None:
                 logging.info('train thread end : %s' % thread_name)
                 break
@@ -445,7 +446,7 @@ class TrainClass(object):
 
         while True:
             time1=time.time()
-            feat, label, length = self.GetFeatAndLabel()
+            feat, label, length, lat_list = self.GetFeatAndLabel()
             if feat is None:
                 logging.info('train thread end : %s' % thread_name)
                 break
@@ -476,7 +477,7 @@ class TrainClass(object):
         logging.info('******end TrainFunction******')
 
     def GetFeatAndLabel(self):
-        return self.input_queue.get()
+        return self.kaldi_io_nstream.GetInput()
 
     def GetAverageLabelErrorRate(self):
         tot_label_error_rate = 0.0

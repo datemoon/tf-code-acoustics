@@ -2,7 +2,9 @@
 import logging
 import array
 import math
-from fst_math import *
+import sys
+sys.path.extend(["../","./"])
+from fst.fst_math import *
 
 def LatticeStateTimes(lat):
     # top sort lat

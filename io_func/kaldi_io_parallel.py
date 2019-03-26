@@ -319,13 +319,14 @@ class KaldiDataReadParallel(object):
         self.skip_offset = skip_offset % self.skip_frame
         self.read_offset = 0
         self.io_end_times = 0
+        if len(self.input_thread) != 0:
+            self.ThreadPackageInput()
         if shuffle is True or self.shuffle is True:
             self.shuffle = True
             self.input_lock.acquire()
             if self.package_end[-1] is True:
                 random.shuffle(self.package_feat_ali)
                 logging.info('Reset and shuffle package_feat_ali')
-                self.ThreadPackageInput()
                 self.input_lock.release()
                 return 
             self.input_lock.release()
@@ -440,6 +441,8 @@ class KaldiDataReadParallel(object):
     def JoinInput(self):
         for i in range(self.io_thread_num):
             self.input_thread[i].join()
+        self.input_thread = []
+
     
     # Tdnn frames features train.
     def TdnnLoadNextNstreams(self):

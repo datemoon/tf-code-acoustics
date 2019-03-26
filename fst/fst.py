@@ -3,7 +3,8 @@ from __future__ import print_function
 import numpy as np
 import struct
 import sys
-from weight import *
+sys.path.extend(["../","./"])
+from fst.weight import *
 
 kNoStateId = -1
 
