@@ -23,12 +23,19 @@ import numpy
 import random
 import logging
 import threading
+import multiprocessing 
 import time
+try:
+    import queue as Queue
+except ImportError:
+    import Queue
 
-sys.path.append("../")
-from io_func import smart_open, skip_frame
+
+sys.path.extend(["../","./"])
+from io_func import smart_open, skip_frame, sparse_tuple_from
 from feat_process.feature_transform import FeatureTransform
 from io_func.matio import read_next_utt
+from fst import *
 
 # read the alignment of all the utterances and keep the alignment in CPU memory.
 def read_alignment(ali_file):
@@ -74,6 +81,76 @@ def read_nocompression_next_utt(next_scp_line):
     ark_read_buffer.close()
 
     return utt_id, utt_mat
+
+def ReadScp(scp_file):
+    scp_dict = {}
+    f_read = smart_open(scp_file, 'r')
+    for line in f_read:
+        line = line.replace('\n','').strip()
+        if len(line) < 1: # this is an empty line, skip
+            continue
+        [utt_id, utt_val] = line.split()
+        # this utterance has empty alignment, skip
+        scp_dict[utt_id] = line
+    f_read.close()
+    return scp_dict 
+
+def PackageFeatAndAliAndLat(all_package, input_lock, package_end, feat_scp_file, ali_file, lat_scp_file, nstreams, 
+        skip_frame = 1,  max_input_seq_length = 1500, criterion = 'mmi'):
+    logging.info('------start package------')
+    start_package = time.time()
+    # first read ali
+    alignment_dict = read_alignment(ali_file)
+    lat_dict = ReadScp(lat_scp_file)
+
+    feat_list = []
+    ali_list = []
+    lat_list = []
+
+    with open(feat_scp_file, 'r') as feat_fp:
+        for line in feat_fp:
+            utt_id, utt_mat = read_next_utt(line)
+            logging.debug(utt_id + ' read ok.')
+            if int(len(utt_mat)/skip_frame) + 1 > max_input_seq_length:
+                continue
+            try:
+                ali_utt = alignment_dict[utt_id]
+            except KeyError:
+                logging.info('no '+ utt_id + ' align')
+                continue
+            try:
+                lat_scp_line = lat_dict[utt_id]
+            except KeyError:
+                logging.info('no '+ utt_id + ' lattice')
+                continue
+
+            # should check length is equal.
+            # but because of time question , now it's not check length.
+            feat_list.append(line)
+            ali_list.append(ali_utt)
+            lat_list.append(lat_scp_line)
+            
+            if len(feat_list) == nstreams:
+                input_lock.acquire()
+                all_package.append([feat_list, ali_list, lat_list])
+                input_lock.release()
+                feat_list = []
+                ali_list = []
+                lat_list = []
+    
+    if len(feat_list) != 0:
+        while len(feat_list) < nstreams:
+            feat_list.append(feat_list[0])
+            ali_list.append(ali_list[0])
+            lat_list.append(lat_list[0])
+        input_lock.acquire()
+        all_package.append([feat_list, ali_list, lat_list])
+        package_end.append(True)
+        input_lock.release()
+
+    end_package = time.time()
+    logging.info('------PackageFeatAndAliAndLat end. Package time is : %f s' % (end_package - start_package))
+
 
 def PackageFeatAndAli(all_package, input_lock, package_end, scp_file, ali_file, nstreams, skip_frame = 1,  max_input_seq_length = 1500, criterion = 'ce'):
     logging.info('------start package------')
@@ -151,18 +228,28 @@ class KaldiDataReadParallel(object):
         # tdnn parameters
         self.tdnn_start_frames = 0
         self.tdnn_end_frames = 0
+        self.queue_cache = 10
+        self.io_thread_num = 1
+        self.io_end_times = 0  #if self.io_end_times == self.io_thread_num,it's end
         
-    def Initialize(self, conf_dict = None, scp_file = None, label = None, feature_transform = None, criterion = 'ce'):
+    def Initialize(self, conf_dict = None, scp_file = None, label = None, feature_transform = None, criterion = 'ce', lat_scp_file = None):
         for key in self.__dict__:
             if key in conf_dict.keys():
                 self.__dict__[key] = conf_dict[key]
-        self.scp_file = ''   # path to the .scp file
-        self.label = ''
+        
+        # Initial input queue.
+        self.input_queue = Queue.Queue(self.queue_cache)
+        
+        self.scp_file = None   # path to the .scp file
+        self.label = None
+        self.lat_scp_file = None
         self.criterion = criterion
         if scp_file != None:
             self.scp_file = scp_file
         if label != None:
             self.label = label
+        if lat_scp_file != None:
+            self.lat_scp_file = lat_scp_file
         if not os.path.exists(self.scp_file):
             raise 'no scp file'
         if not os.path.exists(self.label):
@@ -191,45 +278,54 @@ class KaldiDataReadParallel(object):
         else:
             logging.info('no feature transform file.')
             sys.exit(1)
+        
+        if 'ctc' in self.criterion:
+            self.do_skip_lab = False
+        else:
+            self.do_skip_lab = True
+        
         # prepare data, The first loop train must be order for add speed.
         self.input_lock = threading.Lock()
 
         self.ThreadPackageFeatAndAli()
-        #self.package_feat_ali = 
-        #start_package = time.time()
-        #PackageFeatAndAli(self.package_feat_ali, self.input_lock, self.scp_file, self.label, self.batch_size, self.skip_frame, self.max_input_seq_length, self.criterion)
-        #end_package = time.time()
-        #logging.info('package time is : %f s' % (end_package - start_package))
         
+        self.ThreadPackageInput()
         #if self.shuffle is True:
         #    random.shuffle(self.package_feat_ali)
-        if 'ce' in self.criterion or 'whole' in self.criterion:
-            self.do_skip_lab = True
-        elif 'ctc' in self.criterion:
-            self.do_skip_lab = False
         return self.output_feat_dim
 
     def ThreadPackageFeatAndAli(self):
         self.package_feat_ali = []
         self.package_end=[False]
-        load_thread = threading.Thread(group=None, target=PackageFeatAndAli,
-                args=(self.package_feat_ali, self.input_lock, self.package_end, 
-                    self.scp_file, self.label, 
-                    self.batch_size, self.skip_frame, 
-                    self.max_input_seq_length, self.criterion,),
-                kwargs={}, name='PackageFeatAndAli_thread')
+        if self.lat_scp_file is None: 
+            load_thread = threading.Thread(group=None, target=PackageFeatAndAli,
+                    args=(self.package_feat_ali, self.input_lock, self.package_end, 
+                        self.scp_file, self.label, 
+                        self.batch_size, self.skip_frame, 
+                        self.max_input_seq_length, self.criterion,),
+                    kwargs={}, name='PackageFeatAndAli_thread')
+        else:
+            load_thread = threading.Thread(group=None, target=PackageFeatAndAliAndLat,
+                    args=(self.package_feat_ali, self.input_lock, self.package_end,
+                        self.scp_file, self.label, self.lat_scp_file,
+                        self.batch_size, self.skip_frame,
+                        self.max_input_seq_length, self.criterion,),
+                    kwargs={}, name='PackageFeatAndAliAndLat_thread')
+
         load_thread.start()
         logging.info('PackageFeatAndAli thread start.')
 
     def Reset(self, shuffle = False, skip_offset = 0 ):
         self.skip_offset = skip_offset % self.skip_frame
         self.read_offset = 0
+        self.io_end_times = 0
         if shuffle is True or self.shuffle is True:
             self.shuffle = True
             self.input_lock.acquire()
             if self.package_end[-1] is True:
                 random.shuffle(self.package_feat_ali)
                 logging.info('Reset and shuffle package_feat_ali')
+                self.ThreadPackageInput()
                 self.input_lock.release()
                 return 
             self.input_lock.release()
@@ -241,20 +337,26 @@ class KaldiDataReadParallel(object):
             if self.read_offset >= len(self.package_feat_ali):
                 if self.package_end[-1] is True:
                     self.input_lock.release()
-                    return None, None, None, None
+                    return None, None, None, None, None
                 else:
                     self.input_lock.release()
-                    time.sleep(1.0)
+                    time.sleep(0.05)
                     continue
             else:
+                package = self.package_feat_ali[self.read_offset]
+                self.read_offset += 1
                 self.input_lock.release()
                 break
 
-        package = self.package_feat_ali[self.read_offset]
-        self.read_offset += 1
-        
         feat_scp = package[0]
         label = package[1]
+        lat_scp = None
+        lat_list = None
+        if len(package) == 3:
+            lat_scp = package[2]
+            # indexs_info_list, pdf_values_list, lmweight_values_list, amweight_values_list, statesinfo_list, statenum_list, time_list
+            lat_list = PackageLattice(lat_scp)
+
         max_frame_num = 0
         length = []
         feat_mat = []
@@ -277,28 +379,73 @@ class KaldiDataReadParallel(object):
                 process_lab.append(lab[self.skip_offset : len(lab) : self.skip_frame])
             label = process_lab
 
-        return feat_mat, label, length, max_frame_num
+
+        # check lattice and label and feat
+        if lat_list is not None:
+            i = 0
+            lat_times = lat_list[-1]
+            while i < len(lat_times):
+                assert lat_times[i] == length[i]
+                i += 1
+    
+        return feat_mat, label, length, max_frame_num, lat_list
     
     # load batch frames features train.The order it's not important.
     def LoadBatch(self):
-        if 'cnn' in self.criterion:
-            if 'whole' in self.criterion or 'ctc' in self.criterion:
-                return self.CnnLoadNextNstreams()
+        while True:
+            if 'cnn' in self.criterion:
+                if 'whole' in self.criterion or 'ctc' in self.criterion:
+                    feat,label,length,lattice = self.CnnLoadNextNstreams()
+                else:
+                    feat,label,length,lattice = self.CnnSliceLoadNextNstreams()
+            elif 'tdnn' in self.criterion:
+                feat,label,length,lattice = self.TdnnLoadNextNstreams()
             else:
-                return self.CnnSliceLoadNextNstreams()
-        elif 'tdnn' in self.criterion:
-            return self.TdnnLoadNextNstreams()
-        else:
-            if 'whole' in self.criterion or 'ctc' in self.criterion:
-                return self.WholeLoadNextNstreams()
-            else:
-                return self.SliceLoadNextNstreams()
+                if 'whole' in self.criterion or 'ctc' in self.criterion:
+                    feat,label,length,lattice = self.WholeLoadNextNstreams()
+                else:
+                    feat,label,length,lattice = self.SliceLoadNextNstreams()
+            if label is not None:
+                if 'ctc' in self.criterion:
+                    label = sparse_tuple_from(label)
+            self.input_queue.put((feat,label,length,lattice))
+            if feat is None:
+                break
 
+    # because efficiency, so should use multiprocessing
+    def ThreadPackageInput(self):
+        self.input_thread = []
+        for i in range(self.io_thread_num):
+            self.input_thread.append(threading.Thread(group=None, target=self.LoadBatch,
+                args=(),name='read_thread'+str(i)))
+        for thr in self.input_thread:
+            logging.info('ProcessPackageInput start')
+            thr.start()
+
+
+    def GetInput(self):
+        # if end
+        while True:
+            feat,label,length,lattice = self.input_queue.get()
+            if feat is None:
+                self.io_end_times += 1
+                # end
+                if self.io_end_times == self.io_thread_num:
+                    return None, None, None, None
+                else:
+                    continue
+            else:
+                return feat,label,length,lattice
+    
+    def JoinInput(self):
+        for i in range(self.io_thread_num):
+            self.input_thread[i].join()
+    
     # Tdnn frames features train.
     def TdnnLoadNextNstreams(self):
-        feat , label , length = self.WholeLoadNextNstreams()
+        feat , label , length, lat_list = self.WholeLoadNextNstreams()
         if feat is None:
-            return None, None, None
+            return None, None, None, None
                     
         outdim = self.feature_transform.GetOutDim()
         inputdim = self.feature_transform.GetInDim()
@@ -314,14 +461,14 @@ class KaldiDataReadParallel(object):
         while i < self.tdnn_end_frames:
             feat = numpy.vstack((feat, tail))
             i += 1
-        return feat , label , length
+        return feat , label , length, lat_list
 
     # Cnn frames features train.
     # slice load
     def CnnSliceLoadNextNstreams(self):
-        array_feat , array_label , array_length = self.SliceLoadNextNstreams()
+        array_feat , array_label , array_length, lat_list = self.SliceLoadNextNstreams()
         if array_feat is None:
-            return None, None, None
+            return None, None, None, None
         outdim = self.feature_transform.GetOutDim()
         inputdim = self.feature_transform.GetInDim()
         splicedim = int(outdim / inputdim)
@@ -330,27 +477,27 @@ class KaldiDataReadParallel(object):
             # -1 it's frames, splicedim it's time, inputdim it's feature dim
             cnn_feat.append(feat.reshape(-1, splicedim, inputdim, 1))
         assert len(cnn_feat) == numpy.shape(array_feat)[0]
-        return numpy.array(cnn_feat), array_label, array_length
+        return numpy.array(cnn_feat), array_label, array_length, lat_list
 
     # whole sentence load
     def CnnLoadNextNstreams(self):
         if 'whole' in self.criterion:
-            feat , label , length = self.WholeLoadNextNstreams()
+            feat , label , length, lat_list = self.WholeLoadNextNstreams()
         else:
-            feat , label , length = self.LoadNextNstreams()
+            feat , label , length, lat_list = self.LoadNextNstreams()
         #print(numpy.shape(feat),numpy.shape(label), numpy.shape(length))
         if feat is None:
-            return None, None, None
+            return None, None, None, None
         outdim = self.feature_transform.GetOutDim()
         inputdim = self.feature_transform.GetInDim()
         splicedim = int(outdim / inputdim)
-        return feat.reshape(-1, splicedim, inputdim, 1), label, length
+        return feat.reshape(-1, splicedim, inputdim, 1), label, length, lat_list
 
     # load batch_size features and labels, it's whole sentence train.
     def LoadNextNstreams(self):
-        feat_mat, label, length, max_frame_num = self.LoadOnePackage()
+        feat_mat, label, length, max_frame_num , lat_list = self.LoadOnePackage()
         if feat_mat is None:
-            return None, None, None
+            return None, None, None, None
         # zero fill
         i = 0
         while i < self.batch_size:
@@ -361,16 +508,16 @@ class KaldiDataReadParallel(object):
         if feat_mat.__len__() == self.batch_size:
             feat_mat_nstream = numpy.hstack(feat_mat).reshape(-1, self.batch_size, self.output_dim)
             np_length = numpy.vstack(length).reshape(-1)
-            return feat_mat_nstream , label , np_length
+            return feat_mat_nstream , label , np_length, lat_list
         else:
             logging.info('It\'s shouldn\'t happen. feat is less then batch_size.')
-            return None, None, None
+            return None, None, None, None
 
     # load batch_size features and labels, it's whole sentence train.
     def WholeLoadNextNstreams(self):
-        feat, label, length = self.LoadNextNstreams()
+        feat, label, length, lat_list = self.LoadNextNstreams()
         if feat is None:
-            return None, None, None
+            return None, None, None, None
         max_frame_num = numpy.shape(feat)[0]
         nsent = 0
         while nsent < numpy.shape(label)[0]:
@@ -379,13 +526,13 @@ class KaldiDataReadParallel(object):
                 label[nsent] = numpy.hstack((label[nsent], 
                     numpy.zeros((numzeros), dtype=numpy.float32)))
             nsent += 1
-        return feat, label, length
+        return feat, label, length, lat_list
 
     # load batch size features and labels,it's ce train, cut sentence.
     def SliceLoadNextNstreams(self):
-        feat_mat, label, length, max_frame_num = self.LoadOnePackage()
+        feat_mat, label, length, max_frame_num, lat_list = self.LoadOnePackage()
         if feat_mat is None:
-            return None, None, None
+            return None, None, None, None
         
         if max_frame_num % self.num_frames_batch != 0:
             max_frame_num = self.num_frames_batch * (int(max_frame_num / self.num_frames_batch) + 1)
@@ -422,10 +569,10 @@ class KaldiDataReadParallel(object):
                         tmp_length.append(len(label[i])-offset_n)
                     array_label[nbatch].append(tmp_label)
                 array_length.append(numpy.vstack(tmp_length).reshape(-1))
-            return array_feat , array_label , array_length
+            return array_feat , array_label , array_length, lat_list
         else:
             logging.info('It\'s shouldn\'t happen. feat is less then batch_size.')
-            return None, None, None
+            return None, None, None, None
             
     # print info
     def __repr__(self):
@@ -439,12 +586,15 @@ class KaldiDataReadParallel(object):
         return pri
 
 if __name__ == '__main__':
-    conf_dict = { 'batch_size' :100,
-            'skip_frame':3,
+    conf_dict = { 'batch_size' :32,
+            'skip_frame':1,
             'skip_offset': 0,
             'do_skip_lab': True,
-            'shuffle': False}
-    path = '/search/speech/hubo/git/tf-code-acoustics/train-data'
+            'shuffle': False,
+            'queue_cache':100,
+            'io_thread_num':1}
+    #path = '/search/speech/hubo/git/tf-code-acoustics/train-data'
+    path = '/search/odin/hubo/git/tf-code-acoustics/fst/cc/source/out-source'
     feat_trans_file = '../conf/final.feature_transform'
     feat_trans = FeatureTransform()
     feat_trans.LoadTransform(feat_trans_file)
@@ -452,31 +602,42 @@ if __name__ == '__main__':
     logging.basicConfig(filename = 'test.log')
     logging.getLogger().setLevel('INFO')
     io_read = KaldiDataReadParallel()
-    io_read.Initialize(conf_dict, scp_file=path+'/abc.scp',
-            label = path+'/merge_sort_cv.labels',
-            feature_transform = feat_trans, criterion = 'whole')
+    io_read.Initialize(conf_dict, scp_file=path+'/feat/500.scp',
+            label = path+'/ali/ali.all', 
+     #       lat_scp_file= path + '/decode/lat.all.scp',
+            feature_transform = feat_trans, criterion = 'whole,mmi')
 
             #label = path+'/sort_tr.labels.4026.ce',
     start = time.time()
     while True:
         #feat_mat, label, length = io_read.LoadNextNstreams()
-        feat_mat, label, length = io_read.CnnLoadNextNstreams()
+        #feat_mat, label, length, lat_list = io_read.CnnLoadNextNstreams()
+        start1 = time.time()
+        feat_mat, label, length, lat_list = io_read.GetInput()
+#        feat_mat, label, length, lat_list = io_read.LoadBatch()
+        end1 = time.time()
         logging.info(str(numpy.shape(feat_mat))+str(numpy.shape(label))+str(numpy.shape(length)))
+        logging.info("time:"+str(end1-start1))
         #feat_mat, label, length = io_read.SliceLoadNextNstreams()
         #print(numpy.shape(feat_mat),numpy.shape(label),numpy.shape(length))
         if feat_mat is None:
             break
-    
+    end = time.time()
+    io_read.JoinInput()
+    logging.info("all process time:"+str(end-start))
     io_read.Reset(shuffle = True)
     while True:
         #feat_mat, label, length = io_read.LoadNextNstreams()
-        feat_mat, label, length = io_read.CnnLoadNextNstreams()
+        #feat_mat, label, length, lat_list = io_read.CnnLoadNextNstreams()
+        #feat_mat, label, length, lat_list = io_read.LoadBatch()
+        feat_mat, label, length, lat_list = io_read.GetInput()
         logging.info(str(numpy.shape(feat_mat))+str(numpy.shape(label))+str(numpy.shape(length)))
         #feat_mat, label, length = io_read.SliceLoadNextNstreams()
         #print(numpy.shape(feat_mat),numpy.shape(label),numpy.shape(length))
         if feat_mat is None:
             break
 
+    io_read.JoinInput()
     end = time.time()
     logging.info('load time is : %f s' % (end - start))
 
