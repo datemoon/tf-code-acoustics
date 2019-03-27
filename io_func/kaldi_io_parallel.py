@@ -211,12 +211,12 @@ def PackageFeatAndAli(all_package, input_lock, package_end, scp_file, ali_file, 
 class KaldiDataReadParallel(object):
     '''
     kaldi i.
-    max_input_seq_length:allow input max input length
-    batch_size:Number of streams in the Multi-stream training
-    num_frames_batch:Length of 'one stream' in the Multi-stream training
-    skip_frame:skip frame number
-    skip_offset:skip_offset
-    shuffle:shuffle data
+    max_input_seq_length :allow input max input length
+    batch_size           :Number of streams in the Multi-stream training
+    num_frames_batch     :Length of 'one stream' in the Multi-stream training
+    skip_frame           :skip frame number
+    skip_offset          :skip_offset
+    shuffle              :shuffle data
     '''
     def __init__(self):
         self.max_input_seq_length = 1500
@@ -228,11 +228,18 @@ class KaldiDataReadParallel(object):
         # tdnn parameters
         self.tdnn_start_frames = 0
         self.tdnn_end_frames = 0
-        self.queue_cache = 10
+
+        #
+        self.queue_cache = 100
         self.io_thread_num = 1
         self.io_end_times = 0  #if self.io_end_times == self.io_thread_num,it's end
+        self.scp_file = None   # path to the .scp file
+        self.label = None
+        self.lat_scp_file = None
+        self.criterion = None
+        self.feature_transform = None
         
-    def Initialize(self, conf_dict = None, scp_file = None, label = None, feature_transform = None, criterion = 'ce', lat_scp_file = None):
+    def Initialize(self, conf_dict = None, scp_file = None, label = None, feature_transform = None, criterion = None, lat_scp_file = None):
         for key in self.__dict__:
             if key in conf_dict.keys():
                 self.__dict__[key] = conf_dict[key]
@@ -240,16 +247,14 @@ class KaldiDataReadParallel(object):
         # Initial input queue.
         self.input_queue = Queue.Queue(self.queue_cache)
         
-        self.scp_file = None   # path to the .scp file
-        self.label = None
-        self.lat_scp_file = None
-        self.criterion = criterion
         if scp_file != None:
             self.scp_file = scp_file
         if label != None:
             self.label = label
         if lat_scp_file != None:
             self.lat_scp_file = lat_scp_file
+        if criterion != None:
+            self.criterion = criterion
         if not os.path.exists(self.scp_file):
             raise 'no scp file'
         if not os.path.exists(self.label):
@@ -265,7 +270,6 @@ class KaldiDataReadParallel(object):
         self.read_offset = 0
 
 
-        self.feature_transform = None
         # read feature transform parameter
         if feature_transform != None:
             self.feature_transform = feature_transform
@@ -319,8 +323,7 @@ class KaldiDataReadParallel(object):
         self.skip_offset = skip_offset % self.skip_frame
         self.read_offset = 0
         self.io_end_times = 0
-        if len(self.input_thread) != 0:
-            self.ThreadPackageInput()
+        self.ThreadPackageInput()
         if shuffle is True or self.shuffle is True:
             self.shuffle = True
             self.input_lock.acquire()
