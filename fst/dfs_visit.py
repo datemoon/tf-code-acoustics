@@ -2,7 +2,7 @@ from __future__ import print_function
 import array
 import sys
 sys.path.extend(["../","./"])
-from fst.fst import *
+from fst.fst_base import *
 
 def AnyArcFilter(object):
     def __init__(self, arc):

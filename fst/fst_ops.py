@@ -1,7 +1,7 @@
 
 import sys
 sys.path.extend(["../","./"])
-from fst.fst import *
+from fst.fst_base import *
 
 def SuperFinalFst(fst):
     '''

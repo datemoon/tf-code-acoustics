@@ -1,7 +1,7 @@
 from __future__ import print_function
 import sys
 sys.path.extend(["../","./"])
-from fst.fst import *
+from fst.fst_base import *
 from fst.topsort import TopSort
 from fst.fst_ops import *
 

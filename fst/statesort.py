@@ -2,7 +2,7 @@
 import logging
 import sys
 sys.path.extend(["../","./"])
-from fst.fst import *
+from fst.fst_base import *
 
 def StateSort(fst, order):
     if len(order) != fst.NumStates():
