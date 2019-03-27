@@ -235,11 +235,15 @@ class KaldiDataReadParallel(object):
         self.io_end_times = 0  #if self.io_end_times == self.io_thread_num,it's end
         self.scp_file = None   # path to the .scp file
         self.label = None
+
         self.lat_scp_file = None
+        self.ali_map_file = None
+        self.ali_to_pdf_phone = None
+        
         self.criterion = None
         self.feature_transform = None
         
-    def Initialize(self, conf_dict = None, scp_file = None, label = None, feature_transform = None, criterion = None, lat_scp_file = None):
+    def Initialize(self, conf_dict = None, scp_file = None, label = None, feature_transform = None, criterion = None, lat_scp_file = None, ali_map_file = None):
         for key in self.__dict__:
             if key in conf_dict.keys():
                 self.__dict__[key] = conf_dict[key]
@@ -247,19 +251,24 @@ class KaldiDataReadParallel(object):
         # Initial input queue.
         self.input_queue = Queue.Queue(self.queue_cache)
         
-        if scp_file != None:
+        if scp_file is not None:
             self.scp_file = scp_file
-        if label != None:
+        if label is not None:
             self.label = label
-        if lat_scp_file != None:
+        if lat_scp_file is not None:
             self.lat_scp_file = lat_scp_file
-        if criterion != None:
+        if criterion is not None:
             self.criterion = criterion
+        if ali_map_file is not None:
+            self.ali_map_file = ali_map_file
+            # load ali_map_file
+            self.ali_to_pdf_phone = LoadMapPdfAndPhone(self.ali_map_file)
+
+        
         if not os.path.exists(self.scp_file):
             raise 'no scp file'
         if not os.path.exists(self.label):
             raise 'no label file'
-        
         # feature information
         self.input_feat_dim = 0
         self.output_feat_dim = 0
@@ -359,7 +368,7 @@ class KaldiDataReadParallel(object):
         if len(package) == 3:
             lat_scp = package[2]
             # indexs_info_list, pdf_values_list, lmweight_values_list, amweight_values_list, statesinfo_list, statenum_list, time_list
-            lat_list = PackageLattice(lat_scp)
+            lat_list = PackageLattice(lat_scp, map_pdf_phone = self.ali_to_pdf_phone)
 
         max_frame_num = 0
         length = []
@@ -610,7 +619,8 @@ if __name__ == '__main__':
     io_read = KaldiDataReadParallel()
     io_read.Initialize(conf_dict, scp_file=path+'/feat/500.scp',
             label = path+'/ali/ali.all', 
-     #       lat_scp_file= path + '/decode/lat.all.scp',
+            lat_scp_file= path + '/decode/lat.all.scp',
+            ali_map_file = path + '/../ali-pdf-phone/map.ali',
             feature_transform = feat_trans, criterion = 'whole,mmi')
 
             #label = path+'/sort_tr.labels.4026.ce',
