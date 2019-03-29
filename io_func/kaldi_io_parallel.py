@@ -220,7 +220,7 @@ class KaldiDataReadParallel(object):
     '''
     def __init__(self):
         self.max_input_seq_length = 1500
-        self.batch_size = 1
+        self.batch_size = 10
         self.num_frames_batch = 20
         self.skip_frame = 1
         self.skip_offset = 0
@@ -332,7 +332,8 @@ class KaldiDataReadParallel(object):
         self.skip_offset = skip_offset % self.skip_frame
         self.read_offset = 0
         self.io_end_times = 0
-        self.ThreadPackageInput()
+        if len(self.input_thread) == 0:
+            self.ThreadPackageInput()
         if shuffle is True or self.shuffle is True:
             self.shuffle = True
             self.input_lock.acquire()
@@ -619,7 +620,7 @@ if __name__ == '__main__':
     io_read = KaldiDataReadParallel()
     io_read.Initialize(conf_dict, scp_file=path+'/feat/500.scp',
             label = path+'/ali/ali.all', 
-            lat_scp_file= path + '/decode/lat.all.scp',
+#            lat_scp_file= path + '/decode/lat.all.scp',
             ali_map_file = path + '/../ali-pdf-phone/map.ali',
             feature_transform = feat_trans, criterion = 'whole,mmi')
 
