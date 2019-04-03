@@ -211,9 +211,9 @@ class TrainClass(object):
                     log_device_placement=False,gpu_options=gpu_options)
             
             if self.task_index_cf==0:
-                tmp_variables = [self.global_step ] + tf.local_variables()
+                non_train_variables = [self.global_step ] + tf.local_variables()
             else:
-                tmp_variables = tf.local_variables()
+                non_train_variables = tf.local_variables()
 
             train_varables = tf.trainable_variables()
             ready_for_local_init_op = tf.variables_initializer(non_train_variables)

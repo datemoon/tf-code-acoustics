@@ -9,7 +9,7 @@ import os
 try:
     from tensorflow_py_api import mmi
 except ImportError:
-    printf("no mmi module")
+    print("no mmi module")
 
 from model.nnet_base import NnetBase
 import model.nnet_compoment as nnet_compoment
