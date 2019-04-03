@@ -451,6 +451,7 @@ class KaldiDataReadParallel(object):
             else:
                 return feat,label,length,lattice
     
+    # must be join io thread
     def JoinInput(self):
         for i in range(self.io_thread_num):
             self.input_thread[i].join()
@@ -626,6 +627,7 @@ if __name__ == '__main__':
 
             #label = path+'/sort_tr.labels.4026.ce',
     start = time.time()
+    io_read.Reset(shuffle = True)
     while True:
         #feat_mat, label, length = io_read.LoadNextNstreams()
         #feat_mat, label, length, lat_list = io_read.CnnLoadNextNstreams()

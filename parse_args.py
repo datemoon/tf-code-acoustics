@@ -93,6 +93,13 @@ def parse_args(args_list):
             default=None,
             help='train label file' '(str, default= None)')
 
+    parser.add_argument('--lat-scp-file ', dest='lat_scp_file ', type=str,
+            default=None,
+            help='train lattice scp file' '(str, default= None)')
+    
+    parser.add_argument('--ali-map-file ', dest='ali_map_file ', type=str,
+            default=None,
+            help='lattice ali map file' '(str, default= None)')
 #    parser.add_argument('--cv-scp', dest='cv_scp', type=str,
 #            default=None,
 #            help='cv scp file' '(str, default = None)')

@@ -6,6 +6,11 @@ import numpy as np
 import sys
 import os
 
+try:
+    from tensorflow_py_api import mmi
+except ImportError:
+    printf("no mmi module")
+
 from model.nnet_base import NnetBase
 import model.nnet_compoment as nnet_compoment
 
@@ -532,6 +537,26 @@ class LstmModel(NnetBase):
             label_error_rate = self.CalculateLabelErrorRate(last_output, labels, mask, total_frames)
 
         return ce_mean_loss, ce_loss, label_error_rate , rnn_keep_state_op, rnn_state_zero_op
+
+    def MmiLoss(self, input_feats, labels, seq_len, lattice, old_acoustic_scale = 0.0, acoustic_scale = 0.083, time_major = True):
+        last_output, rnn_keep_state_op, rnn_state_zero_op = self.CreateModel(
+                input_feats, seq_len)
+        with tf.name_scope('MMI'):
+
+            mmi_loss = mmi(input_feats, seq_len, labels, 
+                    indexs_t = lattice[0],
+                    pdf_values_t = lattice[1],
+                    lm_ws_t = lattice[2],
+                    am_ws_t = lattice[3],
+                    statesinfo_t = lattice[4],
+                    num_states_t = lattice[5],
+                    old_acoustic_scale = old_acoustic_scale,
+                    acoustic_scale = acoustic_scale,
+                    drop_frames = drop_frames,
+                    time_major = self.time_major_cf)
+            mmi_mean_loss = tf.reduce_mean(mmi_loss) / tf.shape(mmi_loss)[0]
+
+        return mmi_mean_loss, mmi_loss, 1.0, rnn_keep_state_op, rnn_state_zero_op
 
     def CalculateLabelErrorRate(self, output_log, labels, mask, total_frames):
         correct_prediction = tf.equal( 
