@@ -122,11 +122,12 @@ class TrainClass(object):
             #self.learning_rate_var_tf = tf.Variable(float(self.learning_rate_cf), 
             #        trainable=False, name='learning_rate')
             # init global_step and learning rate decay criterion
-            global_step=tf.train.get_or_create_global_step()
+            self.global_step=tf.Variable(0, trainable=False, name = 'global_step',dtype=tf.int64)
+            #global_step=tf.train.get_or_create_global_step()
             exponential_decay = True
             if exponential_decay == True:
                 self.learning_rate_var_tf = tf.train.exponential_decay(
-                        float(self.learning_rate_cf), global_step,
+                        float(self.learning_rate_cf), self.global_step,
                         self.learning_rate_decay_steps_cf,
                         self.learning_rate_decay_rate_cf,
                         staircase=True, 
@@ -135,12 +136,12 @@ class TrainClass(object):
                 boundaries = [100000, 110000]
                 values = [1.0, 0.5, 0.1]
                 self.learning_rate_var_tf = tf.train.piecewise_constant(
-                        global_step, boundaries, values)
+                        self.global_step, boundaries, values)
             elif inverse_time_decay == True:
                 # decayed_learning_rate = learning_rate / (1 + decay_rate * floor(global_step / decay_step))
                 # decay_rate = 0.5 , decay_step = 100000
                 self.learning_rate_var_tf =  tf.train.inverse_time_decay(
-                        float(self.learning_rate_cf), global_step,
+                        float(self.learning_rate_cf), self.global_step,
                         self.learning_rate_decay_steps_cf,
                         self.learning_rate_decay_rate_cf,
                         staircase=True,
@@ -177,10 +178,10 @@ class TrainClass(object):
                     mean_loss, tvars), self.grad_clip_cf)
                 train_op = optimizer.apply_gradients(
                         zip(grads, tvars),
-                        global_step=tf.train.get_or_create_global_step())
+                        global_step=self.global_step)
             else:
                 train_op = optimizer.minimize(mean_loss,
-                        global_step=tf.train.get_or_create_global_step())
+                        global_step=self.global_step)
 
             # set run operation
             self.run_ops = {'train_op':train_op,
@@ -208,11 +209,28 @@ class TrainClass(object):
                     inter_op_parallelism_threads=self.num_threads_cf,
                     allow_soft_placement=True,
                     log_device_placement=False,gpu_options=gpu_options)
-            global_step = tf.train.get_or_create_global_step()
+            
+            if self.task_index_cf==0:
+                tmp_variables = [self.global_step ] + tf.local_variables()
+            else:
+                tmp_variables = tf.local_variables()
 
+            train_varables = tf.trainable_variables()
+            ready_for_local_init_op = tf.variables_initializer(non_train_variables)
+            local_init_op = tf.report_uninitialized_variables(var_list=non_train_variables)
             # add saver hook
-            self.saver = tf.train.Saver(max_to_keep=50, sharded=True, allow_empty=True)
-            scaffold = tf.train.Scaffold(saver = self.saver)
+            self.saver = tf.train.Saver(train_varables, max_to_keep=50, sharded=True, allow_empty=True)
+            scaffold = tf.train.Scaffold(init_op = None,
+                    init_feed_dict = None,
+                    init_fn = None,
+                    ready_op = None,
+                    ready_for_local_init_op = ready_for_local_init_op,
+                    local_init_op = local_init_op,
+                    summary_op = None,
+                    saver = self.saver,
+                    copy_from_scaffold = None)
+
+
             self.sess = tf.train.MonitoredTrainingSession(
                     master = server.target,
                     is_chief = (self.task_index_cf==0),
