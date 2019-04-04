@@ -70,7 +70,7 @@ class TrainClass(object):
 
         # init train file
         self.kaldi_io_nstream_train = KaldiDataReadParallel()
-        self.input_dim = self.kaldi_io_nstream_train.Initialize(conf_dict,
+        self.input_dim = self.kaldi_io_nstream_train.Initialize(self.conf_dict,
                 scp_file = conf_dict['tr_scp'], label = conf_dict['tr_label'],
                 feature_transform = feat_trans, criterion = self.criterion_cf)
         # init cv file
@@ -570,7 +570,7 @@ if __name__ == "__main__":
         err_rate = 1.0
 
         # every five minutes start one job
-        wait_time = 60 * 5 * task_index
+        wait_time = 60 * 5 * task_index 
         time.sleep(wait_time)
         while iter < 15:
             train_start_t = time.time()
