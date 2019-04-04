@@ -64,6 +64,11 @@ def parse_args(args_list):
             default='outdir',
             help='save dir' '(str, default = outdir)')
 
+    parser.add_argument('--reset-global-step', dest='reset_global_step',type=bool,
+            default=False,
+            help='reset global step = 0 '
+            '(bool, default = False)')
+
     parser.add_argument('--queue-cache', dest='queue_cache', type=int,
             default=100,
             help='input data cache' '(int, default = 100)')
