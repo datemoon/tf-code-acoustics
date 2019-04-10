@@ -259,7 +259,7 @@ class KaldiDataReadParallel(object):
             self.lat_scp_file = lat_scp_file
         if criterion is not None:
             self.criterion = criterion
-        if ali_map_file is not None:
+        if ali_map_file is not None or self.ali_map_file is not None:
             self.ali_map_file = ali_map_file
             # load ali_map_file
             self.ali_to_pdf_phone = LoadMapPdfAndPhone(self.ali_map_file)
