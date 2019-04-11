@@ -168,7 +168,7 @@ def PackageLattice(lat_scp_list, map_pdf_phone = None):
     amweight_values_list = ListZeroFill(amweight_values_list, max_arcs)
     statesinfo_list = ListZeroFill(statesinfo_list, max_states)
     
-    return indexs_info_list, pdf_values_list, lmweight_values_list, amweight_values_list, statesinfo_list, statenum_list, time_list
+    return [indexs_info_list, pdf_values_list, lmweight_values_list, amweight_values_list, statesinfo_list, statenum_list, time_list]
     
 
 

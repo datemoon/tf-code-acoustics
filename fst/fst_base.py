@@ -20,10 +20,16 @@ class FstHeader(object):
         self._numarcs = 0     # int64 arcs
 
     def FstType(self):
-        return self._fsttype
+        if type(self._fsttype) is bytes:
+            return bytes.decode(self._fsttype)
+        else:
+            return self._fsttype
 
     def ArcType(self):
-        return self._arctype
+        if type(self._arctype) is bytes:
+            return bytes.decode(self._arctype)
+        else:
+            return self._arctype
 
     def Version(self):
         return self._version

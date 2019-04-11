@@ -519,6 +519,7 @@ class LstmModel(NnetBase):
         last_output, rnn_keep_state_op, rnn_state_zero_op = self.CreateModel(
                 input_feats, seq_len)
 
+        # this function labels from time_major = False change major = True
         if self.time_major_cf:
             labels = tf.transpose(labels)
         
@@ -538,25 +539,39 @@ class LstmModel(NnetBase):
 
         return ce_mean_loss, ce_loss, label_error_rate , rnn_keep_state_op, rnn_state_zero_op
 
-    def MmiLoss(self, input_feats, labels, seq_len, lattice, old_acoustic_scale = 0.0, acoustic_scale = 0.083, time_major = True):
+    #def MmiLoss(self, input_feats, labels, seq_len, lattice, old_acoustic_scale = 0.0, acoustic_scale = 0.083, time_major = True):
+    def MmiLoss(self, input_feats, labels, seq_len,
+            indexs, pdf_values, lm_ws, am_ws, statesinfo, num_states,
+            old_acoustic_scale = 0.0, acoustic_scale = 0.083, 
+            time_major = True, drop_frames = True):
         last_output, rnn_keep_state_op, rnn_state_zero_op = self.CreateModel(
                 input_feats, seq_len)
-        with tf.name_scope('MMI'):
 
+        with tf.name_scope('MMI'):
             mmi_loss = mmi(input_feats, seq_len, labels, 
-                    indexs_t = lattice[0],
-                    pdf_values_t = lattice[1],
-                    lm_ws_t = lattice[2],
-                    am_ws_t = lattice[3],
-                    statesinfo_t = lattice[4],
-                    num_states_t = lattice[5],
+                    indexs = indexs,
+                    pdf_values = pdf_values,
+                    lm_ws = lm_ws,
+                    am_ws = am_ws,
+                    statesinfo = statesinfo,
+                    num_states = num_states,
                     old_acoustic_scale = old_acoustic_scale,
                     acoustic_scale = acoustic_scale,
                     drop_frames = drop_frames,
                     time_major = self.time_major_cf)
-            mmi_mean_loss = tf.reduce_mean(mmi_loss) / tf.shape(mmi_loss)[0]
 
-        return mmi_mean_loss, mmi_loss, 1.0, rnn_keep_state_op, rnn_state_zero_op
+            if self.time_major_cf:
+                labels = tf.transpose(labels)
+
+            nframes = tf.shape(labels)[0]
+            mask = tf.cast(tf.reshape(tf.transpose(tf.sequence_mask(
+                seq_len, nframes)), [-1]), tf.float32)
+
+            total_frames = tf.cast(tf.reduce_sum(seq_len) ,tf.float32)
+            mmi_mean_loss = tf.reduce_mean(mmi_loss) / total_frames
+            label_error_rate = self.CalculateLabelErrorRate(last_output, labels,  mask, total_frames)
+
+        return mmi_mean_loss, mmi_loss, label_error_rate, rnn_keep_state_op, rnn_state_zero_op
 
     def CalculateLabelErrorRate(self, output_log, labels, mask, total_frames):
         correct_prediction = tf.equal( 

@@ -97,7 +97,7 @@ def ReadScp(scp_file):
 
 def PackageFeatAndAliAndLat(all_package, input_lock, package_end, feat_scp_file, ali_file, lat_scp_file, nstreams, 
         skip_frame = 1,  max_input_seq_length = 1500, criterion = 'mmi'):
-    logging.info('------start package------')
+    logging.info('------start PackageFeatAndAliAndLat------')
     start_package = time.time()
     # first read ali
     alignment_dict = read_alignment(ali_file)
@@ -153,7 +153,7 @@ def PackageFeatAndAliAndLat(all_package, input_lock, package_end, feat_scp_file,
 
 
 def PackageFeatAndAli(all_package, input_lock, package_end, scp_file, ali_file, nstreams, skip_frame = 1,  max_input_seq_length = 1500, criterion = 'ce'):
-    logging.info('------start package------')
+    logging.info('------start PackageFeatAndAli------')
     start_package = time.time()
     #all_package = []
     # first read ali
@@ -243,7 +243,7 @@ class KaldiDataReadParallel(object):
         self.criterion = None
         self.feature_transform = None
         
-    def Initialize(self, conf_dict = None, scp_file = None, label = None, feature_transform = None, criterion = None, lat_scp_file = None, ali_map_file = None):
+    def Initialize(self, conf_dict = None, scp_file = None, label = None, feature_transform = None, criterion = None, lat_scp_file = None):
         for key in self.__dict__:
             if key in conf_dict.keys():
                 self.__dict__[key] = conf_dict[key]
@@ -259,8 +259,7 @@ class KaldiDataReadParallel(object):
             self.lat_scp_file = lat_scp_file
         if criterion is not None:
             self.criterion = criterion
-        if ali_map_file is not None or self.ali_map_file is not None:
-            self.ali_map_file = ali_map_file
+        if self.ali_map_file is not None:
             # load ali_map_file
             self.ali_to_pdf_phone = LoadMapPdfAndPhone(self.ali_map_file)
 
@@ -310,7 +309,7 @@ class KaldiDataReadParallel(object):
     def ThreadPackageFeatAndAli(self):
         self.package_feat_ali = []
         self.package_end=[False]
-        if self.lat_scp_file is None: 
+        if self.lat_scp_file is None and 'mmi' not in self.criterion: 
             load_thread = threading.Thread(group=None, target=PackageFeatAndAli,
                     args=(self.package_feat_ali, self.input_lock, self.package_end, 
                         self.scp_file, self.label, 
@@ -327,6 +326,15 @@ class KaldiDataReadParallel(object):
 
         load_thread.start()
         logging.info('PackageFeatAndAli thread start.')
+
+        # if you want shuffle data , you must be wait load all data
+        if self.shuffle is True:
+            logging.info('Wait PackageFeatAndAli thread end and shuffle package')
+            load_thread.join()
+            assert self.package_end[-1] is True
+            logging.info('Shuffle package_feat_ali')
+            random.shuffle(self.package_feat_ali)
+
 
     def Reset(self, shuffle = False, skip_offset = 0 ):
         self.skip_offset = skip_offset % self.skip_frame

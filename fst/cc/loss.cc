@@ -127,6 +127,13 @@ void MMIOneLoss(Lattice *lat, Matrix<const BaseFloat> *nnet_out_h, const int32 *
 	// print input
 #ifdef DEBUG_PRINT
 	{
+		int tot_num = 0;
+		for(int r=0;r<nnet_out_h->NumRows();++r)
+		{
+			if(nnet_out_h->GetMaxVal(r) == labels[r])
+				tot_num ++;
+		}
+		std::cout << "******frame rate:" << tot_num*1.0/ nnet_out_h->NumRows() << std::endl;
 		lat->PrintInfo();
 		std::cout << "h_nnet_out_h:";
 		nnet_out_h->Print();
@@ -219,7 +226,8 @@ void MMIOneLoss(Lattice *lat, Matrix<const BaseFloat> *nnet_out_h, const int32 *
 		}
 		num_frm_drop += frm_drop;
 	}
-	*loss = mmi_obj/num_frames;
+	//*loss = mmi_obj/num_frames;
+	*loss = mmi_obj;
 
 	// print output
 #ifdef DEBUG_PRINT

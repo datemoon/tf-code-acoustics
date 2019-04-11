@@ -72,6 +72,7 @@ class TrainClass(object):
         self.kaldi_io_nstream_train = KaldiDataReadParallel()
         self.input_dim = self.kaldi_io_nstream_train.Initialize(self.conf_dict,
                 scp_file = conf_dict['tr_scp'], label = conf_dict['tr_label'],
+                lat_scp_file = conf_dict['lat_scp_file'],
                 feature_transform = feat_trans, criterion = self.criterion_cf)
         # init cv file
         self.kaldi_io_nstream_cv = KaldiDataReadParallel()
@@ -118,6 +119,14 @@ class TrainClass(object):
             elif 'ce' in self.criterion_cf:
                 self.Y = tf.placeholder(tf.int32, [self.batch_size_cf, self.num_frames_batch_cf], name="labels")
 
+            if 'mmi' in self.criterion_cf:
+                self.indexs = tf.placeholder(tf.int32, [self.batch_size_cf, None, 2], name="indexs")
+                self.pdf_values = tf.placeholder(tf.int32, [self.batch_size_cf, None], name="pdf_values")
+                self.lm_ws = tf.placeholder(tf.float32, [self.batch_size_cf, None], name="lm_ws")
+                self.am_ws = tf.placeholder(tf.float32, [self.batch_size_cf, None], name="am_ws")
+                self.statesinfo = tf.placeholder(tf.int32, [self.batch_size_cf, None, 2], name="statesinfo")
+                self.num_states = tf.placeholder(tf.int32, [self.batch_size_cf], name="num_states")
+                self.lattice = [self.indexs, self.pdf_values, self.lm_ws, self.am_ws, self.statesinfo, self.num_states]
             self.seq_len = tf.placeholder(tf.int32,[None], name = 'seq_len')
             
             #self.learning_rate_var_tf = tf.Variable(float(self.learning_rate_cf), 
@@ -172,6 +181,13 @@ class TrainClass(object):
                 ce_mean_loss, ce_loss , label_error_rate, rnn_keep_state_op, rnn_state_zero_op = nnet_model.CeLoss(self.X, self.Y, self.seq_len)
                 mean_loss = ce_mean_loss
                 loss = ce_loss
+            elif 'mmi' in self.criterion_cf:
+                mmi_mean_loss, mmi_loss, label_error_rate, rnn_keep_state_op, rnn_state_zero_op = nnet_model.MmiLoss(
+                        self.X, self.Y, self.seq_lenself.X, self.Y, self.seq_len, 
+                        self.indexs, self.pdf_values, self.lm_ws, self.am_ws, self.statesinfo, self.num_states,
+                        old_acoustic_scale = 0.0, acoustic_scale = 0.083, time_major = True, drop_frames= True)
+                mean_loss = mmi_mean_loss
+                loss = mmi_loss
 
             if self.use_sgd_cf and self.use_normal_cf:
                 tvars = tf.trainable_variables()
@@ -434,7 +450,13 @@ class TrainClass(object):
                 break
             time2=time.time()
 
-            feed_dict = {self.X : feat, self.Y : label, self.seq_len : length}
+            if 'mmi' in self.criterion_cf:
+                feed_dict = {self.X : feat, self.Y : label, self.seq_len : length,
+                        self.indexs : lat_list[0], self.pdf_values : lat_list[1], self.lm_ws : lat_list[2],
+                        self.am_ws : lat_list[3], self.statesinfo : lat_list[4], self.num_states : lat_list[5]}
+            else:
+                feed_dict = {self.X : feat, self.Y : label, self.seq_len : length}
+
             time3 = time.time()
             calculate_return = self.sess.run(run_op, feed_dict = feed_dict)
             time4 = time.time()

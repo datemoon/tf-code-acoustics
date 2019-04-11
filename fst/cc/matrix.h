@@ -57,6 +57,21 @@ public:
 			std::cout << std::endl;
 		}
 	}
+
+	int GetMaxVal(int r)
+	{
+		int max_id = 0;
+		Real *max = _data + r * _stride + 0;
+		for(int c=1;c<_num_cols;++c)
+		{	
+			if(*(_data+ r * _stride + c) > *max)
+			{
+				max = _data+ r * _stride + c;
+				max_id = c;
+			}
+		}
+		return max_id;
+	}
 private:
 	Real *_data;
 	int _num_rows;
