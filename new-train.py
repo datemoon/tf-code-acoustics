@@ -183,7 +183,7 @@ class TrainClass(object):
                 loss = ce_loss
             elif 'mmi' in self.criterion_cf:
                 mmi_mean_loss, mmi_loss, label_error_rate, rnn_keep_state_op, rnn_state_zero_op = nnet_model.MmiLoss(
-                        self.X, self.Y, self.seq_lenself.X, self.Y, self.seq_len, 
+                        self.X, self.Y, self.seq_len,
                         self.indexs, self.pdf_values, self.lm_ws, self.am_ws, self.statesinfo, self.num_states,
                         old_acoustic_scale = 0.0, acoustic_scale = 0.083, time_major = True, drop_frames= True)
                 mean_loss = mmi_mean_loss

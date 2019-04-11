@@ -548,7 +548,7 @@ class LstmModel(NnetBase):
                 input_feats, seq_len)
 
         with tf.name_scope('MMI'):
-            mmi_loss = mmi(input_feats, seq_len, labels, 
+            mmi_loss = mmi(last_output, seq_len, labels, 
                     indexs = indexs,
                     pdf_values = pdf_values,
                     lm_ws = lm_ws,
@@ -568,7 +568,7 @@ class LstmModel(NnetBase):
                 seq_len, nframes)), [-1]), tf.float32)
 
             total_frames = tf.cast(tf.reduce_sum(seq_len) ,tf.float32)
-            mmi_mean_loss = tf.reduce_mean(mmi_loss) / total_frames
+            mmi_mean_loss = tf.reduce_sum(mmi_loss) / total_frames
             label_error_rate = self.CalculateLabelErrorRate(last_output, labels,  mask, total_frames)
 
         return mmi_mean_loss, mmi_loss, label_error_rate, rnn_keep_state_op, rnn_state_zero_op
