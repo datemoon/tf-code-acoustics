@@ -227,7 +227,8 @@ void MMIOneLoss(Lattice *lat, Matrix<const BaseFloat> *nnet_out_h, const int32 *
 		num_frm_drop += frm_drop;
 	}
 	//*loss = mmi_obj/num_frames;
-	*loss = mmi_obj;
+	//*loss = mmi_obj;
+	*loss = post_on_ali;
 
 	// print output
 #ifdef DEBUG_PRINT

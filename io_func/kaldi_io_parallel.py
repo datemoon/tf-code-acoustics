@@ -112,6 +112,7 @@ def PackageFeatAndAliAndLat(all_package, input_lock, package_end, feat_scp_file,
             utt_id, utt_mat = read_next_utt(line)
             logging.debug(utt_id + ' read ok.')
             if int(len(utt_mat)/skip_frame) + 1 > max_input_seq_length:
+                logging.info(utt_id + 'length '+ str(int(len(utt_mat)/skip_frame)+1) + ' > ' + str(max_input_seq_length))
                 continue
             try:
                 ali_utt = alignment_dict[utt_id]
@@ -145,9 +146,12 @@ def PackageFeatAndAliAndLat(all_package, input_lock, package_end, feat_scp_file,
             lat_list.append(lat_list[0])
         input_lock.acquire()
         all_package.append([feat_list, ali_list, lat_list])
-        package_end.append(True)
         input_lock.release()
 
+    input_lock.acquire()
+    package_end.append(True)
+    input_lock.release()
+    
     end_package = time.time()
     logging.info('------PackageFeatAndAliAndLat end. Package time is : %f s' % (end_package - start_package))
 
@@ -201,8 +205,11 @@ def PackageFeatAndAli(all_package, input_lock, package_end, scp_file, ali_file, 
             ali_list.append(ali_list[0])
         input_lock.acquire()
         all_package.append([scp_list, ali_list])
-        package_end.append(True)
         input_lock.release()
+    
+    input_lock.acquire()
+    package_end.append(True)
+    input_lock.release()
 
     end_package = time.time()
     logging.info('------PackageFeatAndAli end. Package time is : %f s' % (end_package - start_package))
@@ -316,6 +323,7 @@ class KaldiDataReadParallel(object):
                         self.batch_size, self.skip_frame, 
                         self.max_input_seq_length, self.criterion,),
                     kwargs={}, name='PackageFeatAndAli_thread')
+            logging.info('PackageFeatAndAli thread start.')
         else:
             load_thread = threading.Thread(group=None, target=PackageFeatAndAliAndLat,
                     args=(self.package_feat_ali, self.input_lock, self.package_end,
@@ -323,13 +331,13 @@ class KaldiDataReadParallel(object):
                         self.batch_size, self.skip_frame,
                         self.max_input_seq_length, self.criterion,),
                     kwargs={}, name='PackageFeatAndAliAndLat_thread')
+            logging.info('PackageFeatAndAliAndLat thread start.')
 
         load_thread.start()
-        logging.info('PackageFeatAndAli thread start.')
 
         # if you want shuffle data , you must be wait load all data
         if self.shuffle is True:
-            logging.info('Wait PackageFeatAndAli thread end and shuffle package')
+            logging.info('Wait Package thread end and shuffle package')
             load_thread.join()
             assert self.package_end[-1] is True
             logging.info('Shuffle package_feat_ali')
