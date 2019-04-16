@@ -39,6 +39,10 @@ struct Arc
 	}
 };
 
+/*
+ * Lattice have only one final and all state have not weight.
+ * It must be supper lattice final.
+ * */
 class Lattice
 {
 public:
@@ -195,6 +199,26 @@ void LatticeAcousticRescore(const Matrix<const float> &log_like,
 
 BaseFloat LatticeForwardBackward(Lattice &lat,
 		BaseFloat* acoustic_like_sum , Matrix<float> &nnet_diff_h);
+
+/*
+ * lat               (input)  : sparse lattice and it must be only one final and top sort.
+ * silence_phones    (input)  : silence phone list
+ * trans             (input)  : transition_id map phone and pdf, it's 2D,(num_transition_id, 3)[transition_id, pdf_id, phone_id]
+ * num_ali           (input)  : transition_id list , it's 1D
+ * criterion         (input)  : "smbr" or "mpe"
+ * one_silence_class (input)  : true or false
+ * nnet_diff_h       (output) : output loss
+ * min               (output) : nnet_diff_h min value
+ * max               (output) : nnet_diff_h max value
+ * */
+BaseFloat LatticeForwardBackwardMpeVariants(Lattice &lat,
+		const std::vector<int32> &silence_phones,
+		Matrix<const int32> &trans,
+		const int32 *num_ali,
+		std::string criterion,
+		bool one_silence_class,
+		Matrix<float> &nnet_diff_h,
+		BaseFloat &min, BaseFloat &max);
 
 
 } // namespace hubo
