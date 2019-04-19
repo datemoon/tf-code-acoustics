@@ -72,6 +72,38 @@ public:
 		}
 		return max_id;
 	}
+
+	Real Min()
+	{
+		Real min ;
+		if(_num_rows > 0)
+			min = _data[0];
+		for(int r=0;r<_num_rows;++r)
+		{
+			for(int c=0;c<_num_cols;++c)
+			{
+				if(min > _data[r*_stride+c])
+					min = _data[r*_stride+c];
+			}
+		}
+		return min;
+	}
+
+	Real Max()
+	{
+		Real max ;
+		if(_num_rows > 0)
+			max = _data[0];
+		for(int r=0;r<_num_rows;++r)
+		{
+			for(int c=0;c<_num_cols;++c)
+			{
+				if(max < _data[r*_stride+c])
+					max = _data[r*_stride+c];
+			}
+		}
+		return max;
+	}
 private:
 	Real *_data;
 	int _num_rows;

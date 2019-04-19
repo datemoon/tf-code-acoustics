@@ -13,11 +13,11 @@ using namespace std;
  * */
 BaseFloat LatticeForwardBackwardMpeVariants(Lattice &lat,
 		const std::vector<int32> &silence_phones,
-		Matrix<const int32> &trans,
-		const int32 *num_ali,
+		Matrix<const int32> &pdf_to_phone,
+		const int32 *num_pdf,
 		std::string criterion,
 		bool one_silence_class,
-		Matrix<float> &nnet_diff_h,
+		Matrix<BaseFloat> &nnet_diff_h,
 		BaseFloat &min, BaseFloat &max)
 {
 	int32 max_time = nnet_diff_h.NumRows();
@@ -112,13 +112,14 @@ BaseFloat LatticeForwardBackwardMpeVariants(Lattice &lat,
 		Arc arc;
 		while(lat.GetArc(s, n, &arc) == true)
 		{
+			n++;
 			double arc_like = - arc.Value();
 			double frame_acc = 0.0;
 			if (arc._pdf != 0)
 			{
 				int32 cur_time = state_times[s];
-				int32 phone = trans(arc._pdf, 2),
-					  ref_phone = trans(num_ali[cur_time], 2);
+				int32 phone = pdf_to_phone(arc._pdf-1, 1),
+					  ref_phone = pdf_to_phone(num_pdf[cur_time], 1);
 				bool phone_is_sil = std::binary_search(silence_phones.begin(),
 						silence_phones.end(),
 						phone),
@@ -128,8 +129,8 @@ BaseFloat LatticeForwardBackwardMpeVariants(Lattice &lat,
 					 both_sil = phone_is_sil && ref_phone_is_sil;
 				if (!is_mpfe) 
 				{ // smbr.
-					int32 pdf = trans(arc._pdf, 1),
-						  ref_pdf = trans(num_ali[cur_time], 1);
+					int32 pdf = arc._pdf - 1,
+						  ref_pdf = num_pdf[cur_time];
 					if (!one_silence_class)  // old behavior
 						frame_acc = (pdf == ref_pdf && !phone_is_sil) ? 1.0 : 0.0;
 					else
@@ -161,6 +162,7 @@ BaseFloat LatticeForwardBackwardMpeVariants(Lattice &lat,
 		Arc arc;
 		while(lat.GetArc(s, n, &arc) == true)
 		{
+			n++;
 			double arc_like = - arc.Value(),
 				   arc_beta  = beta[arc._nextstate] + arc_like;
 			double frame_acc = 0.0;
@@ -168,8 +170,8 @@ BaseFloat LatticeForwardBackwardMpeVariants(Lattice &lat,
 			if(transition_id != 0)
 			{
 				int32 cur_time = state_times[s];
-				int32 phone = trans(transition_id, 2),
-					  ref_phone = trans(num_ali[cur_time], 2);
+				int32 phone = pdf_to_phone(transition_id-1, 1),
+					  ref_phone = pdf_to_phone(num_pdf[cur_time], 1);
 				bool phone_is_sil = std::binary_search(silence_phones.begin(),
 						silence_phones.end(), phone),
 					 ref_phone_is_sil = std::binary_search(silence_phones.begin(),
@@ -178,8 +180,8 @@ BaseFloat LatticeForwardBackwardMpeVariants(Lattice &lat,
 					 both_sil = phone_is_sil && ref_phone_is_sil;
 				if (!is_mpfe) 
 				{ // smbr.
-					int32 pdf = trans(transition_id, 1),
-						  ref_pdf = trans(num_ali[cur_time], 1);
+					int32 pdf = transition_id - 1,
+						  ref_pdf = num_pdf[cur_time];
 					if(!one_silence_class) // old behavior
 						frame_acc = (pdf == ref_pdf && !phone_is_sil) ? 1.0 : 0.0;
 					else
@@ -208,19 +210,22 @@ BaseFloat LatticeForwardBackwardMpeVariants(Lattice &lat,
 					- tot_forward_score;
 				double posterior_smbr = posterior * acc_diff;
 
-				int32 pdf_id = trans(transition_id ,1);
-				nnet_diff_h(state_times[s], pdf_id-1) -= posterior_smbr;
+				int32 pdf_id = transition_id - 1;
+				nnet_diff_h(state_times[s], pdf_id) += -1.0 * static_cast<BaseFloat>(posterior_smbr);
+				std::cout << "time: " << state_times[s]  << " pdf: " << pdf_id << " " 
+					<< posterior_smbr << std::endl;
 				// save max and min loss
-				if(-posterior_smbr > max)
-					max = -posterior_smbr;
-				if(-posterior_smbr < min)
-					min = -posterior_smbr;
+				//if(nnet_diff_h(state_times[s], pdf_id) >= max - static_cast<BaseFloat>(posterior_smbr))
+				//	max = nnet_diff_h(state_times[s], pdf_id);
+				//if(nnet_diff_h(state_times[s], pdf_id) <= min - static_cast<BaseFloat>(posterior_smbr))
+				//	min = nnet_diff_h(state_times[s], pdf_id);
 //				(*post)[state_times[s]].push_back(std::make_pair(transition_id,
 //							static_cast<BaseFloat>(posterior_smbr)));
 			}
 		} // all arc
 	} // all state
-
+	min = nnet_diff_h.Min();
+	max = nnet_diff_h.Max();
 	// Second Pass Forward Backward check
 	double tot_backward_score = beta_smbr[0];  // Initial state id == 0
 	// may loose the condition somehow here 1e-5/1e-4

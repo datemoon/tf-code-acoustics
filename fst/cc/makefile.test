@@ -12,10 +12,16 @@ OBJFILES = sparse-lattice-function.o loss.o
 
 LIBNAME = mmi-loss
 
-TESTFILES = convert-lattice-test nnet-train-mmi-sequential-batch
+TESTFILES = convert-lattice-test nnet-train-mmi-sequential-batch \
+			nnet-train-mpe-sequential
 
-ADDLIBS = ../lat/kaldi-lat.a ../lm/kaldi-lm.a ../fstext/kaldi-fstext.a \
-          ../hmm/kaldi-hmm.a ../tree/kaldi-tree.a ../util/kaldi-util.a \
+ADDLIBS = ../nnet/kaldi-nnet.a  \
+		  ../cudamatrix/kaldi-cudamatrix.a \
+		  ../lat/kaldi-lat.a \
+		  ../lm/kaldi-lm.a \
+		  ../fstext/kaldi-fstext.a \
+          ../hmm/kaldi-hmm.a ../tree/kaldi-tree.a \
+		  ../util/kaldi-util.a \
           ../matrix/kaldi-matrix.a \
           ../base/kaldi-base.a
 

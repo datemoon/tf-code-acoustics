@@ -203,8 +203,8 @@ BaseFloat LatticeForwardBackward(Lattice &lat,
 /*
  * lat               (input)  : sparse lattice and it must be only one final and top sort.
  * silence_phones    (input)  : silence phone list
- * trans             (input)  : transition_id map phone and pdf, it's 2D,(num_transition_id, 3)[transition_id, pdf_id, phone_id]
- * num_ali           (input)  : transition_id list , it's 1D
+ * pdf_to_phone      (input)  : pdf map phone, it's 2D,(pdf_id, 2)[pdf_id, phone_id]
+ * num_pdf           (input)  : pdf_id list , it's 1D
  * criterion         (input)  : "smbr" or "mpe"
  * one_silence_class (input)  : true or false
  * nnet_diff_h       (output) : output loss
@@ -213,8 +213,8 @@ BaseFloat LatticeForwardBackward(Lattice &lat,
  * */
 BaseFloat LatticeForwardBackwardMpeVariants(Lattice &lat,
 		const std::vector<int32> &silence_phones,
-		Matrix<const int32> &trans,
-		const int32 *num_ali,
+		Matrix<const int32> &pdf_to_phone,
+		const int32 *num_pdf,
 		std::string criterion,
 		bool one_silence_class,
 		Matrix<float> &nnet_diff_h,

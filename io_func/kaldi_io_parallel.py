@@ -153,7 +153,7 @@ def PackageFeatAndAliAndLat(all_package, input_lock, package_end, feat_scp_file,
     input_lock.release()
     
     end_package = time.time()
-    logging.info('------PackageFeatAndAliAndLat end. Package time is : %f s' % (end_package - start_package))
+    logging.info('------PackageFeatAndAliAndLat end. Package time is : %f s, batch number : %d' % (end_package - start_package, len(all_package)))
 
 
 def PackageFeatAndAli(all_package, input_lock, package_end, scp_file, ali_file, nstreams, skip_frame = 1,  max_input_seq_length = 1500, criterion = 'ce'):
@@ -212,7 +212,7 @@ def PackageFeatAndAli(all_package, input_lock, package_end, scp_file, ali_file, 
     input_lock.release()
 
     end_package = time.time()
-    logging.info('------PackageFeatAndAli end. Package time is : %f s' % (end_package - start_package))
+    logging.info('------PackageFeatAndAli end. Package time is : %f s, batch bumber : %d' % (end_package - start_package, len(all_package)))
     return True
 
 class KaldiDataReadParallel(object):
@@ -345,10 +345,10 @@ class KaldiDataReadParallel(object):
 
 
     def Reset(self, shuffle = False, skip_offset = 0 ):
-        self.skip_offset = skip_offset % self.skip_frame
-        self.read_offset = 0
-        self.io_end_times = 0
         if len(self.input_thread) == 0:
+            self.skip_offset = skip_offset % self.skip_frame
+            self.read_offset = 0
+            self.io_end_times = 0
             self.ThreadPackageInput()
         if shuffle is True or self.shuffle is True:
             self.shuffle = True
@@ -619,15 +619,16 @@ class KaldiDataReadParallel(object):
         return pri
 
 if __name__ == '__main__':
-    conf_dict = { 'batch_size' :32,
+    path = '/search/odin/hubo/git/tf-code-acoustics/fst/cc/source/out-source'
+    conf_dict = { 'batch_size' :1,
             'skip_frame':1,
             'skip_offset': 0,
             'do_skip_lab': True,
             'shuffle': False,
             'queue_cache':100,
-            'io_thread_num':1}
+            'io_thread_num':1,
+            'ali_map_file': path + '/../ali-pdf-phone/map.ali'}
     #path = '/search/speech/hubo/git/tf-code-acoustics/train-data'
-    path = '/search/odin/hubo/git/tf-code-acoustics/fst/cc/source/out-source'
     feat_trans_file = '../conf/final.feature_transform'
     feat_trans = FeatureTransform()
     feat_trans.LoadTransform(feat_trans_file)
@@ -638,12 +639,13 @@ if __name__ == '__main__':
     io_read.Initialize(conf_dict, scp_file=path+'/feat/500.scp',
             label = path+'/ali/ali.all', 
 #            lat_scp_file= path + '/decode/lat.all.scp',
-            ali_map_file = path + '/../ali-pdf-phone/map.ali',
-            feature_transform = feat_trans, criterion = 'whole,mmi')
+#            ali_map_file = path + '/../ali-pdf-phone/map.ali',
+            feature_transform = feat_trans, criterion = 'whole,ce')
 
             #label = path+'/sort_tr.labels.4026.ce',
     start = time.time()
     io_read.Reset(shuffle = True)
+    batch_num = 0
     while True:
         #feat_mat, label, length = io_read.LoadNextNstreams()
         #feat_mat, label, length, lat_list = io_read.CnnLoadNextNstreams()
@@ -651,26 +653,30 @@ if __name__ == '__main__':
         feat_mat, label, length, lat_list = io_read.GetInput()
 #        feat_mat, label, length, lat_list = io_read.LoadBatch()
         end1 = time.time()
-        logging.info(str(numpy.shape(feat_mat))+str(numpy.shape(label))+str(numpy.shape(length)))
+        logging.info('batch number: '+str(batch_num) + ' ' + str(numpy.shape(feat_mat))+str(numpy.shape(label))+str(numpy.shape(length)))
         logging.info("time:"+str(end1-start1))
         #feat_mat, label, length = io_read.SliceLoadNextNstreams()
         #print(numpy.shape(feat_mat),numpy.shape(label),numpy.shape(length))
         if feat_mat is None:
             break
+        batch_num += 1
     end = time.time()
     io_read.JoinInput()
     logging.info("all process time:"+str(end-start))
     io_read.Reset(shuffle = True)
+    batch_num = 0
     while True:
         #feat_mat, label, length = io_read.LoadNextNstreams()
         #feat_mat, label, length, lat_list = io_read.CnnLoadNextNstreams()
         #feat_mat, label, length, lat_list = io_read.LoadBatch()
         feat_mat, label, length, lat_list = io_read.GetInput()
-        logging.info(str(numpy.shape(feat_mat))+str(numpy.shape(label))+str(numpy.shape(length)))
+        #logging.info(str(numpy.shape(feat_mat))+str(numpy.shape(label))+str(numpy.shape(length)))
+        logging.info('batch number: '+str(batch_num) + ' ' + str(numpy.shape(feat_mat))+str(numpy.shape(label))+str(numpy.shape(length)))
         #feat_mat, label, length = io_read.SliceLoadNextNstreams()
         #print(numpy.shape(feat_mat),numpy.shape(label),numpy.shape(length))
         if feat_mat is None:
             break
+        batch_num += 1
 
     io_read.JoinInput()
     end = time.time()

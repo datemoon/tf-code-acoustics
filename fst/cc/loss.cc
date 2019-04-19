@@ -244,7 +244,7 @@ void MPEOneLoss(Lattice *lat, Matrix<const BaseFloat> *nnet_out_h, const int32 *
 		BaseFloat acoustic_scale,
 		BaseFloat *loss,
 		const std::vector<int32> &silence_phones,
-		Matrix<const int32> *trans,       // [transition_id, pdf, phone]
+		Matrix<const int32> *pdf_to_phone,       // [pdf, phone]
 		bool one_silence_class,
 		std::string criterion)  // "smbr" or "mpe"
 {
@@ -268,7 +268,7 @@ void MPEOneLoss(Lattice *lat, Matrix<const BaseFloat> *nnet_out_h, const int32 *
 	BaseFloat min = 0.0, max = 0.0;
 	utt_frame_acc = LatticeForwardBackwardMpeVariants(*lat,
 			silence_phones,
-			*trans,
+			*pdf_to_phone,
 			labels,
 			criterion,
 			one_silence_class,
@@ -276,7 +276,7 @@ void MPEOneLoss(Lattice *lat, Matrix<const BaseFloat> *nnet_out_h, const int32 *
 			min, max);
 #ifdef DEBUG_PRINT
 	// Report
-	std::cout << "Utterance : Average frame accuracy = "
+	std::cout << "TF Utterance : Average frame accuracy = "
 		<< (utt_frame_acc/num_frames) << " over " << num_frames
 		<< " frames,"
 		<< " diff-range(" << min << ","
@@ -309,7 +309,8 @@ void MPEOneLoss(Lattice *lat, Matrix<const BaseFloat> *nnet_out_h, const int32 *
  * sequence_length        : The number of time steps for each sequence in the batch. which has dimension (n)
  * silence_phones         : Colon-separated list of integer id's of silence phones, e.g. [1, 2, 3, ...]
  * silence_phones_len     : silence phones list length
- * trans                  : transition_id map pdf and phone. [transition_id, pdf, phone]
+ * pdf_to_phone           : pdf_id map phone. [pdf, phone]
+ * pdf_id_num             : pdf_id_num == cols
  * one_silence_class      : If true, the newer behavior reduces insertions.
  * criterion              : Use state-level accuracies or phone accuracies.
  * old_acoustic_scale     : Add in the scores in the input lattices with this scale, rather than discarding them.
@@ -328,13 +329,13 @@ bool MPELoss(const int32 *indexs, const int32 *pdf_values,
 		const int32 *sequence_length,
 		const int32 *silence_phones,      // silence phone list
 		const int32 silence_phones_len,   // silence phone list length
-		const int32 *trans,               // trans cols is 3.[transition_id, pdf, phone]
-		const int32 transition_id_num,    // trans rows
+		const int32 *pdf_to_phone,        // pdf_to_phone cols is 2.[pdf, phone]
+		const int32 pdf_id_num,           // pdf_id_num == cols
 		BaseFloat old_acoustic_scale,
 		BaseFloat acoustic_scale, BaseFloat* gradient,
 		BaseFloat *loss,
-		bool one_silence_class = true,
-		std::string criterion = "smbr")            // "smbr" or "mpe"
+		bool one_silence_class,
+		std::string criterion)            // "smbr" or "mpe"
 {
 #ifdef DEBUG_SPEED
 	struct timeval start;
@@ -348,7 +349,7 @@ bool MPELoss(const int32 *indexs, const int32 *pdf_values,
 	std::vector<const int32*> labels_v;
 	std::vector<std::thread> threads;
 	std::vector<int32> silence_phones_v(silence_phones, silence_phones + silence_phones_len);
-	Matrix<const int32> trans_m(trans, transition_id_num, 3, 3);
+	Matrix<const int32> pdf_to_phone_m(pdf_to_phone, pdf_id_num, 2, 2);
 	// setzero gradient
 	memset((void*)gradient,0x00,sizeof(BaseFloat) * rows * batch_size * cols);
 	// first process lat_v and nnet_out_h_v
@@ -384,7 +385,7 @@ bool MPELoss(const int32 *indexs, const int32 *pdf_values,
 		// threading calculate.
 		threads.push_back(std::thread(MPEOneLoss, &lat_v[i], &nnet_out_h_v[i], labels_v[i], &nnet_diff_h_v[i],
 				   	old_acoustic_scale, acoustic_scale, &loss[i], 
-					silence_phones_v, &trans_m, one_silence_class, criterion));
+					silence_phones_v, &pdf_to_phone_m, one_silence_class, criterion));
 	}
 	// pauses until all thread finish.
 	for(int32 i=0; i < batch_size; i++)

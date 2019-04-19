@@ -92,6 +92,7 @@ bool MPELoss(const int32 *indexs, const int32 *pdf_values,
 		const int32 *silence_phones,      // silence phone list
 		const int32 silence_phones_len,   // silence phone list length
 		const int32 *trans,               // [transition_id, pdf, phone]
+		const int32 transition_id_num,    // trans rows
 		BaseFloat old_acoustic_scale,
 		BaseFloat acoustic_scale, BaseFloat* gradient,
 		BaseFloat *loss, 

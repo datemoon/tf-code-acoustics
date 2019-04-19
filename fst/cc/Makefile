@@ -1,5 +1,6 @@
 
-CXX = g++ -std=gnu++0x
+CXX = g++ 
+#-std=gnu++0x
 AR = ar
 AS = as
 RANLIB = ranlib
@@ -11,7 +12,7 @@ CXXFLAGS = -std=c++11 -I. \
 		   -Wall -Wno-sign-compare -Wno-unused-local-typedefs \
 		   -Wno-deprecated-declarations -Winit-self \
 		   -msse -msse2 -pthread \
-		   -O2
+		   -g
 EXTRA_CXXFLAGS += -Wno-sign-compare 
 #-DDEBUG_SPEED
 #-DDEBUG_PRINT
