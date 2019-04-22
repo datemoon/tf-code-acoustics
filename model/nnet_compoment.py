@@ -84,6 +84,11 @@ class SpliceLayer(object):
         else:
             self.time = 1
 
+    #t1 = [[1, 2, 3], [4, 5, 6]]
+    #t2 = [[7, 8, 9], [10, 11, 12]]
+    #tf.concat([t1, t2], 0)  # [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]]
+    #tf.concat([t1, t2], 1)  # [[1, 2, 3, 7, 8, 9], [4, 5, 6, 10, 11, 12]]
+    # padding
     def SpliceFeats(self, input_feats):
         output = None
         start_nframe = 0
@@ -129,6 +134,7 @@ class SpliceLayer(object):
         in advance at head and tail add frames, 
         so extract need features
         '''
+        # no padding
         if add_head_tail is True:
             output = None
             start_nframe = -1 * self.splice[0]
@@ -156,6 +162,7 @@ class SpliceLayer(object):
             return output
 
         else:
+            # padding
             return self.SpliceFeats(input_feats)
 
     def GetOutputDim(self):

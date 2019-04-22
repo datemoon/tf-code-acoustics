@@ -112,7 +112,7 @@ def PackageFeatAndAliAndLat(all_package, input_lock, package_end, feat_scp_file,
             utt_id, utt_mat = read_next_utt(line)
             logging.debug(utt_id + ' read ok.')
             if int(len(utt_mat)/skip_frame) + 1 > max_input_seq_length:
-                logging.info(utt_id + 'length '+ str(int(len(utt_mat)/skip_frame)+1) + ' > ' + str(max_input_seq_length))
+                logging.info(utt_id + ' length '+ str(int(len(utt_mat)/skip_frame)+1) + ' > ' + str(max_input_seq_length))
                 continue
             try:
                 ali_utt = alignment_dict[utt_id]
@@ -171,6 +171,7 @@ def PackageFeatAndAli(all_package, input_lock, package_end, scp_file, ali_file, 
         logging.debug(utt_id + ' read ok.')
         # overlength
         if int(len(utt_mat)/skip_frame) + 1 > max_input_seq_length:
+            logging.info(utt_id + ' length '+ str(int(len(utt_mat)/skip_frame)+1) + ' > ' + str(max_input_seq_length))
             continue
 
         try:
