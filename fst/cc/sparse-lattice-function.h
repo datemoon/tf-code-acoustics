@@ -208,8 +208,6 @@ BaseFloat LatticeForwardBackward(Lattice &lat,
  * criterion         (input)  : "smbr" or "mpe"
  * one_silence_class (input)  : true or false
  * nnet_diff_h       (output) : output loss
- * min               (output) : nnet_diff_h min value
- * max               (output) : nnet_diff_h max value
  * */
 BaseFloat LatticeForwardBackwardMpeVariants(Lattice &lat,
 		const std::vector<int32> &silence_phones,
@@ -217,8 +215,7 @@ BaseFloat LatticeForwardBackwardMpeVariants(Lattice &lat,
 		const int32 *num_pdf,
 		std::string criterion,
 		bool one_silence_class,
-		Matrix<float> &nnet_diff_h,
-		BaseFloat &min, BaseFloat &max);
+		Matrix<float> &nnet_diff_h);
 
 
 } // namespace hubo

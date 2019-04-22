@@ -17,8 +17,7 @@ BaseFloat LatticeForwardBackwardMpeVariants(Lattice &lat,
 		const int32 *num_pdf,
 		std::string criterion,
 		bool one_silence_class,
-		Matrix<BaseFloat> &nnet_diff_h,
-		BaseFloat &min, BaseFloat &max)
+		Matrix<BaseFloat> &nnet_diff_h)
 {
 	int32 max_time = nnet_diff_h.NumRows();
 	assert(criterion == "mpfe" || criterion == "smbr");
@@ -212,20 +211,13 @@ BaseFloat LatticeForwardBackwardMpeVariants(Lattice &lat,
 
 				int32 pdf_id = transition_id - 1;
 				nnet_diff_h(state_times[s], pdf_id) += -1.0 * static_cast<BaseFloat>(posterior_smbr);
-				std::cout << "time: " << state_times[s]  << " pdf: " << pdf_id << " " 
-					<< posterior_smbr << std::endl;
-				// save max and min loss
-				//if(nnet_diff_h(state_times[s], pdf_id) >= max - static_cast<BaseFloat>(posterior_smbr))
-				//	max = nnet_diff_h(state_times[s], pdf_id);
-				//if(nnet_diff_h(state_times[s], pdf_id) <= min - static_cast<BaseFloat>(posterior_smbr))
-				//	min = nnet_diff_h(state_times[s], pdf_id);
+				//std::cout << "time: " << state_times[s]  << " pdf: " << pdf_id << " " 
+				//	<< posterior_smbr << std::endl;
 //				(*post)[state_times[s]].push_back(std::make_pair(transition_id,
 //							static_cast<BaseFloat>(posterior_smbr)));
 			}
 		} // all arc
 	} // all state
-	min = nnet_diff_h.Min();
-	max = nnet_diff_h.Max();
 	// Second Pass Forward Backward check
 	double tot_backward_score = beta_smbr[0];  // Initial state id == 0
 	// may loose the condition somehow here 1e-5/1e-4

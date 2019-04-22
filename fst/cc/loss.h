@@ -72,7 +72,8 @@ bool MMILoss(const int32 *indexs, const int32 *pdf_values,
  * sequence_length        : The number of time steps for each sequence in the batch. which has dimension (n)
  * silence_phones         : Colon-separated list of integer id's of silence phones, e.g. [1, 2, 3, ...]
  * silence_phones_len     : silence phones list length
- * trans                  : transition_id map pdf and phone. [transition_id, pdf, phone]
+ * pdf_to_phone           : pdf_id map phone. [pdf, phone]
+ * pdf_id_num             : pdf_id_num == cols
  * one_silence_class      : If true, the newer behavior reduces insertions.
  * criterion              : Use state-level accuracies or phone accuracies.
  * old_acoustic_scale     : Add in the scores in the input lattices with this scale, rather than discarding them.
@@ -91,8 +92,8 @@ bool MPELoss(const int32 *indexs, const int32 *pdf_values,
 		const int32 *sequence_length,
 		const int32 *silence_phones,      // silence phone list
 		const int32 silence_phones_len,   // silence phone list length
-		const int32 *trans,               // [transition_id, pdf, phone]
-		const int32 transition_id_num,    // trans rows
+		const int32 *pdf_to_phone,        // pdf_to_phone cols is 2.[pdf, phone]
+		const int32 pdf_id_num,    // trans rows
 		BaseFloat old_acoustic_scale,
 		BaseFloat acoustic_scale, BaseFloat* gradient,
 		BaseFloat *loss, 
@@ -100,12 +101,26 @@ bool MPELoss(const int32 *indexs, const int32 *pdf_values,
 		std::string criterion = "smbr");            // "smbr" or "mpe"
 
 
+/* lat         (input) :
+ * nnet_out_h          :
+ * labels              :
+ * old_acoustic_scale  :
+ * acoustic_scale      :
+ * silence_phones      :
+ * pdf_to_phone        :
+ * one_silence_class   :
+ * criterion           :
+ *
+ * nnet_diff_h(output) :
+ * loss                : 
+ * return              : loss
+ * */
 void MPEOneLoss(Lattice *lat, Matrix<const BaseFloat> *nnet_out_h, const int32 *labels,
 		Matrix<BaseFloat> *nnet_diff_h, BaseFloat old_acoustic_scale,
 		BaseFloat acoustic_scale,
 		BaseFloat *loss,
 		const std::vector<int32> &silence_phones,
-		Matrix<const int32> *trans,       // [transition_id, pdf, phone]
+		Matrix<const int32> *pdf_to_phone,       // [pdf, phone]
 		bool one_silence_class = true,
 		std::string criterion = "smbr");  // "smbr" or "mpe"
 

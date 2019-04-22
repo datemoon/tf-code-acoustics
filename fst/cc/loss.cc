@@ -265,16 +265,17 @@ void MPEOneLoss(Lattice *lat, Matrix<const BaseFloat> *nnet_out_h, const int32 *
 	// get the posteriors
 	// Matrix<BaseFloat> nnet_diff_h(gradient, length, cols)
 	BaseFloat utt_frame_acc = 0.0;
-	BaseFloat min = 0.0, max = 0.0;
 	utt_frame_acc = LatticeForwardBackwardMpeVariants(*lat,
 			silence_phones,
 			*pdf_to_phone,
 			labels,
 			criterion,
 			one_silence_class,
-			*nnet_diff_h,
-			min, max);
+			*nnet_diff_h);
 #ifdef DEBUG_PRINT
+	BaseFloat min = 0.0, max = 0.0;
+	min = nnet_diff_h->Min();
+	max = nnet_diff_h->Max();
 	// Report
 	std::cout << "TF Utterance : Average frame accuracy = "
 		<< (utt_frame_acc/num_frames) << " over " << num_frames

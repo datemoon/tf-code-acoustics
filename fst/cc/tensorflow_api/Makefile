@@ -16,7 +16,7 @@ CXXFLAGS += -std=c++11 -fPIC  -I ../
 all:tf_mmi_api.so
 
 
-tf_mmi_api.so: mmi_loss_op.o
+tf_mmi_api.so: mmi_loss_op.o mpe_loss_op.o
 	g++ -std=c++11 -shared $^ -o $@ -fPIC ${TF_CFLAGS} ${CXXFLAGS} ${TF_LFLAGS} ${ADDLIBS} -O2
 
 %.o:%.cc
