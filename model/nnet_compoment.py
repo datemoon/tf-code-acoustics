@@ -340,7 +340,7 @@ class LstmLayer(object):
 
 class LcBLstmLayer(object):
     '''
-    layer_flag = BLstmLayer; name = lcablstmlayer1; fw_lstm_cell = 1024; fw_use_peepholes = True; fw_cell_clip = 5.0; fw_num_proj = 512; fw_proj_clip = 1.0; fw_forget_bias = 0.0; fw_keep_prob = 1.0; bw_lstm_cell = 1024; bw_use_peepholes = True; bw_cell_clip = 5.0; bw_num_proj = 512; bw_proj_clip = 1.0; bw_forget_bias = 0.0; bw_keep_prob = 1.0; latency_controlled=1; state_is_tuple = True; dtype = tf.float32; initializer = tf.contrib.layers.xavier_initializer(tf.float32); activation = None; dtype = tf.float32; reuse = tf.get_variable_scope().reuse;
+    layer_flag = BLstmLayer; name = lcablstmlayer1; fw_lstm_cell = 1024; fw_use_peepholes = True; fw_cell_clip = 5.0; fw_num_proj = 512; fw_proj_clip = 1.0; fw_forget_bias = 0.0; fw_keep_prob = 1.0; bw_lstm_cell = 1024; bw_use_peepholes = True; bw_cell_clip = 5.0; bw_num_proj = 512; bw_proj_clip = 1.0; bw_forget_bias = 0.0; bw_keep_prob = 1.0; latency_controlled=None; state_is_tuple = True; dtype = tf.float32; initializer = tf.contrib.layers.xavier_initializer(tf.float32); activation = None; dtype = tf.float32; reuse = tf.get_variable_scope().reuse;
     '''
     def __init__(self, conf_opt):
         self.conf = conf_opt

@@ -192,6 +192,12 @@ def parse_args(args_list):
             type=int, default=20,
             help='Length of \'one stream\' in the Multi-stream training'
             '(int, default = 20)')
+    
+    train_common_opt.add_argument('--overlap', 
+            dest='overlap', 
+            type=int, default=0,
+            help='This parameter for lc lstm add, it\'s feature slice overlap length.'
+            '(int, default = 0)')
 
     train_common_opt.add_argument('--init-scale', dest='init_scale', type=float,
             default=0.01,

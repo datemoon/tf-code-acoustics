@@ -426,7 +426,7 @@ class LstmModel(NnetBase):
                 #        between batches, especially when doing live transcript
                 #        Another way would have been to get the state as an output of the session and feed it every time but
                 #        this way is much more efficient
-                with tf.variable_scope('Blstm_FwHidden_state' + name):
+                with tf.variable_scope('LcBlstm_FwHidden_state' + name):
                     state_variables = []
                     for f_lstm in fw_lstm_layer:
                         state_c, state_h = f_lstm.zero_state(self.batch_size_cf, tf.float32)
@@ -436,7 +436,7 @@ class LstmModel(NnetBase):
                     fw_rnn_tuple_state = state_variables
                     #fw_rnn_tuple_state = tuple(state_variables)
 
-                with tf.variable_scope('Blstm_BwHidden_state' + name):
+                with tf.variable_scope('LcBlstm_BwHidden_state' + name):
                     state_variables = []
                     for b_lstm in bw_lstm_layer:
                         state_c, state_h = b_lstm.zero_state(self.batch_size_cf, tf.float32)
@@ -455,7 +455,7 @@ class LstmModel(NnetBase):
                     outputs[-1] = tf.reshape(outputs[-1],
                             [self.batch_size_cf, -1, output_dim])
 
-                with tf.name_scope("BLSTM" + name):
+                with tf.name_scope("LCBLSTM" + name):
                     brnn_outputs, output_states_fw, output_states_bw = lc_blstm_rnn.stack_bidirectional_dynamic_rnn(
                             cells_fw = fw_lstm_layer,
                             cells_bw = bw_lstm_layer,

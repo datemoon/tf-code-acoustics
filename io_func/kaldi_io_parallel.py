@@ -227,9 +227,11 @@ class KaldiDataReadParallel(object):
     shuffle              :shuffle data
     '''
     def __init__(self):
+        # config
         self.max_input_seq_length = 1500
         self.batch_size = 10
         self.num_frames_batch = 20
+        self.overlap=0
         self.skip_frame = 1
         self.skip_offset = 0
         self.shuffle = False
@@ -577,37 +579,62 @@ class KaldiDataReadParallel(object):
             if max_frame_num != length[i]:
                 feat_mat[i] = numpy.vstack((feat_mat[i], numpy.zeros((max_frame_num-length[i], feat_mat[i].shape[1]),dtype=numpy.float32)))
             i += 1
+        # process package data, slice
         if feat_mat.__len__() == self.batch_size:
+            # process feat_mat(list) to time_major numpy [time, batch, dim]
             feat_mat_nstream = numpy.hstack(feat_mat).reshape(-1, self.batch_size, self.output_dim)
             np_length = numpy.vstack(length).reshape(-1)
-            array_feat = numpy.split(feat_mat_nstream, int(max_frame_num / self.num_frames_batch))
+            # slice feat matrix
+            if self.overlap == 0:
+                array_feat = numpy.split(feat_mat_nstream, int(max_frame_num / self.num_frames_batch))
+            else:
+                array_feat = []
+                for i in range(int(max_frame_num / self.num_frames_batch)):
+                    start_f = int(i*self.num_frames_batch)
+                    if i+1 == int(max_frame_num / self.num_frames_batch):
+                        end_f = int((i+1)*self.num_frames_batch)
+                    else:
+                        end_f = int((i+1)*self.num_frames_batch+self.overlap)
+                    slice_f = feat_mat_nstream[start_f : end_f]
+                    array_feat.append(slice_f)
+                array_feat = numpy.array(array_feat)
+
             array_label = []
             array_length = []
+            # all batch
             for nbatch in range(int(max_frame_num / self.num_frames_batch)):
                 array_label.append([])
                 tmp_length = []
                 offset_n = nbatch * self.num_frames_batch
+                # one batch
                 # every sentence cut
                 for i in range(len(label)):
                     tmp_label = []
                     j = 0
+                    # slice one sentence label
                     while j < self.num_frames_batch :
                         if j < len(label[i])-offset_n:
                             tmp_label.append(label[i][j+offset_n])
                         else:
                             tmp_label.append(0)
                         j += 1
-                    if j < len(label[i])-offset_n:
-                        tmp_length.append(j)
+
+                    # record feature length
+                    if len(label[i])-offset_n > 0:
+                        if j + self.overlap > len(label[i])-offset_n:
+                            tmp_length.append(len(label[i])-offset_n)
+                        else:
+                            tmp_length.append(j + self.overlap)
                     else:
-                        tmp_length.append(len(label[i])-offset_n)
+                        tmp_length.append(0)
+
                     array_label[nbatch].append(tmp_label)
                 array_length.append(numpy.vstack(tmp_length).reshape(-1))
             return array_feat , array_label , array_length, lat_list
         else:
             logging.info('It\'s shouldn\'t happen. feat is less then batch_size.')
             return None, None, None, None
-            
+    
     # print info
     def __repr__(self):
         pri = '{\nKaldiDataReadParallel parameters:\n'
@@ -621,13 +648,15 @@ class KaldiDataReadParallel(object):
 
 if __name__ == '__main__':
     path = '/search/odin/hubo/git/tf-code-acoustics/fst/cc/source/out-source'
-    conf_dict = { 'batch_size' :1,
+    conf_dict = { 'batch_size' :10,
             'skip_frame':1,
             'skip_offset': 0,
             'do_skip_lab': True,
             'shuffle': False,
             'queue_cache':100,
             'io_thread_num':1,
+            'num_frames_batch':20,
+            'overlap':10,
             'ali_map_file': path + '/../ali-pdf-phone/map.ali'}
     #path = '/search/speech/hubo/git/tf-code-acoustics/train-data'
     feat_trans_file = '../conf/final.feature_transform'
@@ -641,7 +670,7 @@ if __name__ == '__main__':
             label = path+'/ali/ali.all', 
 #            lat_scp_file= path + '/decode/lat.all.scp',
 #            ali_map_file = path + '/../ali-pdf-phone/map.ali',
-            feature_transform = feat_trans, criterion = 'whole,ce')
+            feature_transform = feat_trans, criterion = 'ce')
 
             #label = path+'/sort_tr.labels.4026.ce',
     start = time.time()
@@ -654,12 +683,15 @@ if __name__ == '__main__':
         feat_mat, label, length, lat_list = io_read.GetInput()
 #        feat_mat, label, length, lat_list = io_read.LoadBatch()
         end1 = time.time()
+        if feat_mat is None:
+            break
+        for i in range(numpy.shape(feat_mat)[0]):
+            logging.info(str(numpy.shape(feat_mat[i]))+str(length[i]))
         logging.info('batch number: '+str(batch_num) + ' ' + str(numpy.shape(feat_mat))+str(numpy.shape(label))+str(numpy.shape(length)))
+
         logging.info("time:"+str(end1-start1))
         #feat_mat, label, length = io_read.SliceLoadNextNstreams()
         #print(numpy.shape(feat_mat),numpy.shape(label),numpy.shape(length))
-        if feat_mat is None:
-            break
         batch_num += 1
     end = time.time()
     io_read.JoinInput()
@@ -671,12 +703,12 @@ if __name__ == '__main__':
         #feat_mat, label, length, lat_list = io_read.CnnLoadNextNstreams()
         #feat_mat, label, length, lat_list = io_read.LoadBatch()
         feat_mat, label, length, lat_list = io_read.GetInput()
+        if feat_mat is None:
+            break
         #logging.info(str(numpy.shape(feat_mat))+str(numpy.shape(label))+str(numpy.shape(length)))
         logging.info('batch number: '+str(batch_num) + ' ' + str(numpy.shape(feat_mat))+str(numpy.shape(label))+str(numpy.shape(length)))
         #feat_mat, label, length = io_read.SliceLoadNextNstreams()
         #print(numpy.shape(feat_mat),numpy.shape(label),numpy.shape(length))
-        if feat_mat is None:
-            break
         batch_num += 1
 
     io_read.JoinInput()

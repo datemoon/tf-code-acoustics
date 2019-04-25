@@ -170,7 +170,9 @@ def _maybe_tensor_shape_from_tensor(shape):
 # pylint: disable=unused-argument
 def _rnn_step(
     time, sequence_length, min_sequence_length, max_sequence_length,
-    zero_output, state, call_cell, state_size, latency_controlled=0, skip_conditionals=False):
+    zero_output, state, call_cell, state_size, 
+    latency_controlled=None, last_layer=False,
+    skip_conditionals=False):
   """Calculate one step of a dynamic RNN minibatch.
 
   Returns an (output, state) pair conditioned on `sequence_length`.
@@ -227,8 +229,22 @@ def _rnn_step(
   flat_zero_output = tf.contrib.framework.nest.flatten(zero_output)
 
   # Vector describing which batch entries are finished.
-  copy_cond = time >= sequence_length
-  copy_cond_state = time >= sequence_length-latency_controlled
+  if latency_controlled is None:
+    copy_cond = time >= sequence_length
+    copy_cond_state = time >= sequence_length
+  else:
+    if last_layer:
+      if time >= latency_controlled:
+        copy_cond = 0 <= sequence_length
+      else:
+        copy_cond = time >= sequence_length
+    else:
+      copy_cond = time >= sequence_length
+
+    if time >= latency_controlled:
+      copy_cond_state = 0 <= sequence_length
+    else:
+      copy_cond_state = (time >= sequence_length) 
 
   def _copy_one_through(output, new_output):
     # TensorArray and scalar get passed through.
@@ -285,8 +301,8 @@ def _rnn_step(
     # (which is typical for dynamic_rnn).
     new_output, new_state = call_cell()
     nest.assert_same_structure(state, new_state)
-    new_state = nest.flatten(new_state)
-    new_output = nest.flatten(new_output)
+    new_state = tf.contrib.framework.nest.flatten(new_state)
+    new_output = tf.contrib.framework.nest.flatten(new_output)
     final_output_and_state = _copy_some_through(new_output, new_state)
   else:
     empty_update = lambda: flat_zero_output + flat_state
@@ -315,9 +331,9 @@ def _rnn_step(
 
   return final_output, final_state
 
-#@tf_export("nn.bidirectional_dynamic_rnn")
 def bidirectional_dynamic_rnn(cell_fw, cell_bw, inputs, sequence_length=None,
-                              initial_state_fw=None, initial_state_bw=None, latency_controlled=0,
+                              initial_state_fw=None, initial_state_bw=None, 
+                              latency_controlled=None, last_layer=False,
                               dtype=None, parallel_iterations=None,
                               swap_memory=False, time_major=False, scope=None):
   """Creates a dynamic version of bidirectional recurrent neural network.
@@ -402,7 +418,8 @@ def bidirectional_dynamic_rnn(cell_fw, cell_bw, inputs, sequence_length=None,
     with tf.variable_scope("fw") as fw_scope:
       output_fw, output_state_fw = dynamic_rnn(
           cell=cell_fw, inputs=inputs, sequence_length=sequence_length,
-          initial_state=initial_state_fw, latency_controlled=latency_controlled,
+          initial_state=initial_state_fw,
+          latency_controlled=latency_controlled, last_layer=last_layer,
           dtype=dtype,
           parallel_iterations=parallel_iterations, swap_memory=swap_memory,
           time_major=time_major, scope=fw_scope)
@@ -429,7 +446,8 @@ def bidirectional_dynamic_rnn(cell_fw, cell_bw, inputs, sequence_length=None,
           seq_dim=time_dim, batch_dim=batch_dim)
       tmp, output_state_bw = dynamic_rnn(
           cell=cell_bw, inputs=inputs_reverse, sequence_length=sequence_length,
-          initial_state=initial_state_bw, latency_controlled=0,
+          initial_state=initial_state_bw, 
+          latency_controlled=0,last_layer=False
           dtype=dtype,
           parallel_iterations=parallel_iterations, swap_memory=swap_memory,
           time_major=time_major, scope=bw_scope)
@@ -443,9 +461,8 @@ def bidirectional_dynamic_rnn(cell_fw, cell_bw, inputs, sequence_length=None,
 
   return (outputs, output_states)
 
-
-#@tf_export("nn.dynamic_rnn")
-def dynamic_rnn(cell, inputs, sequence_length=None, initial_state=None, latency_controlled=0,
+def dynamic_rnn(cell, inputs, sequence_length=None, initial_state=None, 
+                latency_controlled=None,last_layer=False,
                 dtype=None, parallel_iterations=None, swap_memory=False,
                 time_major=False, scope=None):
   """Creates a recurrent neural network specified by RNNCell `cell`.
@@ -621,6 +638,7 @@ def dynamic_rnn(cell, inputs, sequence_length=None, initial_state=None, latency_
         parallel_iterations=parallel_iterations,
         swap_memory=swap_memory,
         sequence_length=sequence_length,
+        latency_controlled=latency_controlled,last_layer=last_layer,
         dtype=dtype)
 
     # Outputs of _dynamic_rnn_loop are always shaped [time, batch, depth].
@@ -639,7 +657,7 @@ def _dynamic_rnn_loop(cell,
                       parallel_iterations,
                       swap_memory,
                       sequence_length=None,
-                      latency_controlled=0,
+                      latency_controlled=None,last_layer=False,
                       dtype=None):
   """Internal implementation of Dynamic RNN.
 
@@ -788,7 +806,7 @@ def _dynamic_rnn_loop(cell,
           state=state,
           call_cell=call_cell,
           state_size=state_size,
-          latency_controlled=latency_controlled,
+          latency_controlled=latency_controlled,last_layer=last_layer,
           skip_conditionals=True)
     else:
       (output, new_state) = call_cell()

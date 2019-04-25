@@ -11,7 +11,7 @@ def stack_bidirectional_dynamic_rnn(cells_fw,
                                     inputs,
                                     initial_states_fw=None,
                                     initial_states_bw=None,
-                                    latency_controlled=0,
+                                    latency_controlled=None,
                                     dtype=None,
                                     sequence_length=None,
                                     parallel_iterations=None,
@@ -105,6 +105,10 @@ def stack_bidirectional_dynamic_rnn(cells_fw,
       if initial_states_bw:
         initial_state_bw = initial_states_bw[i]
 
+      if i+1 == len(initial_states_fw) and latency_controlled is not None:
+        last_layer=True
+      else:
+        last_layer=False
       with vs.variable_scope("cell_%d" % i):
         outputs, (state_fw, state_bw) = rnn_lc.bidirectional_dynamic_rnn(
             cell_fw,
@@ -113,6 +117,7 @@ def stack_bidirectional_dynamic_rnn(cells_fw,
             initial_state_fw=initial_state_fw,
             initial_state_bw=initial_state_bw,
             latency_controlled=latency_controlled,
+            last_layer=last_layer,
             sequence_length=sequence_length,
             parallel_iterations=parallel_iterations,
             dtype=dtype,
@@ -123,3 +128,4 @@ def stack_bidirectional_dynamic_rnn(cells_fw,
       states_bw.append(state_bw)
 
   return prev_layer, tuple(states_fw), tuple(states_bw)
+
