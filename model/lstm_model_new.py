@@ -28,6 +28,7 @@ class LstmModel(NnetBase):
         self.time_major_cf = True
         self.state_is_tuple_cf = True
         self.nnet_conf_cf = None
+        self.lc = None
 
         # Initial configuration parameter.
         for attr in self.__dict__:
@@ -411,7 +412,7 @@ class LstmModel(NnetBase):
                 fw_lstm_layer = []
                 bw_lstm_layer = []
                 name = layer[1].Name()
-                lc = layer[1].GetLatencyControlled()
+                self.lc = layer[1].GetLatencyControlled()
                 for blstm_l in layer[1:]:
                     blstm_nn = blstm_l()
                     fw_lstm_layer.append(blstm_nn[0])
@@ -462,7 +463,7 @@ class LstmModel(NnetBase):
                             inputs = outputs[-1],
                             initial_states_fw = fw_rnn_tuple_state,
                             initial_states_bw = bw_rnn_tuple_state,
-                            latency_controlled=lc,
+                            latency_controlled=self.lc,
                             dtype = tf.float32,
                             sequence_length = seq_len,
                             parallel_iterations = None,
@@ -605,6 +606,18 @@ class LstmModel(NnetBase):
         # this function labels from time_major = False change major = True
         if self.time_major_cf:
             labels = tf.transpose(labels)
+
+        def true_length(length):
+            if length > tf.lc:
+                return tf.lc
+            else:
+                return length
+        # lc blstm model , process seq_len
+        if self.lc is not None:
+            cond = self.lc > seq_len
+            lc = seq_len-seq_len+self.lc
+            seq_len = tf.where(cond, seq_len, lc)
+            #seq_len = np.array([ true_length(now_len) for now_len in seq_len ])
         
         with tf.name_scope('CE'):
             print('********************',labels.shape,input_feats.shape)

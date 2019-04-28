@@ -22,6 +22,7 @@ from model.lstm_model_new import LstmModel
 from util.tensor_io import print_trainable_variables
 
 import tensorflow as tf
+from tensorflow.python import debug as tf_debug
 
 strset=('criterion', 'feature_transfile', 'checkpoint_dir')
 class TrainClass(object):
@@ -262,6 +263,8 @@ class TrainClass(object):
                     max_wait_secs=7200,
                     save_checkpoint_steps=self.steps_per_checkpoint_cf)
           #          summary_dir = self.checkpoint_dir_cf + "_summary_dir")
+            #self.sess = tf_debug.LocalCLIDebugWrapperSession(self.sess)
+
             '''
             sv = tf.train.Supervisor(is_chief=(self.task_index_cf==0),
                     global_step=global_step,
@@ -492,6 +495,7 @@ class TrainClass(object):
             time2=time.time()
             self.sess.run(run_op['rnn_state_zero_op'])
             for i in range(len(feat)):
+                #print('************input info**********:',np.shape(feat[i]),np.shape(label[i]),length[i], flush=True)
                 time3 = time.time()
                 feed_dict = {self.X : feat[i], self.Y : label[i], self.seq_len : length[i]}
                 time4 = time.time()

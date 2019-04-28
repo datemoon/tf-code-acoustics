@@ -360,7 +360,7 @@ class LcBLstmLayer(object):
         return self.conf['name']
 
     def GetLatencyControlled(self):
-        return self.conf['latency_controlled']
+        return eval(self.conf['latency_controlled'])
 
 
 class BLstmLayer(object):

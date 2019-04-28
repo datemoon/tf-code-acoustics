@@ -95,8 +95,8 @@ def stack_bidirectional_dynamic_rnn(cells_fw,
   states_fw = []
   states_bw = []
   prev_layer = inputs
-
-  with vs.variable_scope(scope or "stack_bidirectional_rnn"):
+  
+  with tf.variable_scope(scope or "stack_bidirectional_rnn"):
     for i, (cell_fw, cell_bw) in enumerate(zip(cells_fw, cells_bw)):
       initial_state_fw = None
       initial_state_bw = None
@@ -109,7 +109,7 @@ def stack_bidirectional_dynamic_rnn(cells_fw,
         last_layer=True
       else:
         last_layer=False
-      with vs.variable_scope("cell_%d" % i):
+      with tf.variable_scope("cell_%d" % i):
         outputs, (state_fw, state_bw) = rnn_lc.bidirectional_dynamic_rnn(
             cell_fw,
             cell_bw,
@@ -123,9 +123,12 @@ def stack_bidirectional_dynamic_rnn(cells_fw,
             dtype=dtype,
             time_major=time_major)
         # Concat the outputs to create the new input.
-        prev_layer = array_ops.concat(outputs, 2)
+        prev_layer = tf.concat(outputs, 2)
       states_fw.append(state_fw)
       states_bw.append(state_bw)
+
+      if latency_controlled is not None and last_layer is True:
+          prev_layer = prev_layer[:latency_controlled]
 
   return prev_layer, tuple(states_fw), tuple(states_bw)
 

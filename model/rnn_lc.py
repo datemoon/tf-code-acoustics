@@ -61,7 +61,7 @@ def _concat(prefix, suffix, static=False):
         s = as_shape(suffix)
         s_static = s.as_list() if s.ndims is not None else None
         s = (
-                tf.contrib.util.constant(s.as_list(), dtype=tf.int32)
+                tf.constant(s.as_list(), dtype=tf.int32)
                 if s.is_fully_defined() else None)
 
     if static:
@@ -233,18 +233,21 @@ def _rnn_step(
     copy_cond = time >= sequence_length
     copy_cond_state = time >= sequence_length
   else:
+    latency_controlled_t = tf.to_int32([ latency_controlled for _ in range(zero_output.shape[0].value)])
+    #latency_controlled_t = tf.constant(latency_controlled, dtype=tf.int32, name="latency_controlled")
+    # output save
     if last_layer:
-      if time >= latency_controlled:
-        copy_cond = 0 <= sequence_length
-      else:
-        copy_cond = time >= sequence_length
+      #if tf.less_equal(latency_controlled_t, time):
+      #if time >= latency_controlled_t:
+      #  copy_cond = 0 <= sequence_length
+      #else:
+      #  copy_cond = time >= sequence_length
+      copy_cond = (time >= sequence_length) | (time >= latency_controlled_t)
     else:
       copy_cond = time >= sequence_length
 
-    if time >= latency_controlled:
-      copy_cond_state = 0 <= sequence_length
-    else:
-      copy_cond_state = (time >= sequence_length) 
+    #if tf.less_equal(latency_controlled_t, time):
+    copy_cond_state = (time >= sequence_length) | (time >= latency_controlled_t)
 
   def _copy_one_through(output, new_output):
     # TensorArray and scalar get passed through.
@@ -300,7 +303,7 @@ def _rnn_step(
     # steps.  This is faster when max_seq_len is equal to the number of unrolls
     # (which is typical for dynamic_rnn).
     new_output, new_state = call_cell()
-    nest.assert_same_structure(state, new_state)
+    tf.contrib.framework.nest.assert_same_structure(state, new_state)
     new_state = tf.contrib.framework.nest.flatten(new_state)
     new_output = tf.contrib.framework.nest.flatten(new_output)
     final_output_and_state = _copy_some_through(new_output, new_state)
@@ -321,7 +324,7 @@ def _rnn_step(
   for output, flat_output in zip(final_output, flat_zero_output):
     output.set_shape(flat_output.get_shape())
   for substate, flat_substate in zip(final_state, flat_state):
-    if not isinstance(substate, tensor_array_ops.TensorArray):
+    if not isinstance(substate, tf.TensorArray):
       substate.set_shape(flat_substate.get_shape())
 
   final_output = tf.contrib.framework.nest.pack_sequence_as(
@@ -410,8 +413,8 @@ def bidirectional_dynamic_rnn(cell_fw, cell_bw, inputs, sequence_length=None,
   Raises:
     TypeError: If `cell_fw` or `cell_bw` is not an instance of `RNNCell`.
   """
-  rnn_cell_impl.assert_like_rnncell("cell_fw", cell_fw)
-  rnn_cell_impl.assert_like_rnncell("cell_bw", cell_bw)
+  #rnn_cell_impl.assert_like_rnncell("cell_fw", cell_fw)
+  #rnn_cell_impl.assert_like_rnncell("cell_bw", cell_bw)
 
   with tf.variable_scope(scope or "bidirectional_rnn"):
     # Forward direction
@@ -436,7 +439,7 @@ def bidirectional_dynamic_rnn(cell_fw, cell_bw, inputs, sequence_length=None,
       if seq_lengths is not None:
         return tf.reverse_sequence(
             input=input_, seq_lengths=seq_lengths,
-            seq_dim=seq_dim, batch_dim=batch_dim)
+            seq_axis=seq_dim, batch_axis=batch_dim)
       else:
         return tf.reverse(input_, axis=[seq_dim])
 
@@ -447,7 +450,7 @@ def bidirectional_dynamic_rnn(cell_fw, cell_bw, inputs, sequence_length=None,
       tmp, output_state_bw = dynamic_rnn(
           cell=cell_bw, inputs=inputs_reverse, sequence_length=sequence_length,
           initial_state=initial_state_bw, 
-          latency_controlled=0,last_layer=False
+          latency_controlled=None,last_layer=False,
           dtype=dtype,
           parallel_iterations=parallel_iterations, swap_memory=swap_memory,
           time_major=time_major, scope=bw_scope)
@@ -588,7 +591,7 @@ def dynamic_rnn(cell, inputs, sequence_length=None, initial_state=None,
     # By default, time_major==False and inputs are batch-major: shaped
     #   [batch, time, depth]
     # For internal calculations, we transpose to [time, batch, depth]
-    flat_input = tf.layers.flatten(inputs)
+    flat_input = tf.contrib.framework.nest.flatten(inputs)
 
     if not time_major:
       # (B,T,D) => (T,B,D)
@@ -618,7 +621,7 @@ def dynamic_rnn(cell, inputs, sequence_length=None, initial_state=None,
       x_shape = tf.shape(x)
       packed_shape = tf.stack(shape)
       return tf.Assert(
-          math_ops.reduce_all(math_ops.equal(x_shape, packed_shape)),
+          tf.reduce_all(tf.equal(x_shape, packed_shape)),
           ["Expected shape for Tensor %s is " % x.name,
            packed_shape, " but saw shape: ", x_shape])
 
