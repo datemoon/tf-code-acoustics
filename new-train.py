@@ -480,12 +480,13 @@ class TrainClass(object):
         logging.info('******end TrainFunction******')
 
     def SliceTrainFunction(self, gpu_id, run_op, thread_name):
-        logging.info('******start TrainFunction******')
+        logging.info('******start SliceTrainFunction******')
         total_acc_error_rate = 0.0
         num_batch = 0
         self.acc_label_error_rate[gpu_id] = 0.0
         self.num_batch[gpu_id] = 0
 
+        num_sentence = 0
         while True:
             time1=time.time()
             feat, label, length, lat_list = self.GetFeatAndLabel()
@@ -510,14 +511,16 @@ class TrainClass(object):
                 print('label_error_rate:',calculate_return['label_error_rate'])
                 print('mean_loss:',calculate_return['mean_loss'])
 
-                print("thread_name: ", thread_name,  num_batch, " time:",time2-time1,time3-time2,time4-time3,time4-time1)
                 num_batch += 1
+                num_sentence += 1
                 total_acc_error_rate += calculate_return['label_error_rate']
                 self.acc_label_error_rate[gpu_id] += calculate_return['label_error_rate']
                 self.num_batch[gpu_id] += 1
                 if self.num_batch[gpu_id] % int(self.steps_per_checkpoint_cf/50) == 0:
                     logging.info("Batch: %d current averagelabel error rate : %f" % (self.num_batch[gpu_id], self.acc_label_error_rate[gpu_id] / self.num_batch[gpu_id]))
-        logging.info('******end TrainFunction******')
+            # print batch sentence time info
+            print("thread_name: ", thread_name,  num_sentence, "io time:",time2-time1, "calculation time:",time5-time1)
+        logging.info('******end SliceTrainFunction******')
 
     def GetFeatAndLabel(self):
         return self.kaldi_io_nstream.GetInput()
