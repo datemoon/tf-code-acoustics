@@ -125,7 +125,8 @@ def stack_bidirectional_dynamic_rnn(cells_fw,
         # Concat the outputs to create the new input.
         prev_layer = tf.concat(outputs, 2)
       states_fw.append(state_fw)
-      states_bw.append(state_bw)
+      #states_bw.append(state_bw)
+      states_bw.append(initial_state_bw)
 
       if latency_controlled is not None and last_layer is True:
           prev_layer = prev_layer[:latency_controlled]
