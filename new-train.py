@@ -481,7 +481,7 @@ class TrainClass(object):
 
     def SliceTrainFunction(self, gpu_id, run_op, thread_name):
         logging.info('******start SliceTrainFunction******')
-        total_acc_error_rate = 0.0
+        total_curr_error_rate = 0.0
         num_batch = 0
         self.acc_label_error_rate[gpu_id] = 0.0
         self.num_batch[gpu_id] = 0
@@ -513,10 +513,12 @@ class TrainClass(object):
 
                 num_batch += 1
                 num_sentence += 1
-                total_acc_error_rate += calculate_return['label_error_rate']
+                total_curr_error_rate += calculate_return['label_error_rate']
                 self.acc_label_error_rate[gpu_id] += calculate_return['label_error_rate']
                 self.num_batch[gpu_id] += 1
                 if self.num_batch[gpu_id] % int(self.steps_per_checkpoint_cf/50) == 0:
+                    logging.info("Batch: %d current averagelabel error rate : %f" % (int(self.steps_per_checkpoint_cf/50), total_curr_error_rate / int(self.steps_per_checkpoint_cf/50)))
+                    total_curr_error_rate = 0.0
                     logging.info("Batch: %d current averagelabel error rate : %f" % (self.num_batch[gpu_id], self.acc_label_error_rate[gpu_id] / self.num_batch[gpu_id]))
             # print batch sentence time info
             print("thread_name: ", thread_name,  num_sentence, "io time:",time2-time1, "calculation time:",time5-time1)
