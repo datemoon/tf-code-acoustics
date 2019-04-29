@@ -496,7 +496,7 @@ class TrainClass(object):
             time2=time.time()
             self.sess.run(run_op['rnn_state_zero_op'])
             for i in range(len(feat)):
-                #print('************input info**********:',np.shape(feat[i]),np.shape(label[i]),length[i], flush=True)
+                print('************input info**********:',np.shape(feat[i]),np.shape(label[i]),length[i], flush=True)
                 time3 = time.time()
                 feed_dict = {self.X : feat[i], self.Y : label[i], self.seq_len : length[i]}
                 time4 = time.time()
