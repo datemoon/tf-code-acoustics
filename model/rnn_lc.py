@@ -419,10 +419,14 @@ def bidirectional_dynamic_rnn(cell_fw, cell_bw, inputs, sequence_length=None,
   with tf.variable_scope(scope or "bidirectional_rnn"):
     # Forward direction
     with tf.variable_scope("fw") as fw_scope:
+      latency_controlled_t = sequence_length-sequence_length+latency_controlled
+      copy_cond = latency_controlled > sequence_length
+      sequence_length_fw = tf.where(copy_cond, sequence_length, latency_controlled_t)
+
       output_fw, output_state_fw = dynamic_rnn(
-          cell=cell_fw, inputs=inputs, sequence_length=sequence_length,
+          cell=cell_fw, inputs=inputs, sequence_length=sequence_length_fw,
           initial_state=initial_state_fw,
-          latency_controlled=latency_controlled, last_layer=last_layer,
+          latency_controlled=None, last_layer=False,
           dtype=dtype,
           parallel_iterations=parallel_iterations, swap_memory=swap_memory,
           time_major=time_major, scope=fw_scope)
