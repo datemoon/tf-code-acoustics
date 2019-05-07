@@ -52,7 +52,8 @@ def mmi(inputs, sequence_length, labels,
 @ops.RegisterGradient("MMILoss")
 def _MMILossGrad(op, grad_loss, _):
     grad = op.outputs[1]
-    return [_BroadcastMul(grad_loss, grad), 
+    #return [_BroadcastMul(grad_loss, grad), 
+    return [ grad, 
             None, None, None, None, None, None, None, None]
 
 def mpe(inputs, sequence_length, labels, 
@@ -106,7 +107,8 @@ def mpe(inputs, sequence_length, labels,
 @ops.RegisterGradient("MPELoss")
 def _MPELossGrad(op, grad_loss, _):
     grad = op.outputs[1]
-    return [_BroadcastMul(grad_loss, grad), 
+    #return [_BroadcastMul(grad_loss, grad), 
+    return [ grad, 
             None, None, None, None, None, None, None, None]
 
 

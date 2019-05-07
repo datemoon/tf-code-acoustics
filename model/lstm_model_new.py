@@ -462,7 +462,7 @@ class LstmModel(NnetBase):
                             cells_bw = bw_lstm_layer,
                             inputs = outputs[-1],
                             initial_states_fw = fw_rnn_tuple_state,
-                            initial_states_bw = bw_rnn_tuple_state,
+                            initial_states_bw = None,
                             latency_controlled=self.lc,
                             dtype = tf.float32,
                             sequence_length = seq_len,
