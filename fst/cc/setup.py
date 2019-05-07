@@ -18,7 +18,7 @@ if "TENSORFLOW_SRC_PATH" not in os.environ:
             file=sys.stderr)
     sys.exit(1)
 
-lib_srcs = ['tensorflow_api/mmi_loss_op.cc']
+lib_srcs = ['tensorflow_api/mmi_loss_op.cc', 'tensorflow_api/mpe_loss_op.cc']
 
 root_path = os.path.realpath(os.path.dirname(__file__))
 
