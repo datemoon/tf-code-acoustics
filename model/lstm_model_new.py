@@ -7,7 +7,7 @@ import sys
 import os
 
 try:
-    from tensorflow_py_api import mmi
+    from tensorflow_py_api import mmi,mpe
 except ImportError:
     print("no mmi module")
 
@@ -669,6 +669,46 @@ class LstmModel(NnetBase):
 
         return mmi_mean_loss, mmi_loss, label_error_rate, rnn_keep_state_op, rnn_state_zero_op
 
+    def MpeLoss(self, input_feats, labels, seq_len,
+            indexs, pdf_values, lm_ws, am_ws, statesinfo, num_states,
+            silence_phones,# = [96],
+            pdf_to_phone,
+            one_silence_class = True,
+            criterion = 'smbr', # or 'mfpe'
+            old_acoustic_scale = 0.0, acoustic_scale = 0.083,
+            time_major = True):
+        last_output, rnn_keep_state_op, rnn_state_zero_op = self.CreateModel(
+                input_feats, seq_len)
+        
+        with tf.name_scope('MPE'):
+            mpe_loss = mpe(last_output, seq_len, labels, 
+                    indexs = indexs,
+                    pdf_values = pdf_values,
+                    lm_ws = lm_ws,
+                    am_ws = am_ws,
+                    statesinfo = statesinfo,
+                    num_states = num_states,
+                    silence_phones = silence_phones,
+                    pdf_to_phone = pdf_to_phone,
+                    one_silence_class = one_silence_class,
+                    criterion = criterion,
+                    old_acoustic_scale = old_acoustic_scale,
+                    acoustic_scale = acoustic_scale,
+                    time_major = self.time_major_cf)
+
+            if self.time_major_cf:
+                labels = tf.transpose(labels)
+
+            nframes = tf.shape(labels)[0]
+            mask = tf.cast(tf.reshape(tf.transpose(tf.sequence_mask(
+                seq_len, nframes)), [-1]), tf.float32)
+
+            total_frames = tf.cast(tf.reduce_sum(seq_len) ,tf.float32)
+            mpe_mean_loss = tf.reduce_sum(mpe_loss) / total_frames
+            label_error_rate = self.CalculateLabelErrorRate(last_output, labels,  mask, total_frames)
+
+        return mpe_mean_loss, mpe_loss, label_error_rate, rnn_keep_state_op, rnn_state_zero_op
+    
     def CalculateLabelErrorRate(self, output_log, labels, mask, total_frames):
         correct_prediction = tf.equal( 
                 tf.argmax(tf.reshape(output_log, [-1,self.output_size]), 1), 

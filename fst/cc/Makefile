@@ -12,7 +12,9 @@ CXXFLAGS = -std=c++11 -I. \
 		   -Wall -Wno-sign-compare -Wno-unused-local-typedefs \
 		   -Wno-deprecated-declarations -Winit-self \
 		   -msse -msse2 -pthread \
-		   -g
+		   -D_GLIBCXX_USE_CXX11_ABI=0 \
+		   -O2
+
 EXTRA_CXXFLAGS += -Wno-sign-compare 
 #-DDEBUG_SPEED
 #-DDEBUG_PRINT

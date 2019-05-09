@@ -93,6 +93,7 @@ def mpe(inputs, sequence_length, labels,
     if not time_major:
         inputs = array_ops.transpose(inputs, [1, 0, 2])  # (B,T,N) => (T,B,N)
 
+    pdf_to_phone = tf.contrib.util.make_tensor_proto(pdf_to_phone)
     loss, _ = _warpmmi.mpe_loss(inputs, sequence_length, labels,
             indexs, pdf_values, lm_ws, am_ws, statesinfo, num_states,
             silence_phones = silence_phones,

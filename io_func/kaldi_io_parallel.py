@@ -272,6 +272,9 @@ class KaldiDataReadParallel(object):
         if self.ali_map_file is not None:
             # load ali_map_file
             self.ali_to_pdf_phone = LoadMapPdfAndPhone(self.ali_map_file)
+            # get pdf to phone list
+            # mfpe and smbr used
+            self.pdf_to_phone = GetPdfToPhoneList(self.ali_to_pdf_phone)
 
         
         if not os.path.exists(self.scp_file):

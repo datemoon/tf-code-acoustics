@@ -94,6 +94,18 @@ def LoadMapPdfAndPhone(map_file):
 
     return np.array(map_pdf_phone, dtype=np.int32)
 
+
+def GetPdfToPhoneList(ali_to_pdf_phone):
+    max_pdf = ali_to_pdf_phone.max(axis=0)[1]
+
+    pdf_to_phone = [[-1,-1]] * (max_pdf + 1)
+    for ali,pdf,phone in ali_to_pdf_phone:
+        if pdf_to_phone[pdf][0] != -1:
+            assert pdf_to_phone[pdf][1] == phone
+            continue
+        pdf_to_phone[pdf] = [pdf, phone]
+    return np.array(pdf_to_phone, dtype=np.int32)
+
 # ali shouldn't contain 0, unless ali is lattice ilabel list, offset should be 1.
 # this lattice ilabel is pdf+1 and 0 is <eps>.
 def AliToPdf(map_pdf_phone, ali, offset = 0):

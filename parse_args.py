@@ -105,6 +105,9 @@ def parse_args(args_list):
     parser.add_argument('--ali-map-file', dest='ali_map_file', type=str,
             default=None,
             help='lattice ali map file' '(str, default= None)')
+    parser.add_argument('--silence-phones', dest='silence_phones', type=str,
+            default=None,
+            help='smbr and mfpe train silence phone list' '(str, default= None)')
 #    parser.add_argument('--cv-scp', dest='cv_scp', type=str,
 #            default=None,
 #            help='cv scp file' '(str, default = None)')

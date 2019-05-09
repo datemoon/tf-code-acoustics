@@ -128,10 +128,11 @@ public:
 	explicit MPELossOp(tf::OpKernelConstruction* ctx) : tf::OpKernel(ctx) 
 	{
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("silence_phones", &_silence_phones));
-		const tf::TensorProto* proto;
-		OP_REQUIRES_OK(ctx, ctx->GetAttr("pdf_to_phone", &proto));
-		OP_REQUIRES_OK(ctx, ctx->device()->MakeTensorFromProto(
-					*proto, tf::AllocatorAttributes(), &_pdf_to_phone));
+		OP_REQUIRES_OK(ctx, ctx->GetAttr("pdf_to_phone", &_pdf_to_phone));
+//		const tf::TensorProto* proto;
+//		OP_REQUIRES_OK(ctx, ctx->GetAttr("pdf_to_phone", &proto));
+//		OP_REQUIRES_OK(ctx, ctx->device()->MakeTensorFromProto(
+//					*proto, tf::AllocatorAttributes(), &_pdf_to_phone));
 		OP_REQUIRES(ctx, _pdf_to_phone.dtype() == tf::DT_INT32,
 				tf::errors::InvalidArgument("_pdf_to_phone must be int32, got ",
 					DataTypeString(_pdf_to_phone.dtype())));
