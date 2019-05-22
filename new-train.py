@@ -121,7 +121,7 @@ class TrainClass(object):
             elif 'ce' in self.criterion_cf:
                 self.Y = tf.placeholder(tf.int32, [self.batch_size_cf, self.num_frames_batch_cf], name="labels")
 
-            if 'mmi' in self.criterion_cf or 'smbr' in self.criterion_cf or 'mfpe' in self.criterion_cf:
+            if 'mmi' in self.criterion_cf or 'smbr' in self.criterion_cf or 'mpfe' in self.criterion_cf:
                 self.indexs = tf.placeholder(tf.int32, [self.batch_size_cf, None, 2], name="indexs")
                 self.pdf_values = tf.placeholder(tf.int32, [self.batch_size_cf, None], name="pdf_values")
                 self.lm_ws = tf.placeholder(tf.float32, [self.batch_size_cf, None], name="lm_ws")
@@ -190,16 +190,18 @@ class TrainClass(object):
                         old_acoustic_scale = 0.0, acoustic_scale = 0.083, time_major = True, drop_frames= True)
                 mean_loss = mmi_mean_loss
                 loss = mmi_loss
-            elif 'smbr' in self.criterion_cf or 'mfpe' in self.criterion_cf:
+            elif 'smbr' in self.criterion_cf or 'mpfe' in self.criterion_cf:
                 if 'smbr' in self.criterion_cf:
                     criterion = 'smbr'
                 else:
-                    criterion = 'mfpe'
+                    criterion = 'mpfe'
                 pdf_to_phone = self.kaldi_io_nstream_train.pdf_to_phone
+                log_priors = self.kaldi_io_nstream_train.pdf_prior
 
                 mpe_mean_loss, mpe_loss, label_error_rate, rnn_keep_state_op, rnn_state_zero_op = nnet_model.MpeLoss(
                         self.X, self.Y, self.seq_len,
                         self.indexs, self.pdf_values, self.lm_ws, self.am_ws, self.statesinfo, self.num_states,
+                        log_priors = log_priors,
                         silence_phones=self.silence_phones,
                         pdf_to_phone=pdf_to_phone,
                         one_silence_class = True,
@@ -462,6 +464,8 @@ class TrainClass(object):
         num_batch = 0
         self.acc_label_error_rate[gpu_id] = 0.0
         self.num_batch[gpu_id] = 0
+        total_curr_mean_loss = 0.0
+        total_mean_loss = 0.0
 
         #print_trainable_variables(self.sess, 'save.model.txt')
         while True:
@@ -472,7 +476,7 @@ class TrainClass(object):
                 break
             time2=time.time()
 
-            if 'mmi' in self.criterion_cf or 'smbr' in self.criterion_cf or 'mfpe' in self.criterion_cf:
+            if 'mmi' in self.criterion_cf or 'smbr' in self.criterion_cf or 'mpfe' in self.criterion_cf:
                 feed_dict = {self.X : feat, self.Y : label, self.seq_len : length,
                         self.indexs : lat_list[0], self.pdf_values : lat_list[1], self.lm_ws : lat_list[2],
                         self.am_ws : lat_list[3], self.statesinfo : lat_list[4], self.num_states : lat_list[5]}
@@ -488,14 +492,18 @@ class TrainClass(object):
             print('label_error_rate:',calculate_return['label_error_rate'])
             print('mean_loss:',calculate_return['mean_loss'])
 
+            total_curr_mean_loss += calculate_return['mean_loss']
+            total_mean_loss += calculate_return['mean_loss']
+
             num_batch += 1
             total_curr_error_rate += calculate_return['label_error_rate']
             self.acc_label_error_rate[gpu_id] += calculate_return['label_error_rate']
             self.num_batch[gpu_id] += 1
             if self.num_batch[gpu_id] % int(self.steps_per_checkpoint_cf/50) == 0:
-                logging.info("Batch: %d current averagelabel error rate : %f" % (int(self.steps_per_checkpoint_cf/50), total_curr_error_rate / int(self.steps_per_checkpoint_cf/50)))
+                logging.info("Batch: %d current averagelabel error rate : %f, mean loss : %f" % (int(self.steps_per_checkpoint_cf/50), total_curr_error_rate / int(self.steps_per_checkpoint_cf/50),total_curr_mean_loss / int(self.steps_per_checkpoint_cf/50)))
                 total_curr_error_rate = 0.0
-                logging.info("Batch: %d current total averagelabel error rate : %f" % (self.num_batch[gpu_id], self.acc_label_error_rate[gpu_id] / self.num_batch[gpu_id]))
+                total_curr_mean_loss = 0.0
+                logging.info("Batch: %d current total averagelabel error rate : %f,  mean loss : %f" % (self.num_batch[gpu_id], self.acc_label_error_rate[gpu_id] / self.num_batch[gpu_id], total_mean_loss/ self.num_batch[gpu_id]))
         logging.info('******end TrainFunction******')
 
     def SliceTrainFunction(self, gpu_id, run_op, thread_name):
@@ -504,6 +512,8 @@ class TrainClass(object):
         num_batch = 0
         self.acc_label_error_rate[gpu_id] = 0.0
         self.num_batch[gpu_id] = 0
+        total_curr_mean_loss = 0.0
+        total_mean_loss = 0.0
 
         num_sentence = 0
         while True:
@@ -530,14 +540,18 @@ class TrainClass(object):
                 print('label_error_rate:',calculate_return['label_error_rate'])
                 print('mean_loss:',calculate_return['mean_loss'])
 
+                total_curr_mean_loss += calculate_return['mean_loss']
+                total_mean_loss += calculate_return['mean_loss']
+
                 num_batch += 1
                 total_curr_error_rate += calculate_return['label_error_rate']
                 self.acc_label_error_rate[gpu_id] += calculate_return['label_error_rate']
                 self.num_batch[gpu_id] += 1
                 if self.num_batch[gpu_id] % int(self.steps_per_checkpoint_cf/50) == 0:
-                    logging.info("Batch: %d current averagelabel error rate : %f" % (int(self.steps_per_checkpoint_cf/50), total_curr_error_rate / int(self.steps_per_checkpoint_cf/50)))
+                    logging.info("Batch: %d current averagelabel error rate : %f, mean loss : %f" % (int(self.steps_per_checkpoint_cf/50), total_curr_error_rate / int(self.steps_per_checkpoint_cf/50),total_curr_mean_loss / int(self.steps_per_checkpoint_cf/50) ))
                     total_curr_error_rate = 0.0
-                    logging.info("Batch: %d current total averagelabel error rate : %f" % (self.num_batch[gpu_id], self.acc_label_error_rate[gpu_id] / self.num_batch[gpu_id]))
+                    total_curr_mean_loss = 0.0
+                    logging.info("Batch: %d current total averagelabel error rate : %f, mean loss : %f" % (self.num_batch[gpu_id], self.acc_label_error_rate[gpu_id] / self.num_batch[gpu_id], total_mean_loss/ self.num_batch[gpu_id]))
             # print batch sentence time info
             print("******thread_name: ", thread_name,  num_sentence, "io time:",time2-time1, "calculation time:",time5-time1)
             num_sentence += 1

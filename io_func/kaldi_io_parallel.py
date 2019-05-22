@@ -249,6 +249,7 @@ class KaldiDataReadParallel(object):
         self.lat_scp_file = None
         self.ali_map_file = None
         self.ali_to_pdf_phone = None
+        self.class_frame_counts = None
         
         self.criterion = None
         self.feature_transform = None
@@ -275,6 +276,11 @@ class KaldiDataReadParallel(object):
             # get pdf to phone list
             # mfpe and smbr used
             self.pdf_to_phone = GetPdfToPhoneList(self.ali_to_pdf_phone)
+            # get PdfPrior
+            if self.class_frame_counts is None:
+                self.pdf_prior =None
+            else:
+                self.pdf_prior = PdfPrior(self.class_frame_counts)
 
         
         if not os.path.exists(self.scp_file):

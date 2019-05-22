@@ -108,6 +108,10 @@ def parse_args(args_list):
     parser.add_argument('--silence-phones', dest='silence_phones', type=str,
             default=None,
             help='smbr and mfpe train silence phone list' '(str, default= None)')
+    parser.add_argument('--class-frame-counts', dest='class_frame_counts', type=str,
+            default=None,
+            help='Vector with frame-counts of pdfs to compute log-priors.' '(str, default= None)')
+
 #    parser.add_argument('--cv-scp', dest='cv_scp', type=str,
 #            default=None,
 #            help='cv scp file' '(str, default = None)')

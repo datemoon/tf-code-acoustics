@@ -286,8 +286,8 @@ class LstmModel(NnetBase):
                     for state_c, state_h in rnn_cells.zero_state(self.batch_size_cf,
                             tf.float32):
                         state_variables.append(tf.contrib.rnn.LSTMStateTuple(
-                            tf.Variable(state_c, trainable=False),
-                            tf.Variable(state_h, trainable=False)))
+                            tf.Variable(state_c, trainable=False,  validate_shape=False, collections=[tf.GraphKeys.LOCAL_VARIABLES]),
+                            tf.Variable(state_h, trainable=False,  validate_shape=False, collections=[tf.GraphKeys.LOCAL_VARIABLES])))
                     rnn_tuple_state = tuple(state_variables)
                 # Build the RNN
                 # time is major
@@ -359,8 +359,8 @@ class LstmModel(NnetBase):
                     for f_lstm in fw_lstm_layer:
                         state_c, state_h = f_lstm.zero_state(self.batch_size_cf, tf.float32)
                         state_variables.append(tf.contrib.rnn.LSTMStateTuple(
-                            tf.Variable(state_c, name=name, trainable=False),
-                            tf.Variable(state_h, name=name, trainable=False)))
+                            tf.Variable(state_c, name=name, trainable=False, validate_shape=False, collections=[tf.GraphKeys.LOCAL_VARIABLES]),
+                            tf.Variable(state_h, name=name, trainable=False, validate_shape=False, collections=[tf.GraphKeys.LOCAL_VARIABLES])))
                     fw_rnn_tuple_state = state_variables
                     #fw_rnn_tuple_state = tuple(state_variables)
 
@@ -369,8 +369,8 @@ class LstmModel(NnetBase):
                     for b_lstm in bw_lstm_layer:
                         state_c, state_h = b_lstm.zero_state(self.batch_size_cf, tf.float32)
                         state_variables.append(tf.contrib.rnn.LSTMStateTuple(
-                            tf.Variable(state_c, name = name, trainable=False),
-                            tf.Variable(state_h, name = name, trainable=False)))
+                            tf.Variable(state_c, name = name, trainable=False, validate_shape=False, collections=[tf.GraphKeys.LOCAL_VARIABLES]),
+                            tf.Variable(state_h, name = name, trainable=False, validate_shape=False, collections=[tf.GraphKeys.LOCAL_VARIABLES])))
                     bw_rnn_tuple_state = state_variables
                     #bw_rnn_tuple_state = tuple(state_variables)
 
@@ -432,8 +432,8 @@ class LstmModel(NnetBase):
                     for f_lstm in fw_lstm_layer:
                         state_c, state_h = f_lstm.zero_state(self.batch_size_cf, tf.float32)
                         state_variables.append(tf.contrib.rnn.LSTMStateTuple(
-                            tf.Variable(state_c, name=name, trainable=False),
-                            tf.Variable(state_h, name=name, trainable=False)))
+                            tf.Variable(state_c, name=name, trainable=False, validate_shape=False, collections=[tf.GraphKeys.LOCAL_VARIABLES]),
+                            tf.Variable(state_h, name=name, trainable=False, validate_shape=False, collections=[tf.GraphKeys.LOCAL_VARIABLES])))
                     fw_rnn_tuple_state = state_variables
                     #fw_rnn_tuple_state = tuple(state_variables)
 
@@ -442,8 +442,8 @@ class LstmModel(NnetBase):
                     for b_lstm in bw_lstm_layer:
                         state_c, state_h = b_lstm.zero_state(self.batch_size_cf, tf.float32)
                         state_variables.append(tf.contrib.rnn.LSTMStateTuple(
-                            tf.Variable(state_c, name = name, trainable=False),
-                            tf.Variable(state_h, name = name, trainable=False)))
+                            tf.Variable(state_c, name = name, trainable=False, validate_shape=False, collections=[tf.GraphKeys.LOCAL_VARIABLES]),
+                            tf.Variable(state_h, name = name, trainable=False, validate_shape=False, collections=[tf.GraphKeys.LOCAL_VARIABLES])))
                     bw_rnn_tuple_state = state_variables
                     #bw_rnn_tuple_state = tuple(state_variables)
 
@@ -518,8 +518,8 @@ class LstmModel(NnetBase):
             for state_c, state_h in rnn_cells.zero_state(self.batch_size_cf,
                     tf.float32):
                 state_variables.append(tf.contrib.rnn.LSTMStateTuple(
-                    tf.Variable(state_c, trainable=False),
-                    tf.Variable(state_h, trainable=False)))
+                    tf.Variable(state_c, trainable=False, validate_shape=False, collections=[tf.GraphKeys.LOCAL_VARIABLES]),
+                    tf.Variable(state_h, trainable=False, validate_shape=False, collections=[tf.GraphKeys.LOCAL_VARIABLES])))
             rnn_tuple_state = tuple(state_variables)
 
         # Build the RNN
@@ -673,6 +673,7 @@ class LstmModel(NnetBase):
             indexs, pdf_values, lm_ws, am_ws, statesinfo, num_states,
             silence_phones,# = [96],
             pdf_to_phone,
+            log_priors = None,
             one_silence_class = True,
             criterion = 'smbr', # or 'mfpe'
             old_acoustic_scale = 0.0, acoustic_scale = 0.083,
@@ -681,6 +682,8 @@ class LstmModel(NnetBase):
                 input_feats, seq_len)
         
         with tf.name_scope('MPE'):
+            if log_priors is not None:
+                last_output = tf.subtract(last_output,log_priors)
             mpe_loss = mpe(last_output, seq_len, labels, 
                     indexs = indexs,
                     pdf_values = pdf_values,

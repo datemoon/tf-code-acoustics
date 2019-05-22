@@ -106,6 +106,32 @@ def GetPdfToPhoneList(ali_to_pdf_phone):
         pdf_to_phone[pdf] = [pdf, phone]
     return np.array(pdf_to_phone, dtype=np.int32)
 
+def PdfPrior(class_frame_counts):
+    rel_freq = None
+    with open(class_frame_counts,'r') as class_frame_counts_fp:
+        for line in class_frame_counts_fp:
+            rel_freq = line.strip().split()
+
+    # delete [ and ]
+    rel_freq = rel_freq[1:-1]
+
+    rel_freq = np.array(rel_freq,dtype=np.float32)
+
+    rel_freq_sum = rel_freq.sum()
+    rel_freq = rel_freq / rel_freq_sum
+    log_priors = np.log(rel_freq + 1e-20)
+    prior_floor = 1e-10
+    num_floored = 0
+    flt_max = np.sqrt(3.402823466e+38)
+    for i in range(len(log_priors)):
+        if rel_freq[i] < prior_floor:
+            log_priors[i] = flt_max
+            num_floored+=1
+    print("Floored " + str(num_floored) + " pdf-priors (hard-set to "
+            + str(flt_max) + ", which disables DNN output when decoding)")
+    return log_priors
+
+
 # ali shouldn't contain 0, unless ali is lattice ilabel list, offset should be 1.
 # this lattice ilabel is pdf+1 and 0 is <eps>.
 def AliToPdf(map_pdf_phone, ali, offset = 0):
