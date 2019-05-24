@@ -24,6 +24,7 @@ import random
 import logging
 import threading
 import multiprocessing 
+import ctypes
 import time
 try:
     import queue as Queue
@@ -259,9 +260,6 @@ class KaldiDataReadParallel(object):
             if key in conf_dict.keys():
                 self.__dict__[key] = conf_dict[key]
         
-        # Initial input queue.
-        self.input_queue = Queue.Queue(self.queue_cache)
-        
         if scp_file is not None:
             self.scp_file = scp_file
         if label is not None:
@@ -296,6 +294,13 @@ class KaldiDataReadParallel(object):
         self.package_feat_ali = []  # save format is [scp_line_list, ali_list]
         self.read_offset = 0
 
+        # Initial input queue.
+        self.input_queue = multiprocessing.Queue(self.queue_cache)
+
+        # shared memery
+        self.package_feat_ali = multiprocessing.Manager().list([])
+        self.read_offset = multiprocessing.Value(ctypes.c_int, 0, lock=True)
+        self.package_end=multiprocessing.Manager().list([False])
 
         # read feature transform parameter
         if feature_transform != None:
@@ -316,18 +321,20 @@ class KaldiDataReadParallel(object):
             self.do_skip_lab = True
         
         # prepare data, The first loop train must be order for add speed.
-        self.input_lock = threading.Lock()
+        #self.input_lock = threading.Lock()
+        self.input_lock = multiprocessing.Lock()
 
         self.ThreadPackageFeatAndAli()
         
+        # multiprocessing package input 
         self.ThreadPackageInput()
         #if self.shuffle is True:
         #    random.shuffle(self.package_feat_ali)
         return self.output_feat_dim
 
+    # package input feats.scp, label and lattice.
+    # save index to self.package_feat_ali
     def ThreadPackageFeatAndAli(self):
-        self.package_feat_ali = []
-        self.package_end=[False]
         if self.lat_scp_file is None and 'mmi' not in self.criterion: 
             load_thread = threading.Thread(group=None, target=PackageFeatAndAli,
                     args=(self.package_feat_ali, self.input_lock, self.package_end, 
@@ -359,7 +366,7 @@ class KaldiDataReadParallel(object):
     def Reset(self, shuffle = False, skip_offset = 0 ):
         if len(self.input_thread) == 0:
             self.skip_offset = skip_offset % self.skip_frame
-            self.read_offset = 0
+            self.read_offset.value = 0
             self.io_end_times = 0
             self.ThreadPackageInput()
         if shuffle is True or self.shuffle is True:
@@ -376,7 +383,7 @@ class KaldiDataReadParallel(object):
     def LoadOnePackage(self):
         while True:
             self.input_lock.acquire()
-            if self.read_offset >= len(self.package_feat_ali):
+            if self.read_offset.value >= len(self.package_feat_ali):
                 if self.package_end[-1] is True:
                     self.input_lock.release()
                     return None, None, None, None, None
@@ -385,8 +392,8 @@ class KaldiDataReadParallel(object):
                     time.sleep(0.05)
                     continue
             else:
-                package = self.package_feat_ali[self.read_offset]
-                self.read_offset += 1
+                package = self.package_feat_ali[self.read_offset.value]
+                self.read_offset.value += 1
                 self.input_lock.release()
                 break
 
@@ -458,12 +465,19 @@ class KaldiDataReadParallel(object):
     def ThreadPackageInput(self):
         self.input_thread = []
         for i in range(self.io_thread_num):
-            self.input_thread.append(threading.Thread(group=None, target=self.LoadBatch,
+            self.input_thread.append(multiprocessing.Process(group=None, target=self.LoadBatch,
                 args=(),name='read_thread'+str(i)))
+            #self.input_thread.append(threading.Thread(group=None, target=self.LoadBatch,
+            #    args=(),name='read_thread'+str(i)))
         for thr in self.input_thread:
             logging.info('ProcessPackageInput start')
             thr.start()
-
+    
+    # must be join io thread
+    def JoinInput(self):
+        for i in range(self.io_thread_num):
+            self.input_thread[i].join()
+        self.input_thread = []
 
     def GetInput(self):
         # if end
@@ -478,13 +492,6 @@ class KaldiDataReadParallel(object):
                     continue
             else:
                 return feat,label,length,lattice
-    
-    # must be join io thread
-    def JoinInput(self):
-        for i in range(self.io_thread_num):
-            self.input_thread[i].join()
-        self.input_thread = []
-
     
     # Tdnn frames features train.
     def TdnnLoadNextNstreams(self):
@@ -663,7 +670,7 @@ if __name__ == '__main__':
             'do_skip_lab': True,
             'shuffle': False,
             'queue_cache':100,
-            'io_thread_num':1,
+            'io_thread_num':5,
             'num_frames_batch':20,
             'overlap':10,
             'ali_map_file': path + '/../ali-pdf-phone/map.ali'}
@@ -677,8 +684,8 @@ if __name__ == '__main__':
     io_read = KaldiDataReadParallel()
     io_read.Initialize(conf_dict, scp_file=path+'/feat/500.scp',
             label = path+'/ali/ali.all', 
-#            lat_scp_file= path + '/decode/lat.all.scp',
-#            ali_map_file = path + '/../ali-pdf-phone/map.ali',
+            lat_scp_file= path + '/decode/lat.all.scp',
+#           ali_map_file = path + '/../ali-pdf-phone/map.ali',
             feature_transform = feat_trans, criterion = 'ce')
 
             #label = path+'/sort_tr.labels.4026.ce',
