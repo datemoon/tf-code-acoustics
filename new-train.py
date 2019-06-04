@@ -34,6 +34,7 @@ class TrainClass(object):
         self.print_trainable_variables_cf = False
         self.use_normal_cf = False
         self.use_sgd_cf = True
+        self.use_sync = False
         self.restore_training_cf = True
         self.checkpoint_dir_cf = None
         self.num_threads_cf = 1
@@ -165,6 +166,16 @@ class TrainClass(object):
             else:
                 optimizer = tf.train.AdamOptimizer(learning_rate=
                         self.learning_rate_var_tf, beta1=0.9, beta2=0.999, epsilon=1e-08)
+
+            # sync train
+            if self.use_sync:
+                optimizer = tf.train.SyncReplicasOptimizer(optimizer, replicas_to_aggregate=50,
+                        total_num_replicas=50)
+                sync_replicas_hook = [optimizer.make_session_run_hook(
+                        is_chief = (self.task_index_cf==0))]
+            else:
+                sync_replicas_hook = None
+                
             nnet_model = LstmModel(self.conf_dict)
 
             mean_loss = None
@@ -273,7 +284,7 @@ class TrainClass(object):
                     is_chief = (self.task_index_cf==0),
                     checkpoint_dir = self.checkpoint_dir_cf,
                     scaffold= scaffold,
-                    hooks=None,
+                    hooks=sync_replicas_hook,
                     chief_only_hooks=None,
                     save_checkpoint_secs=None,
                     save_summaries_steps=self.steps_per_checkpoint_cf,
