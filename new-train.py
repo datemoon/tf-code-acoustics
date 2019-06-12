@@ -34,7 +34,7 @@ class TrainClass(object):
         self.print_trainable_variables_cf = False
         self.use_normal_cf = False
         self.use_sgd_cf = True
-        self.use_sync = False
+        self.use_sync_cf = False
         self.restore_training_cf = True
         self.checkpoint_dir_cf = None
         self.num_threads_cf = 1
@@ -169,13 +169,15 @@ class TrainClass(object):
 
             # sync train
             if self.use_sync:
-                optimizer = tf.train.SyncReplicasOptimizer(optimizer, replicas_to_aggregate=50,
-                        total_num_replicas=50)
+                optimizer = tf.train.SyncReplicasOptimizer(optimizer, replicas_to_aggregate=8,
+                        total_num_replicas=8,
+                        use_locking=True)
                 sync_replicas_hook = [optimizer.make_session_run_hook(
                         is_chief = (self.task_index_cf==0))]
+                logging.info("******use synchronization train******")
             else:
                 sync_replicas_hook = None
-                
+                logging.info("******use asynchronization train******")
             nnet_model = LstmModel(self.conf_dict)
 
             mean_loss = None
@@ -224,7 +226,10 @@ class TrainClass(object):
 
             if self.use_sgd_cf and self.use_normal_cf:
                 tvars = tf.trainable_variables()
-                grads, _ = tf.clip_by_global_norm(tf.gradients(
+                #if self.use_normal_cf :
+                #    l2_regu = tf.contrib.layers.l2_regularizer(0.5)
+
+                grads, gradient_norms = tf.clip_by_global_norm(tf.gradients(
                     mean_loss, tvars), self.grad_clip_cf)
                 train_op = optimizer.apply_gradients(
                         zip(grads, tvars),
@@ -232,9 +237,11 @@ class TrainClass(object):
             else:
                 train_op = optimizer.minimize(mean_loss,
                         global_step=self.global_step)
+                gradient_norms = None
 
             # set run operation
             self.run_ops = {'train_op':train_op,
+                    'gradient_norms': gradient_norms,
                     'mean_loss':mean_loss,
                     'loss':loss,
                     'label_error_rate':label_error_rate,
@@ -429,6 +436,7 @@ class TrainClass(object):
                         'loss':self.run_ops['loss']}
             elif 'ce' in self.criterion_cf:
                 run_op = {'train_op':self.run_ops['train_op'],
+                        'gradient_norms': self.run_ops['gradient_norms'],
                         'label_error_rate': self.run_ops['label_error_rate'],
                         'mean_loss':self.run_ops['mean_loss'],
                         'loss':self.run_ops['loss'],
@@ -541,6 +549,7 @@ class TrainClass(object):
                 feed_dict = {self.X : feat[i], self.Y : label[i], self.seq_len : length[i]}
                 time4 = time.time()
                 run_need_op = {'train_op':run_op['train_op'],
+                        'gradient_norms': run_op['gradient_norms'],
                         'mean_loss':run_op['mean_loss'],
                         'loss':run_op['loss'],
                         'rnn_keep_state_op':run_op['rnn_keep_state_op'],
@@ -646,8 +655,9 @@ if __name__ == "__main__":
         err_rate = 1.0
 
         # every five minutes start one job
-        wait_time = 60 * 5 * task_index 
-        time.sleep(wait_time)
+        if conf_dict["use_sync_cf"] is False:
+            wait_time = 60 * 5 * task_index 
+            time.sleep(wait_time)
         while iter < 15:
             train_start_t = time.time()
             shuffle = False
