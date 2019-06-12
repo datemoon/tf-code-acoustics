@@ -226,11 +226,13 @@ class TrainClass(object):
 
             if self.use_sgd_cf and self.use_normal_cf:
                 tvars = tf.trainable_variables()
-                #if self.use_normal_cf :
-                #    l2_regu = tf.contrib.layers.l2_regularizer(0.5)
+                if self.use_normal_cf :
+                    l2_regu = tf.contrib.layers.l2_regularizer(0.5)
+                    apply_l2_regu = tf.contrib.layers.apply_regularization(l2_regu, tvars)
 
                 grads, gradient_norms = tf.clip_by_global_norm(tf.gradients(
-                    mean_loss, tvars), self.grad_clip_cf)
+                    mean_loss, tvars), self.grad_clip_cf,
+                    use_norm=apply_l2_regu)
                 train_op = optimizer.apply_gradients(
                         zip(grads, tvars),
                         global_step=self.global_step)
@@ -655,7 +657,7 @@ if __name__ == "__main__":
         err_rate = 1.0
 
         # every five minutes start one job
-        if conf_dict["use_sync_cf"] is False:
+        if conf_dict["use_sync"] is False:
             wait_time = 60 * 5 * task_index 
             time.sleep(wait_time)
         while iter < 15:
