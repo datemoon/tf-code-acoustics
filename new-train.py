@@ -168,7 +168,7 @@ class TrainClass(object):
                         self.learning_rate_var_tf, beta1=0.9, beta2=0.999, epsilon=1e-08)
 
             # sync train
-            if self.use_sync:
+            if self.use_sync_cf:
                 optimizer = tf.train.SyncReplicasOptimizer(optimizer, replicas_to_aggregate=8,
                         total_num_replicas=8,
                         use_locking=True)
