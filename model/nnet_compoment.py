@@ -57,11 +57,11 @@ class ReluLayer(object):
 
         assert self.input_dim == self.output_dim
 
-        def __call__(self, input_feats):
-            return tf.nn.relu(input_feats, self.name)
-
-        def GetOutputDim(self):
-            return self.output_dim
+    def __call__(self, input_feats):
+        return tf.nn.relu(input_feats, self.name)
+    
+    def GetOutputDim(self):
+        return self.output_dim
 
 class SpliceLayer(object):
     '''

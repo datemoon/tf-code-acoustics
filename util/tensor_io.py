@@ -34,7 +34,7 @@ def print_tensor(x, f=sys.stdout, end='\n', level=0, name=None):
         elif level == 0:
             print(end, end='', file=f)
 
-def save_variables(param, save_file):
+def save_variables(variables, param, save_file):
     save_fp = open(save_file,'w')
     for key in range(len(variables)):
         print_tensor(param[key],name=variables[key].name, f=save_fp)
@@ -44,7 +44,7 @@ def print_trainable_variables(sess, save_file):
     variables=tf.trainable_variables()
     param = sess.run(variables)
     save_thread = threading.Thread(group=None, target=save_variables,
-            args=(param, save_file,),
+            args=(variables, param, save_file,),
             kwargs={}, name= 'save_trainable_variables')
     save_thread.start()
 
