@@ -228,7 +228,7 @@ class TrainClass(object):
                 tvars = tf.trainable_variables()
                 if self.use_normal_cf :
                     l2_regu = tf.contrib.layers.l2_regularizer(0.5)
-                    lstm_vars = [ var for var in tvars if 'lstm' in var ]
+                    lstm_vars = [ var for var in tvars if 'lstm' in var.name ]
                     apply_l2_regu = tf.contrib.layers.apply_regularization(l2_regu, lstm_vars)
 
                 grads, gradient_norms = tf.clip_by_global_norm(tf.gradients(
