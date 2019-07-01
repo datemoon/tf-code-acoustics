@@ -35,6 +35,7 @@ class TrainClass(object):
         self.use_normal_cf = False
         self.use_sgd_cf = True
         self.use_sync_cf = False
+        self.use_clip_cf = False
         self.restore_training_cf = True
         self.checkpoint_dir_cf = None
         self.num_threads_cf = 1
@@ -224,30 +225,32 @@ class TrainClass(object):
                 mean_loss = mpe_mean_loss
                 loss = mpe_loss
 
-            if self.use_sgd_cf and self.use_normal_cf:
+            if self.use_sgd_cf and self.use_normal_cf: 
                 tvars = tf.trainable_variables()
                 if self.use_normal_cf :
                     l2_regu = tf.contrib.layers.l2_regularizer(0.5)
                     lstm_vars = [ var for var in tvars if 'lstm' in var.name ]
                     apply_l2_regu = tf.contrib.layers.apply_regularization(l2_regu, lstm_vars)
 
-                train_op = optimizer.minimize(mean_loss + apply_l2_regu,
-                        global_step=self.global_step)
                 #mean_loss = mean_loss + apply_l2_regu
                 #grads_var = optimizer.compute_gradients(mean_loss+apply_l2_regu,
                 #        var_list = tvars)
                 #grads = [ g for g,_ in grads_var ]
-                
-                #grads, gradient_norms = tf.clip_by_global_norm(tf.gradients(
-                #    mean_loss + apply_l2_regu, tvars), self.grad_clip_cf,
-                #    use_norm=None)
+                if self.use_clip_cf:
+                    grads, gradient_norms = tf.clip_by_global_norm(tf.gradients(
+                        mean_loss, tvars), self.grad_clip_cf,
+                        use_norm=None)
                 #grads, gradient_norms = tf.clip_by_global_norm(grads, 
                 #        self.grad_clip_cf,
                 #        use_norm=None)
 
-                #train_op = optimizer.apply_gradients(
-                #        zip(grads, tvars),
-                #        global_step=self.global_step)
+                    train_op = optimizer.apply_gradients(
+                            zip(grads, tvars),
+                            global_step=self.global_step)
+                else:
+                    train_op = optimizer.minimize(mean_loss + apply_l2_regu,
+                            global_step=self.global_step)
+
 
             else:
                 train_op = optimizer.minimize(mean_loss,

@@ -235,6 +235,11 @@ def parse_args(args_list):
             default=False,
             help='train parameter way'
             '(bool, default = False)')
+    
+    train_common_opt.add_argument('--use-clip', dest='use_clip', type=bool,
+            default=False,
+            help='train parameter way'
+            '(bool, default = False)')
 
     train_common_opt.set_defaults(cross_validate=False)
     train_common_opt.add_argument('--cross-validate', dest='cross_validate',
