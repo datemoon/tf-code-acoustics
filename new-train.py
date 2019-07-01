@@ -231,20 +231,30 @@ class TrainClass(object):
                     lstm_vars = [ var for var in tvars if 'lstm' in var.name ]
                     apply_l2_regu = tf.contrib.layers.apply_regularization(l2_regu, lstm_vars)
 
-                grads, gradient_norms = tf.clip_by_global_norm(tf.gradients(
-                    mean_loss, tvars), self.grad_clip_cf,
-                    use_norm=apply_l2_regu)
-                train_op = optimizer.apply_gradients(
-                        zip(grads, tvars),
+                train_op = optimizer.minimize(mean_loss + apply_l2_regu,
                         global_step=self.global_step)
+                #mean_loss = mean_loss + apply_l2_regu
+                #grads_var = optimizer.compute_gradients(mean_loss+apply_l2_regu,
+                #        var_list = tvars)
+                #grads = [ g for g,_ in grads_var ]
+                
+                #grads, gradient_norms = tf.clip_by_global_norm(tf.gradients(
+                #    mean_loss + apply_l2_regu, tvars), self.grad_clip_cf,
+                #    use_norm=None)
+                #grads, gradient_norms = tf.clip_by_global_norm(grads, 
+                #        self.grad_clip_cf,
+                #        use_norm=None)
+
+                #train_op = optimizer.apply_gradients(
+                #        zip(grads, tvars),
+                #        global_step=self.global_step)
+
             else:
                 train_op = optimizer.minimize(mean_loss,
                         global_step=self.global_step)
-                gradient_norms = None
 
             # set run operation
             self.run_ops = {'train_op':train_op,
-                    'gradient_norms': gradient_norms,
                     'mean_loss':mean_loss,
                     'loss':loss,
                     'label_error_rate':label_error_rate,
@@ -439,7 +449,6 @@ class TrainClass(object):
                         'loss':self.run_ops['loss']}
             elif 'ce' in self.criterion_cf:
                 run_op = {'train_op':self.run_ops['train_op'],
-                        'gradient_norms': self.run_ops['gradient_norms'],
                         'label_error_rate': self.run_ops['label_error_rate'],
                         'mean_loss':self.run_ops['mean_loss'],
                         'loss':self.run_ops['loss'],
@@ -552,7 +561,6 @@ class TrainClass(object):
                 feed_dict = {self.X : feat[i], self.Y : label[i], self.seq_len : length[i]}
                 time4 = time.time()
                 run_need_op = {'train_op':run_op['train_op'],
-                        'gradient_norms': run_op['gradient_norms'],
                         'mean_loss':run_op['mean_loss'],
                         'loss':run_op['loss'],
                         'rnn_keep_state_op':run_op['rnn_keep_state_op'],

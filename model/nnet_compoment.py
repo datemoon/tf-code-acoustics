@@ -326,7 +326,7 @@ class LstmLayer(object):
                 name = self.name,
                 dtype = self.dtype)
         if self.keep_prob < 1.0:
-            cell = tf.contrib.rnn.DropoutWarpper(cell, output_keep_prob = self.keep_prob)
+            cell = tf.contrib.rnn.DropoutWrapper(cell, output_keep_prob = self.keep_prob)
         return cell
 
     def GetOutputDim(self):
