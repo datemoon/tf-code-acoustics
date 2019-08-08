@@ -21,17 +21,19 @@ from io_func import smart_open
 
 PY3 = sys.version_info[0] == 3
 
-def read_token(fd):
+def read_token(fd, flag=[' ']):
     """Read token
     Args:
         fd (file):
     """
+    # add end flag ''
+    flag.append('') 
     token = []
     while True:
         char = fd.read(1)
         if isinstance(char, binary_type):
             char = char.decode()
-            if char == ' ' or char == '':
+            if char in flag:
                 break
             else:
                 token.append(char)
@@ -39,17 +41,19 @@ def read_token(fd):
         return None
     return ''.join(token)
 
-def read_matrix_or_vector(fd, endian='<', return_size=False):
+def read_matrix_or_vector(fd, endian='<', return_size=False, read_binary_flag = True):
     """Call from load_kaldi_ark
     
     Args:
         fd (file):
         endian (str):
         return_size (bool):
+        read_binary_flag (boo): read binary flag
     """
     size = 0
-    assert fd.read(2) == b'\0B'
-    size += 2
+    if read_binary_flag:
+        assert fd.read(2) == b'\0B'
+        size += 2
 
     Type = str(read_token(fd))
     size += len(Type) + 1
