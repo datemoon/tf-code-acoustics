@@ -53,6 +53,12 @@ bool ConvertSparseFstToOpenFst(const int32 *indexs, const int32 *in_labels, cons
 	return true;
 }
 
+template 
+bool ConvertSparseFstToOpenFst<StdArc>(const int32 *indexs, const int32 *in_labels, const int32 *out_labels,
+		BaseFloat* weights, const int32* statesinfo,
+		int32 num_states,
+		VectorFst<StdArc> *fst);
+
 bool MallocSparseFst(int num_states, int num_arcs,
 		int32 **indexs,
 		int32 **in_labels,
@@ -129,6 +135,13 @@ int ConvertKaldiLatticeToSparseLattice(VectorFst<Arc> &fst,
 
 }
 
+template 
+int ConvertKaldiLatticeToSparseLattice<StdArc>(VectorFst<StdArc> &fst,
+		int32 **indexs,
+		int32 **in_labels,
+		int32 **out_labels,
+		BaseFloat **weights,
+		int32 **stateinfo);
 
 
 }// namespace fst

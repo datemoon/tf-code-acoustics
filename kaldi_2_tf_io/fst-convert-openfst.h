@@ -4,6 +4,7 @@
 
 
 #include <fst/fstlib.h>
+#include "fstext/fstext-lib.h"
 
 namespace fst
 {
