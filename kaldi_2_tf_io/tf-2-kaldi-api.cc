@@ -2,7 +2,7 @@
 #include <vector>
 #include <thread>
 #include <cassert>
-#include<iostream>
+#include <iostream>
 #include <sys/time.h>
 
 #include "base/kaldi-math.h"
@@ -97,17 +97,12 @@ bool ChainLoss(const int32 *indexs, const int32 *in_labels, const int32 *out_lab
 		supervision.label_dim = supervision_label_dim[i];
 		supervision.fst = fst_v[i];
 	}
-	std::vector<chain::Supervision> output_supervision;
-	bool compactify = true;
-	AppendSupervision(input_supervision,
-			compactify,
+	chain::Supervision output_supervision;
+	MergeSupervision(input_supervision,
 			&output_supervision);
-	if (output_supervision.size() != 1)
-		KALDI_ERR << "Failed to merge 'chain' examples-- inconsistent lengths "
-			<< "or weights?";
 
 	chain::Supervision merge_supervision;
-	merge_supervision.Swap(&(output_supervision[0]));
+	merge_supervision.Swap(&output_supervision);
 	// supervision ok
 #ifdef DEBUG_SPEED
 	gettimeofday(&end, NULL);
@@ -135,11 +130,12 @@ bool ChainLoss(const int32 *indexs, const int32 *in_labels, const int32 *out_lab
 	
 	Supervision supervision;
 	// copy nnet_out to nnet_output
-	CuMatrix<BaseFloat> nnet_output;
+	CuSubMatrix<BaseFloat> nnet_output(nnet_out, rows * batch_size, cols, cols);
 
-	CuMatrix<BaseFloat> nnet_output_deriv(nnet_output.NumRows(),
+	CuSubMatrix<BaseFloat> nnet_output_deriv(gradient,
+			nnet_output.NumRows(),
 			nnet_output.NumCols(),
-			kUndefined);
+			nnet_output.NumCols());
 
 	bool use_xent = (opts.xent_regularize != 0.0);
 	//std::string xent_name = "output" + "-xent";  // typically "output-xent".
@@ -160,4 +156,4 @@ bool ChainLoss(const int32 *indexs, const int32 *in_labels, const int32 *out_lab
 	return true;
 }
 
-}
+} // namespace hubo
