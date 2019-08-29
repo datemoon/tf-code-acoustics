@@ -13,10 +13,11 @@ typedef float BaseFloat;
 
 
 template <class Arc>
-bool ConvertSparseFstToOpenFst(const int32 *indexs, const int32 *in_labels, const int32 *out_labels,
-		BaseFloat* weights, const int32* statesinfo,
+bool ConvertSparseFstToOpenFst(const int32 *indexs, const int32 *in_labels, 
+		const int32 *out_labels, BaseFloat* weights, const int32* statesinfo, 
 		int32 num_states,
-		VectorFst<Arc> *fst);
+		VectorFst<Arc> *fst,
+		bool delete_laststatesuperfinal = false, int32 start_state = 0);
 
 
 bool MallocSparseFst(int num_states, int num_arcs,
@@ -32,7 +33,12 @@ int ConvertKaldiLatticeToSparseLattice(VectorFst<Arc> &fst,
 		int32 **in_labels,
 		int32 **out_labels,
 		BaseFloat **weights,
-		int32 **stateinfo);
+		int32 **stateinfo,
+		int32 *start_state);
+
+void PrintStandardFst(VectorFst<StdArc> &fst);
+
+bool EqualFst(VectorFst<StdArc> &fst1, VectorFst<StdArc> &fst2);
 
 } // namespace fst
 

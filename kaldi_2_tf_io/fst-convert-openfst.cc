@@ -12,10 +12,11 @@ namespace fst
 // statesinfo : length is num_states * 2, recode [state_start_offset, narcs]
 // num_states : state number
 template <class Arc>
-bool ConvertSparseFstToOpenFst(const int32 *indexs, const int32 *in_labels, const int32 *out_labels,
-		BaseFloat* weights, const int32* statesinfo,
+bool ConvertSparseFstToOpenFst(const int32 *indexs, const int32 *in_labels, 
+		const int32 *out_labels, BaseFloat* weights, const int32* statesinfo, 
 		int32 num_states,
-		VectorFst<Arc> *fst)
+		VectorFst<Arc> *fst,
+		bool delete_laststatesuperfinal, int32 start_state)
 //		StdVectorFst *fst)
 {
 	typedef typename Arc::StateId StateId;
@@ -23,9 +24,11 @@ bool ConvertSparseFstToOpenFst(const int32 *indexs, const int32 *in_labels, cons
 	typedef typename Arc::Label Label;
 
 	fst->DeleteStates();
-	StateId start_state = fst->AddState();
-	fst->SetStart(start_state);
+	fst->AddState();
 
+	StateId laststatesuperfinal = 0;
+	if(delete_laststatesuperfinal == true)
+		laststatesuperfinal = num_states-1;
 	for(int s=0; s<num_states; s++)
 	{
 		int s_start = statesinfo[2*s+0];
@@ -35,7 +38,7 @@ bool ConvertSparseFstToOpenFst(const int32 *indexs, const int32 *in_labels, cons
 			int cur_offset = a+s_start;
 			int instate = indexs[cur_offset*2 + 0];
 			int tostate = indexs[cur_offset*2 + 1];
-			while(instate > fst->NumStates())
+			while(instate >= fst->NumStates())
 			{
 				fst->AddState();
 				//printf("it shouldn't happen,instate > s");
@@ -44,12 +47,24 @@ bool ConvertSparseFstToOpenFst(const int32 *indexs, const int32 *in_labels, cons
 			int in_label = in_labels[cur_offset];
 			int out_label = out_labels[cur_offset];
 			Weight w = (Weight)(weight);
-			fst->AddArc(instate, Arc(in_label, out_label, w, tostate));
+			if(delete_laststatesuperfinal == true && 
+					tostate == laststatesuperfinal)
+			{
+				fst->SetFinal(s, w);
+			}
+			else
+			{
+				fst->AddArc(instate, Arc(in_label, out_label, w, tostate));
+			}
 		}
-		if(s == num_states-1)
-			fst->SetFinal(s, Weight::One());;
+		if(delete_laststatesuperfinal != true && s == num_states-1)
+		{
+			if(s >= fst->NumStates())
+				fst->AddState();
+			fst->SetFinal(s, Weight::One());
+		}
 	}
-
+	fst->SetStart(start_state);
 	return true;
 }
 
@@ -57,7 +72,8 @@ template
 bool ConvertSparseFstToOpenFst<StdArc>(const int32 *indexs, const int32 *in_labels, const int32 *out_labels,
 		BaseFloat* weights, const int32* statesinfo,
 		int32 num_states,
-		VectorFst<StdArc> *fst);
+		VectorFst<StdArc> *fst,
+		bool delete_laststatesuperfinal, int32 start_state);
 
 bool MallocSparseFst(int num_states, int num_arcs,
 		int32 **indexs,
@@ -84,22 +100,53 @@ bool MallocSparseFst(int num_states, int num_arcs,
 	return true;
 }
 
+
+template <class Arc>
+void CreateLastStateSuperFinal(VectorFst<Arc> *fst)
+{
+	typedef typename Arc::StateId StateId;
+	typedef typename Arc::Weight Weight;
+	typedef typename Arc::Label Label;
+	int32 num_states = fst->NumStates();
+	if(num_states <= 0)
+		return;
+	StateId last_superfinal_state = fst->AddState();
+	fst->SetFinal(last_superfinal_state, Weight::One());
+	for(int s=0; s<num_states; s++)
+	{
+		if(fst->Final(s) != Weight::Zero())
+		{
+			fst->AddArc(s, Arc(0, 0, fst->Final(s), last_superfinal_state));
+		}
+	}
+	return ;
+}
 /*
  *
  * return : number states
  **/
 template <class Arc>
-int ConvertKaldiLatticeToSparseLattice(VectorFst<Arc> &fst,
+int ConvertKaldiLatticeToSparseLattice(VectorFst<Arc> &const_fst,
 		int32 **indexs,
 		int32 **in_labels,
 		int32 **out_labels,
 		BaseFloat **weights,
-		int32 **stateinfo)
+		int32 **stateinfo,
+		int32 *start_state)
 {
-	CreateSuperFinal(&fst);
-	TopSort(&fst);
+	typedef typename Arc::Weight Weight;
+	VectorFst<Arc> fst = const_fst;
+	CreateLastStateSuperFinal(&fst);
+	// check fst have only one final and the stateid is the last state.
+	//TopSort(&fst);
 	// inlat must be topsort and it's super final lattice(have only final state and final-probs are One()).
 	int32 num_states = fst.NumStates();
+	int32 num_final = 0 ;
+	for(int s=0; s<num_states; s++)
+	{
+		if(fst.Final(s) != Weight::Zero())
+			num_final ++;
+	}
 	int32 num_arcs = 0;
 	for(int s=0; s<num_states; s++)
 	{
@@ -131,6 +178,7 @@ int ConvertKaldiLatticeToSparseLattice(VectorFst<Arc> &fst,
 		(*stateinfo)[2*s+1] = state_arcs;
 		state_offset += state_arcs;
 	}
+	*start_state = fst.Start();
 	return num_states;
 
 }
@@ -141,7 +189,67 @@ int ConvertKaldiLatticeToSparseLattice<StdArc>(VectorFst<StdArc> &fst,
 		int32 **in_labels,
 		int32 **out_labels,
 		BaseFloat **weights,
-		int32 **stateinfo);
+		int32 **stateinfo,
+		int32 *start_state);
+
+void PrintStandardFst(VectorFst<StdArc> &fst)
+{
+	typedef typename StdArc::Weight Weight;
+	int32 num_states = fst.NumStates();
+	for(int s=0; s<num_states; s++)
+	{
+		for (ArcIterator<VectorFst<StdArc> > aiter(fst, s); !aiter.Done(); aiter.Next())
+		{
+			const StdArc &arc = aiter.Value();
+			std::cout << s << " " << arc.nextstate << " " << arc.ilabel << " " 
+				<< arc.olabel << " " << arc.weight.Value() << std::endl;
+		}
+		if(fst.Final(s) != Weight::Zero())
+		{
+			std::cout << s << " " << fst.Final(s) << std::endl;
+		}
+	}
+}
+
+bool EqualSrc(const StdArc &arc1, const StdArc &arc2)
+{
+	if(arc1.nextstate == arc2.nextstate && 
+			arc1.ilabel == arc2.ilabel &&
+			arc1.olabel == arc2.olabel &&
+			arc1.weight.Value() == arc2.weight.Value())
+		return true;
+	return false;
+}
+
+bool EqualFst(VectorFst<StdArc> &fst1, VectorFst<StdArc> &fst2)
+{
+	int32 num_states1 = fst1.NumStates();
+	int32 num_states2 = fst2.NumStates();
+	if(num_states1 != num_states2)
+		return false;
+	if(fst1.Start() != fst2.Start())
+		return false;
+	for(int s=0; s<num_states1; s++)
+	{
+		ArcIterator<VectorFst<StdArc> > aiter2(fst2, s);
+		for (ArcIterator<VectorFst<StdArc> > aiter1(fst1, s);
+				!aiter1.Done(); aiter1.Next())
+		{
+			if(aiter2.Done())
+				return false;
+			const StdArc &arc1 = aiter1.Value();
+			const StdArc &arc2 = aiter2.Value();
+			if(!EqualSrc(arc1, arc2))
+				return false;
+			aiter2.Next();
+		}
+		if(!aiter2.Done())
+			return false;
+		if(fst1.Final(s) != fst2.Final(s))
+			return false;
+	}
+	return true;
+}
 
 
 }// namespace fst

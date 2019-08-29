@@ -10,16 +10,32 @@
 
 #include <sys/time.h>
 
+#include "tf-2-kaldi-api.h"
+
 using namespace tensorflow;
+using tensorflow::shape_inference::DimensionHandle;
+using tensorflow::shape_inference::InferenceContext;
+using tensorflow::shape_inference::ShapeHandle;
 
 REGISTER_OP("ChainLoss")
 	.Input("inputs: float")
 	.Input("indexs: int32")
-	.Input("pdf_values: int32")
-	.Input("lm_ws: float")
-	.Input("am_ws: float")
+	.Input("in_labels: int32")
+	.Input("weights: float")
 	.Input("statesinfo: int32")
 	.Input("num_states: int32")
+	.Input("supervision_weights: float")
+	.Input("num_sequences: int32")
+	.Input("frames_per_sequence: int32")
+	.Input("label_dim: int32")
+	.Attr("den_indexs: tensor = { dtype: DT_INT32 }")
+	.Attr("den_in_labels: tensor = { dtype: DT_INT32 }")
+	.Attr("den_weights: tensor = { dtype: DT_INT32 }")
+	.Attr("den_statesinfo: tensor = { dtype: DT_INT32 }")
+	.Attr("den_num_states: int32 = 0")
+	.Attr("l2_regularize: float = 0.0")
+	.Attr("leaky_hmm_coefficient: float = 0.0")
+	.Attr("xent_regularize: float = 0.0")
 	.Output("objf: float")
 	.Output("gradient: float")
 	.SetShapeFn([](InferenceContext* c)
@@ -34,13 +50,22 @@ REGISTER_OP("ChainLoss")
 
 		// check shape
 		TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 3, &inputs));
-		TF_RETURN_IF_ERROR(c->WithRank(c->input(3), 3, &indexs));
-		TF_RETURN_IF_ERROR(c->WithRank(c->input(4), 2, &pdf_values));
-		TF_RETURN_IF_ERROR(c->WithRank(c->input(5), 2, &lm_ws));
-		TF_RETURN_IF_ERROR(c->WithRank(c->input(6), 2, &am_ws));
-		TF_RETURN_IF_ERROR(c->WithRank(c->input(7), 3, &statesinfo));
-		TF_RETURN_IF_ERROR(c->WithRank(c->input(8), 1, &num_states));
+		TF_RETURN_IF_ERROR(c->WithRank(c->input(1), 3, &indexs));
+		TF_RETURN_IF_ERROR(c->WithRank(c->input(2), 2, &in_labels));
+		TF_RETURN_IF_ERROR(c->WithRank(c->input(3), 2, &weights));
+		TF_RETURN_IF_ERROR(c->WithRank(c->input(4), 3, &statesinfo));
+		TF_RETURN_IF_ERROR(c->WithRank(c->input(5), 1, &num_states));
 
+		// Get batch size from inputs and sequence_length, and update inputs
+		// with the merged batch_size since it is returned.
+		DimensionHandle batch_size;		
+		TF_RETURN_IF_ERROR(
+				c->Merge(c->Dim(inputs, 1), c->Dim(sequence_length, 0), &batch_size));
+
+		TF_RETURN_IF_ERROR(c->ReplaceDim(inputs, 1, batch_size, &inputs));
+
+		c->set_output(0, c->Vector(batch_size));
+		c->set_output(1, inputs);
 
 		return Status::OK();
 	});
@@ -53,6 +78,30 @@ class ChainLossOp: public OpKernel
 public:
 	explicit ChainLossOp(OpKernelConstruction* ctx) : OpKernel(ctx)
 	{
+		// den fst data
+		OP_REQUIRES_OK(ctx, ctx->GetAttr("den_indexs", &_den_indexs));
+		OP_REQUIRES(ctx, _den_indexs.dtype() == tf::DT_INT32,
+				errors::InvalidArgument("_den_indexs must be int32, got ",
+					DataTypeString(_den_indexs.dtype())));
+
+		OP_REQUIRES_OK(ctx, ctx->GetAttr("den_in_labels", &_den_in_labels));
+		OP_REQUIRES(ctx, _den_in_labels.dtype() == tf::DT_INT32,
+				errors::InvalidArgument("_den_in_labels must be int32, got ",
+					DataTypeString(_den_in_labels.dtype())));
+
+		OP_REQUIRES_OK(ctx, ctx->GetAttr("den_weights", &_den_weights));
+		OP_REQUIRES(ctx, _den_weights.dtype() == tf::DT_FLOAT,
+				errors::InvalidArgument("_den_weights must be float, got ",
+					DataTypeString(_den_weights.dtype())));
+
+		OP_REQUIRES_OK(ctx, ctx->GetAttr("den_statesinfo", &_den_statesinfo));
+		OP_REQUIRES(ctx, _den_statesinfo.dtype() == tf::DT_INT32,
+				errors::InvalidArgument("_den_statesinfo must be , got ",
+					DataTypeString(_den_statesinfo.dtype())));
+
+		OP_REQUIRES_OK(ctx, ctx->GetAttr("den_num_states", &_den_num_states));
+
+		// loss config
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("l2_regularize", &_l2_regularize));
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("leaky_hmm_coefficient", &_leaky_hmm_coefficient));
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("xent_regularize", &_xent_regularize));
@@ -156,6 +205,11 @@ public:
 #endif
 	}
 private:
+	Tensor _den_indexs;
+	Tensor _den_in_labels;
+	Tensor _den_weights;
+	Tensor _den_statesinfo;
+	int	_den_num_states;
 	// l2 regularization constant on the 'chain' output; the actual term added to
 	// the objf will be -0.5 times this constant times the squared l2 norm.
 	// (squared so it's additive across the dimensions).  e.g. try 0.0005.

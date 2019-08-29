@@ -16,6 +16,44 @@ using namespace kaldi::chain;
 namespace hubo
 {
 
+bool EqualDenGraph(DenominatorGraph &den_graph1, DenominatorGraph &den_graph2)
+{
+	int32 num_state1 = den_graph1.NumStates();
+	int32 num_state2 = den_graph2.NumStates();
+	if(num_state1 != num_state2)
+		return false;
+	const Int32Pair *fw1trans = den_graph1.ForwardTransitions();
+	const Int32Pair *fw2trans = den_graph2.ForwardTransitions();
+	const Int32Pair *bw1trans = den_graph1.BackwardTransitions();
+	const Int32Pair *bw2trans = den_graph2.BackwardTransitions();
+
+	for(int s=0;s<num_state1; s++)
+	{
+		if(fw1trans[s].first != fw2trans[s].first ||
+				fw1trans[s].second != fw2trans[s].second)
+			return false;
+		if(bw1trans[s].first != bw2trans[s].first ||
+				bw1trans[s].second != bw2trans[s].second)
+			return false;
+	}
+	const DenominatorGraphTransition *den1_trans = den_graph1.Transitions();
+	const DenominatorGraphTransition *den2_trans = den_graph2.Transitions();
+	for(int s=0;s<182460;s++)
+	{
+		if(den1_trans[s].transition_prob != den2_trans[s].transition_prob ||
+				den1_trans[s].pdf_id != den2_trans[s].pdf_id || 
+				den1_trans[s].hmm_state != den2_trans[s].hmm_state)
+			return false;
+	}
+	//const CuVector<BaseFloat> &init_prob1 = den_graph1.InitialProbs();
+	//const CuVector<BaseFloat> &init_prob2 = den_graph2.InitialProbs();
+	//for(int i =0 ; i < init_prob1.Dim();i++)
+	//{
+	//	if(init_prob1(i) != init_prob2(i))
+	//		return false;
+	//}
+	return true;
+}
 	/*
 * Compute Chain loss.
 * indexs (input)   : fst cur_state and next_state. indexs must be 3 dimensional tensor,
@@ -47,16 +85,19 @@ bool ChainLoss(const int32 *indexs, const int32 *in_labels, const int32 *out_lab
 		BaseFloat* weights, const int32* statesinfo,
 		const int32 *num_states,
 		const int32 max_num_arcs, const int32 max_num_states,
-		const BaseFloat *supervision_weights, const int32 *supervision_num_sequences, 
-		const int32 *supervision_frames_per_sequence, const int32 *supervision_label_dim, 
-		const int32 *sequence_length,
+		const BaseFloat supervision_weights, const int32 supervision_num_sequences, 
+		const int32 supervision_frames_per_sequence, const int32 supervision_label_dim, 
+		const int32 sequence_length,
 		const BaseFloat* nnet_out,
 		int32 rows, int32 batch_size, int32 cols,
 		// denominator fst
-		const int32 *den_indexs, const int32 *den_in_labels, const int32 *den_out_labels, 
-		BaseFloat* den_weights, const int32* den_statesinfo, const int32 den_num_states,
+		const int32 *den_indexs, const int32 *den_in_labels, 
+		const int32 *den_out_labels, BaseFloat* den_weights, 
+		const int32* den_statesinfo, const int32 den_start_state,
+		const int32 den_num_states,
 		BaseFloat* gradient,
-		float l2_regularize, float leaky_hmm_coefficient, float xent_regularize)
+		float l2_regularize, float leaky_hmm_coefficient, float xent_regularize,
+		fst::VectorFst<fst::StdArc> *den_fst_test, DenominatorGraph * den_graph_test, chain::Supervision *merge_supervision_test)
 {
 #ifdef DEBUG_SPEED
 	struct timeval start;
@@ -79,7 +120,7 @@ bool ChainLoss(const int32 *indexs, const int32 *in_labels, const int32 *out_lab
 		BaseFloat* cur_weights = weights + i * max_num_arcs;
 		fst::VectorFst<fst::StdArc> fst;
 		bool ret = fst::ConvertSparseFstToOpenFst(cur_indexs, cur_in_labels, 
-				cur_out_labels, cur_weights, cur_statesinfo, cur_num_states, &fst);
+				cur_out_labels, cur_weights, cur_statesinfo, cur_num_states, &fst, true, 0);
 		if (ret != true)
 		{
 			return false;
@@ -87,22 +128,30 @@ bool ChainLoss(const int32 *indexs, const int32 *in_labels, const int32 *out_lab
 		fst_v.push_back(fst);
 	} // fst ok
 	// supervision merge
-	std::vector<const chain::Supervision*> input_supervision;
+	std::vector<const chain::Supervision*> input_supervision_point;
+	input_supervision_point.resize(batch_size);
+	std::vector<chain::Supervision> input_supervision;
+	input_supervision.resize(batch_size);
 	for(int32 i=0; i < batch_size; i++)
 	{
-		chain::Supervision supervision;
-		supervision.weight = supervision_weights[i];
-		supervision.num_sequences = supervision_num_sequences[i];
-		supervision.frames_per_sequence = supervision_frames_per_sequence[i];
-		supervision.label_dim = supervision_label_dim[i];
+		chain::Supervision &supervision = input_supervision[i];
+		supervision.weight = supervision_weights;
+		supervision.num_sequences = supervision_num_sequences;
+		supervision.frames_per_sequence = supervision_frames_per_sequence;
+		supervision.label_dim = supervision_label_dim;
 		supervision.fst = fst_v[i];
+		input_supervision_point[i] = &input_supervision[i];
 	}
 	chain::Supervision output_supervision;
-	MergeSupervision(input_supervision,
+	MergeSupervision(input_supervision_point,
 			&output_supervision);
 
 	chain::Supervision merge_supervision;
 	merge_supervision.Swap(&output_supervision);
+	// remove eps
+	//fst::RmEpsilon(&merge_supervision.fst);
+	//fst::TopSort(&merge_supervision.fst);
+
 	// supervision ok
 #ifdef DEBUG_SPEED
 	gettimeofday(&end, NULL);
@@ -111,14 +160,19 @@ bool ChainLoss(const int32 *indexs, const int32 *in_labels, const int32 *out_lab
 #endif
 	// denominator graph create
 	int32 num_pdf = merge_supervision.label_dim;
-	static DenominatorGraph *den_graph = NULL;
+	DenominatorGraph *den_graph = NULL;
 	if (den_graph == NULL)
 	{
 		fst::VectorFst<fst::StdArc> den_fst;
 		bool ret = fst::ConvertSparseFstToOpenFst(den_indexs, den_in_labels, den_out_labels, den_weights, den_statesinfo,
-				den_num_states, &den_fst);
+				den_num_states, &den_fst, true, den_start_state);
+
+		//fst::PrintStandardFst(den_fst);
 		if(ret != true)
 			return ret;
+		// remove eps
+		//fst::RmEpsilon(&den_fst);
+		//fst::TopSort(&den_fst);
 		den_graph = new DenominatorGraph(den_fst, num_pdf);
 	}
 
@@ -145,12 +199,10 @@ bool ChainLoss(const int32 *indexs, const int32 *in_labels, const int32 *out_lab
 				kUndefined);
 	
 	BaseFloat tot_objf, tot_l2_term, tot_weight;
-
 	ComputeChainObjfAndDeriv(opts, *den_graph, merge_supervision, nnet_output, 
 			&tot_objf, &tot_l2_term, &tot_weight,
 			&nnet_output_deriv, 
 			(use_xent ? &xent_deriv : NULL));
-
 	// loss nnet_output_deriv
 
 	return true;

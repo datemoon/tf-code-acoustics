@@ -7,7 +7,9 @@
 #include "nnet3/nnet-chain-training.h"
 #include "cudamatrix/cu-allocator.h"
 
-
+#include "fst-convert-openfst.h"
+#include "tf-2-kaldi-api.h"
+#include "batch_input.h"
 
 int main(int argc, char *argv[])
 {
@@ -32,12 +34,16 @@ int main(int argc, char *argv[])
 	std::string nnet_rxfilename = po.GetArg(1),
 		den_fst_rxfilename = po.GetArg(2),
 		examples_rspecifier = po.GetArg(3),
-		matrix_wspecifier = po.GetArg(4);
+		matrix_wspecifier = po.GetArg(4),
+		tf_matrix_wspecifier = po.GetArg(5),
+		tf_batch_matrix_wspecifier = po.GetArg(6);
 	
 	// den fst
 	fst::StdVectorFst den_fst;
 	ReadFstKaldi(den_fst_rxfilename, &den_fst);
 
+	//fst::RmEpsilon(&den_fst);
+	fst::PrintStandardFst(den_fst);
 	chain::DenominatorGraph den_graph(den_fst, 3766);
 
 	Nnet raw_nnet;
@@ -51,6 +57,8 @@ int main(int argc, char *argv[])
 	CachingOptimizingCompiler compiler(nnet, opts.optimize_config);
 
 	BaseFloatMatrixWriter matrix_writer(matrix_wspecifier);
+	BaseFloatMatrixWriter tf_matrix_writer(tf_matrix_wspecifier);
+	BaseFloatMatrixWriter tf_batch_matrix_writer(tf_batch_matrix_wspecifier);
 	// 
 	SequentialNnetChainExampleReader example_reader(examples_rspecifier);
 	chain::ChainTrainingOptions chain_config;
@@ -74,15 +82,21 @@ int main(int argc, char *argv[])
 				ivector, online_ivectors,
 				online_ivector_period);
 
-		Matrix<BaseFloat> nnet_output(nnet_computer.NumFrames(),
-				nnet_computer.OutputDim());
-		for (int32 t = 0; t < nnet_computer.NumFrames(); t++) 
+		int32 out_frames = chain_eg.outputs[0].supervision.frames_per_sequence;
+		//Matrix<BaseFloat> nnet_output(nnet_computer.NumFrames(),
+		Matrix<BaseFloat> nnet_output(out_frames,
+				nnet_computer.OutputDim(), 
+				kSetZero, kStrideEqualNumCols);
+		//for (int32 t = 0; t < nnet_computer.NumFrames(); t++) 
+		for (int32 t = 0; t < out_frames; t++) 
 		{
 			SubVector<BaseFloat> row(nnet_output, t);
 			nnet_computer.GetOutputForFrame(t, &row);
 		}
 		
-		CuMatrix<BaseFloat> nnet_output_gpu_tmp(nnet_output);
+		CuMatrix<BaseFloat> nnet_output_gpu_tmp(nnet_output.NumRows(),nnet_output.NumCols(), 
+				kUndefined, kStrideEqualNumCols);
+		nnet_output_gpu_tmp.CopyFromMat(nnet_output);
 		const CuMatrixBase<BaseFloat> &nnet_output_gpu = nnet_output_gpu_tmp;
 		CuMatrix<BaseFloat> nnet_output_deriv(nnet_output.NumRows(),
 				nnet_output.NumCols(),
@@ -90,15 +104,111 @@ int main(int argc, char *argv[])
 		CuMatrix<BaseFloat> xent_deriv;
 
 		BaseFloat tot_objf, tot_l2_term, tot_weight;
-
 		ComputeChainObjfAndDeriv(chain_config, den_graph, chain_eg.outputs[0].supervision,
 				nnet_output_gpu, 
 				&tot_objf, &tot_l2_term, &tot_weight,
 				&nnet_output_deriv,
 				(use_xent ? &xent_deriv : NULL));
 
+#define TEST_TF
+#ifdef TEST_TF
+		int32 *den_indexs = NULL;
+		int32 *den_in_labels = NULL;
+		int32 *den_out_labels = NULL;
+		BaseFloat *den_weights = NULL;
+		int32 *den_stateinfo = NULL;
+		int32 den_start_state = 0;
+		int32 den_num_states = fst::ConvertKaldiLatticeToSparseLattice(den_fst, &den_indexs, &den_in_labels, &den_out_labels,
+				&den_weights, &den_stateinfo, &den_start_state);
+		int32 *indexs = NULL;
+		int32 *in_labels = NULL;
+		int32 *out_labels = NULL;
+		BaseFloat *weights = NULL;
+		int32 *stateinfo = NULL;
+		int32 start_state = 0;
+		int32 num_states = fst::ConvertKaldiLatticeToSparseLattice(chain_eg.outputs[0].supervision.fst, &indexs, &in_labels, &out_labels,
+				&weights, &stateinfo, &start_state);
+		int32 num_arc = stateinfo[2*(num_states-1)+0] + stateinfo[2*(num_states-1)+1];
+		
+		//Matrix<BaseFloat> nnet_output_tf(nnet_output.NumRows(), nnet_output.NumCols(), kSetZero, kStrideEqualNumCols);
+		//
+
+		CuMatrix<BaseFloat> nnet_output_deriv_tf(nnet_output.NumRows(),
+				nnet_output.NumCols(), 
+				kSetZero, kStrideEqualNumCols);
+
+		hubo::ChainLoss(indexs, in_labels, out_labels, weights, stateinfo, &num_states,
+				num_arc, num_states, 
+				chain_eg.outputs[0].supervision.weight, chain_eg.outputs[0].supervision.num_sequences,
+				chain_eg.outputs[0].supervision.frames_per_sequence, chain_eg.outputs[0].supervision.label_dim, 
+				out_frames, 
+				nnet_output_gpu_tmp.Data(), 
+				nnet_output_gpu_tmp.NumRows(), 1, nnet_output_gpu_tmp.NumCols(),
+				den_indexs, den_in_labels, den_out_labels, den_weights, den_stateinfo, den_start_state,
+				den_num_states,
+				nnet_output_deriv_tf.Data(),
+				chain_config.l2_regularize, chain_config.leaky_hmm_coefficient, chain_config.xent_regularize);
+
+		Matrix<BaseFloat> tf_output_deriv(nnet_output_deriv_tf);
+		tf_matrix_writer.Write("aaa", tf_output_deriv);
+
+		// batch test
+		{
+			int32 max_num_arcs = num_arc;
+			int32 max_num_states = num_states;
+			int32 batch_size = 5;
+			indexs = BatchIn(indexs, max_num_arcs * 2, batch_size);
+			in_labels = BatchIn(in_labels, max_num_arcs, batch_size);
+			out_labels = BatchIn(out_labels, max_num_arcs, batch_size);
+			weights = BatchIn(weights, max_num_arcs, batch_size);
+			stateinfo = BatchIn(stateinfo, max_num_states * 2 , batch_size);
+			int32 *batch_num_states = new int32[1];
+			batch_num_states[0] = num_states;
+			batch_num_states = BatchIn(batch_num_states, 1, batch_size);
+			
+			Matrix<BaseFloat> nnet_output_batch(out_frames * batch_size,
+					nnet_computer.OutputDim(), 
+					kSetZero, kStrideEqualNumCols);
+			//for (int32 t = 0; t < nnet_computer.NumFrames(); t++) 
+			for (int32 t = 0; t < out_frames; t++) 
+			{
+				for(int32 i =0 ; i < batch_size; i++)
+				{
+					SubVector<BaseFloat> row(nnet_output_batch, t*batch_size+i);
+					nnet_computer.GetOutputForFrame(t, &row);
+				}
+			}
+			CuMatrix<BaseFloat> nnet_output_gpu_batch_tmp(nnet_output_batch.NumRows(),nnet_output_batch.NumCols(), 
+					kUndefined, kStrideEqualNumCols);
+			nnet_output_gpu_batch_tmp.CopyFromMat(nnet_output_batch);
+			//const CuMatrixBase<BaseFloat> &nnet_output_gpu_batch = nnet_output_gpu_batch_tmp;
+			CuMatrix<BaseFloat> nnet_output_deriv_batch_tf(nnet_output_batch.NumRows(),
+					nnet_output_batch.NumCols(), 
+					kSetZero, kStrideEqualNumCols);
+		
+			hubo::ChainLoss(indexs, in_labels, out_labels, weights, stateinfo, batch_num_states,
+					num_arc, num_states, 
+					chain_eg.outputs[0].supervision.weight, chain_eg.outputs[0].supervision.num_sequences,
+					chain_eg.outputs[0].supervision.frames_per_sequence, chain_eg.outputs[0].supervision.label_dim, 
+					out_frames, 
+					nnet_output_gpu_batch_tmp.Data(), 
+					nnet_output_gpu_batch_tmp.NumRows()/batch_size, batch_size, nnet_output_gpu_batch_tmp.NumCols(),
+					den_indexs, den_in_labels, den_out_labels, den_weights, den_stateinfo, den_start_state,
+					den_num_states,
+					nnet_output_deriv_batch_tf.Data(),
+					chain_config.l2_regularize, chain_config.leaky_hmm_coefficient, chain_config.xent_regularize);
+
+			Matrix<BaseFloat> tf_batch_output_deriv(nnet_output_deriv_batch_tf);
+			tf_batch_matrix_writer.Write("aaa", tf_batch_output_deriv);
+
+
+		}
+
+#endif
+
 		Matrix<BaseFloat> output_deriv(nnet_output_deriv);
 		matrix_writer.Write("aaa", output_deriv);
+		return 0;
 
 	}
 
