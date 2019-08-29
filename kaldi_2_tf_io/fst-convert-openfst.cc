@@ -75,6 +75,68 @@ bool ConvertSparseFstToOpenFst<StdArc>(const int32 *indexs, const int32 *in_labe
 		VectorFst<StdArc> *fst,
 		bool delete_laststatesuperfinal, int32 start_state);
 
+// using StdVectorFst = VectorFst<StdArc>;
+// indexs     : the same as arc number,recode [instate, tostate]
+// in_labels  : the same as arc number,recode [in_label]
+// weights    : the same as arc number,recode [weight]
+// statesinfo : length is num_states * 2, recode [state_start_offset, narcs]
+// num_states : state number
+VectorFst<StdArc> ConvertSparseFstToOpenFst(const int32 *indexs, const int32 *in_labels, 
+		const int32 *out_labels, BaseFloat* weights, const int32* statesinfo, 
+		int32 num_states,
+		bool delete_laststatesuperfinal, int32 start_state)
+//		StdVectorFst *fst)
+{
+	typedef typename StdArc::StateId StateId;
+	typedef typename StdArc::Weight Weight;
+	typedef typename StdArc::Label Label;
+
+	VectorFst<StdArc> fst;
+	fst.DeleteStates();
+	fst.AddState();
+
+	StateId laststatesuperfinal = 0;
+	if(delete_laststatesuperfinal == true)
+		laststatesuperfinal = num_states-1;
+	for(int s=0; s<num_states; s++)
+	{
+		int s_start = statesinfo[2*s+0];
+		int narcs = statesinfo[2*s+1];
+		for(int a = 0; a < narcs ; a++)
+		{
+			int cur_offset = a+s_start;
+			int instate = indexs[cur_offset*2 + 0];
+			int tostate = indexs[cur_offset*2 + 1];
+			while(instate >= fst.NumStates())
+			{
+				fst.AddState();
+				//printf("it shouldn't happen,instate > s");
+			}
+			float weight = weights[cur_offset];
+			int in_label = in_labels[cur_offset];
+			int out_label = out_labels[cur_offset];
+			Weight w = (Weight)(weight);
+			if(delete_laststatesuperfinal == true && 
+					tostate == laststatesuperfinal)
+			{
+				fst.SetFinal(s, w);
+			}
+			else
+			{
+				fst.AddArc(instate, StdArc(in_label, out_label, w, tostate));
+			}
+		}
+		if(delete_laststatesuperfinal != true && s == num_states-1)
+		{
+			if(s >= fst.NumStates())
+				fst.AddState();
+			fst.SetFinal(s, Weight::One());
+		}
+	}
+	fst.SetStart(start_state);
+	return fst;
+}
+
 bool MallocSparseFst(int num_states, int num_arcs,
 		int32 **indexs,
 		int32 **in_labels,
