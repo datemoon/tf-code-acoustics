@@ -55,37 +55,6 @@ bool EqualDenGraph(DenominatorGraph &den_graph1, DenominatorGraph &den_graph2)
 	return true;
 }
 
-class DenominatorGraphSaver
-{
-public:
-	DenominatorGraphSaver(){ }
-	void Init(const int32 *indexs, const int32 *in_labels,
-			const int32 *out_labels, BaseFloat* weights, 
-			const int32* statesinfo, int32 num_states, int32 num_pdfs, 
-			bool delete_laststatesuperfinal = false, const int32 den_start_state = 0)
-	{
-		fst::VectorFst<fst::StdArc> den_fst;
-		fst::ConvertSparseFstToOpenFst(indexs, in_labels,
-				out_labels, weights, statesinfo, num_states, &den_fst, 
-				delete_laststatesuperfinal, den_start_state );
-
-		_den_graph = new DenominatorGraph(den_fst, num_pdfs);
-	}
-
-	DenominatorGraph *GetDenGraph()
-	{
-		return _den_graph;
-	}
-
-	~DenominatorGraphSaver()
-	{
-		delete _den_graph;
-	}
-
-private:
-	DenominatorGraph *_den_graph;
-};
-
 /*
 * Compute Chain loss.
 * indexs (input)   : fst cur_state and next_state. indexs must be 3 dimensional tensor,
@@ -106,7 +75,6 @@ private:
 * cols             : is class numbers
 *
 * //labels           : here it's acoustic align, max(labels) < p. which has dimension (n, t)
-* sequence_length  : The number of time steps for each sequence in the batch. which has dimension (n)
 * acoustic_scale   : acoustic scale
 * gradient (outptu): it shape same as nnet_out
 * loss             : it loss . which has dimension (n)
@@ -119,7 +87,6 @@ bool ChainLoss(const int32 *indexs, const int32 *in_labels, const int32 *out_lab
 		const int32 max_num_arcs, const int32 max_num_states,
 		const BaseFloat supervision_weights, const int32 supervision_num_sequences, 
 		const int32 supervision_frames_per_sequence, const int32 supervision_label_dim, 
-		const int32 sequence_length,
 		const BaseFloat* nnet_out,
 		int32 rows, int32 batch_size, int32 cols,
 		// denominator fst
@@ -138,19 +105,18 @@ bool ChainLoss(const int32 *indexs, const int32 *in_labels, const int32 *out_lab
 #endif
 
 	bool delete_laststatesuperfinal = true;
-	DenominatorGraphSaver den_grap_saver;
-	den_grap_saver.Init(den_indexs, den_in_labels, den_out_labels, 
+	DenominatorGraphSaver den_graph_saver;
+	den_graph_saver.Init(den_indexs, den_in_labels, den_out_labels, 
 			den_weights, den_statesinfo, 
 			den_num_states, supervision_label_dim,
 			delete_laststatesuperfinal, den_start_state);
 
-	DenominatorGraph *den_graph = den_grap_saver.GetDenGraph();
 
 	bool ret = ChainLossDen(indexs, in_labels, out_labels, weights, statesinfo, num_states,
 			max_num_arcs, max_num_states,
 			supervision_weights, supervision_num_sequences, supervision_frames_per_sequence, supervision_label_dim,
-			sequence_length, nnet_out, rows, batch_size, cols,
-			*den_graph, 
+			nnet_out, rows, batch_size, cols,
+			den_graph_saver, 
 			gradient,
 			l2_regularize, leaky_hmm_coefficient, xent_regularize);
 
@@ -193,11 +159,10 @@ bool ChainLossDen(const int32 *indexs, const int32 *in_labels, const int32 *out_
 		const int32 max_num_arcs, const int32 max_num_states,
 		const BaseFloat supervision_weights, const int32 supervision_num_sequences, 
 		const int32 supervision_frames_per_sequence, const int32 supervision_label_dim, 
-		const int32 sequence_length,
 		const BaseFloat* nnet_out,
 		int32 rows, int32 batch_size, int32 cols,
 		// denominator fst
-		DenominatorGraph &den_graph,
+		DenominatorGraphSaver &den_graph_saver,
 		BaseFloat* gradient,
 		float l2_regularize, float leaky_hmm_coefficient, float xent_regularize)
 {
@@ -206,6 +171,7 @@ bool ChainLossDen(const int32 *indexs, const int32 *in_labels, const int32 *out_
 	struct timeval end;
 	gettimeofday(&start, NULL);
 #endif
+	DenominatorGraph *den_graph = den_graph_saver.GetDenGraph();
 	// convert fst
 	std::vector<fst::VectorFst<fst::StdArc> > fst_v;
 	bool ret = BatchFst(indexs, in_labels, out_labels, weights, statesinfo, num_states, 
@@ -269,7 +235,7 @@ bool ChainLossDen(const int32 *indexs, const int32 *in_labels, const int32 *out_
 				kUndefined);
 	
 	BaseFloat tot_objf, tot_l2_term, tot_weight;
-	ComputeChainObjfAndDeriv(opts, den_graph, merge_supervision, nnet_output, 
+	ComputeChainObjfAndDeriv(opts, *den_graph, merge_supervision, nnet_output, 
 			&tot_objf, &tot_l2_term, &tot_weight,
 			&nnet_output_deriv, 
 			(use_xent ? &xent_deriv : NULL));
