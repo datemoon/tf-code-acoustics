@@ -16,6 +16,18 @@ using namespace kaldi::chain;
 namespace hubo
 {
 
+void DenominatorGraphSaver::Init(const int32 *indexs, const int32 *in_labels,
+		const int32 *out_labels, BaseFloat* weights, 
+		const int32* statesinfo, int32 num_states, int32 num_pdfs, 
+		bool delete_laststatesuperfinal, const int32 den_start_state)
+{
+	fst::VectorFst<fst::StdArc> den_fst;
+	fst::ConvertSparseFstToOpenFst(indexs, in_labels,
+			out_labels, weights, statesinfo, num_states, &den_fst, 
+			delete_laststatesuperfinal, den_start_state );
+	_den_graph = new DenominatorGraph(den_fst, num_pdfs);
+}
+
 bool EqualDenGraph(DenominatorGraph &den_graph1, DenominatorGraph &den_graph2)
 {
 	int32 num_state1 = den_graph1.NumStates();
@@ -82,7 +94,7 @@ bool EqualDenGraph(DenominatorGraph &den_graph1, DenominatorGraph &den_graph2)
 * */
 
 bool ChainLoss(const int32 *indexs, const int32 *in_labels, const int32 *out_labels,
-		BaseFloat* weights, const int32* statesinfo,
+		const BaseFloat* weights, const int32* statesinfo,
 		const int32 *num_states,
 		const int32 max_num_arcs, const int32 max_num_states,
 		const BaseFloat supervision_weights, const int32 supervision_num_sequences, 
@@ -124,7 +136,7 @@ bool ChainLoss(const int32 *indexs, const int32 *in_labels, const int32 *out_lab
 }
 
 bool BatchFst(const int32 *indexs, const int32 *in_labels, const int32 *out_labels,
-		BaseFloat* weights, const int32* statesinfo,
+		const BaseFloat* weights, const int32* statesinfo,
 		const int32 *num_states, const int32 max_num_arcs, const int32 max_num_states, 
 		const int32 batch_size,
 		std::vector<fst::VectorFst<fst::StdArc> > *fst_v)
@@ -140,7 +152,7 @@ bool BatchFst(const int32 *indexs, const int32 *in_labels, const int32 *out_labe
 		const int32 *cur_indexs = indexs + i * max_num_arcs * 2;
 		const int32 *cur_in_labels = in_labels + i * max_num_arcs;
 		const int32 *cur_out_labels = out_labels + i * max_num_arcs;
-		BaseFloat* cur_weights = weights + i * max_num_arcs;
+		const BaseFloat* cur_weights = weights + i * max_num_arcs;
 		fst::VectorFst<fst::StdArc> fst;
 		bool ret = fst::ConvertSparseFstToOpenFst(cur_indexs, cur_in_labels, 
 				cur_out_labels, cur_weights, cur_statesinfo, cur_num_states, &fst, true, 0);
@@ -154,7 +166,7 @@ bool BatchFst(const int32 *indexs, const int32 *in_labels, const int32 *out_labe
 }
 
 bool ChainLossDen(const int32 *indexs, const int32 *in_labels, const int32 *out_labels,
-		BaseFloat* weights, const int32* statesinfo,
+		const BaseFloat* weights, const int32* statesinfo,
 		const int32 *num_states,
 		const int32 max_num_arcs, const int32 max_num_states,
 		const BaseFloat supervision_weights, const int32 supervision_num_sequences, 

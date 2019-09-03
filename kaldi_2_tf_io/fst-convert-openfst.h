@@ -13,13 +13,13 @@ typedef float BaseFloat;
 
 template <class Arc>
 bool ConvertSparseFstToOpenFst(const int32 *indexs, const int32 *in_labels, 
-		const int32 *out_labels, BaseFloat* weights, const int32* statesinfo, 
+		const int32 *out_labels, const BaseFloat* weights, const int32* statesinfo, 
 		int32 num_states,
 		VectorFst<Arc> *fst,
 		bool delete_laststatesuperfinal = false, int32 start_state = 0);
 
 VectorFst<StdArc> ConvertSparseFstToOpenFst(const int32 *indexs, const int32 *in_labels, 
-		const int32 *out_labels, BaseFloat* weights, const int32* statesinfo, 
+		const int32 *out_labels, const BaseFloat* weights, const int32* statesinfo, 
 		int32 num_states,
 		bool delete_laststatesuperfinal = false, int32 start_state = 0);
 

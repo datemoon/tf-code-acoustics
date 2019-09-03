@@ -1,0 +1,4 @@
+
+
+KALDIDIR=/root/kaldi/src
+

@@ -13,7 +13,7 @@ namespace fst
 // num_states : state number
 template <class Arc>
 bool ConvertSparseFstToOpenFst(const int32 *indexs, const int32 *in_labels, 
-		const int32 *out_labels, BaseFloat* weights, const int32* statesinfo, 
+		const int32 *out_labels, const BaseFloat* weights, const int32* statesinfo, 
 		int32 num_states,
 		VectorFst<Arc> *fst,
 		bool delete_laststatesuperfinal, int32 start_state)
@@ -70,7 +70,7 @@ bool ConvertSparseFstToOpenFst(const int32 *indexs, const int32 *in_labels,
 
 template 
 bool ConvertSparseFstToOpenFst<StdArc>(const int32 *indexs, const int32 *in_labels, const int32 *out_labels,
-		BaseFloat* weights, const int32* statesinfo,
+		const BaseFloat* weights, const int32* statesinfo,
 		int32 num_states,
 		VectorFst<StdArc> *fst,
 		bool delete_laststatesuperfinal, int32 start_state);
@@ -82,7 +82,7 @@ bool ConvertSparseFstToOpenFst<StdArc>(const int32 *indexs, const int32 *in_labe
 // statesinfo : length is num_states * 2, recode [state_start_offset, narcs]
 // num_states : state number
 VectorFst<StdArc> ConvertSparseFstToOpenFst(const int32 *indexs, const int32 *in_labels, 
-		const int32 *out_labels, BaseFloat* weights, const int32* statesinfo, 
+		const int32 *out_labels, const BaseFloat* weights, const int32* statesinfo, 
 		int32 num_states,
 		bool delete_laststatesuperfinal, int32 start_state)
 //		StdVectorFst *fst)

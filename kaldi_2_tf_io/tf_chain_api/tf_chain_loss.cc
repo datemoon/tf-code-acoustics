@@ -12,7 +12,7 @@
 
 #include "tf-2-kaldi-api.h"
 
-using namespace tensorflow;
+namespace tf = tensorflow;
 using tensorflow::shape_inference::DimensionHandle;
 using tensorflow::shape_inference::InferenceContext;
 using tensorflow::shape_inference::ShapeHandle;
@@ -33,6 +33,7 @@ REGISTER_OP("ChainLoss")
 	.Attr("den_weights: tensor = { dtype: DT_INT32 }")
 	.Attr("den_statesinfo: tensor = { dtype: DT_INT32 }")
 	.Attr("den_num_states: int32 = 0")
+	.Attr("den_start_state: int32 = 0")
 	.Attr("delete_laststatesuperfinal: bool = true")
 	.Attr("l2_regularize: float = 0.0")
 	.Attr("leaky_hmm_coefficient: float = 0.0")
@@ -67,36 +68,36 @@ REGISTER_OP("ChainLoss")
 		c->set_output(0, c->Vector(batch_size));
 		c->set_output(1, inputs);
 
-		return Status::OK();
+		return tf::Status::OK();
 	});
 
 
 namespace chain_loss
 {
-class ChainLossOp: public OpKernel
+class ChainLossOp: public tf::OpKernel
 {
 public:
-	explicit ChainLossOp(OpKernelConstruction* ctx) : OpKernel(ctx)
+	explicit ChainLossOp(tf::OpKernelConstruction* ctx) : tf::OpKernel(ctx)
 	{
 		// den fst data
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("den_indexs", &_den_indexs));
 		OP_REQUIRES(ctx, _den_indexs.dtype() == tf::DT_INT32,
-				errors::InvalidArgument("_den_indexs must be int32, got ",
+				tf::errors::InvalidArgument("_den_indexs must be int32, got ",
 					DataTypeString(_den_indexs.dtype())));
 
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("den_in_labels", &_den_in_labels));
 		OP_REQUIRES(ctx, _den_in_labels.dtype() == tf::DT_INT32,
-				errors::InvalidArgument("_den_in_labels must be int32, got ",
+				tf::errors::InvalidArgument("_den_in_labels must be int32, got ",
 					DataTypeString(_den_in_labels.dtype())));
 
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("den_weights", &_den_weights));
 		OP_REQUIRES(ctx, _den_weights.dtype() == tf::DT_FLOAT,
-				errors::InvalidArgument("_den_weights must be float, got ",
+				tf::errors::InvalidArgument("_den_weights must be float, got ",
 					DataTypeString(_den_weights.dtype())));
 
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("den_statesinfo", &_den_statesinfo));
 		OP_REQUIRES(ctx, _den_statesinfo.dtype() == tf::DT_INT32,
-				errors::InvalidArgument("_den_statesinfo must be , got ",
+				tf::errors::InvalidArgument("_den_statesinfo must be , got ",
 					DataTypeString(_den_statesinfo.dtype())));
 
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("den_num_states", &_den_num_states));
@@ -114,13 +115,14 @@ public:
 		auto den_weights_t = _den_weights.vec<float>();
 		auto den_statesinfo_t = _den_statesinfo.matrix<int>();
 
-		_den_graph_saver.Init(den_indexs_t, den_in_labels_t, den_in_labels_t, den_weights_t, den_statesinfo_t,
+		_den_graph_saver.Init(den_indexs_t.data(), den_in_labels_t.data(), 
+				den_in_labels_t.data(), den_weights_t.data(), den_statesinfo_t.data(),
 				_den_num_states, _label_dim, 
 				_delete_laststatesuperfinal, _den_start_state);
 
 	}
 
-	void Compute(OpKernelContext* ctx) override
+	void Compute(tf::OpKernelContext* ctx) override
 	{
 #ifdef DEBUG_SPEED
 		struct timeval start;
@@ -128,15 +130,15 @@ public:
 		gettimeofday(&start, NULL);
 #endif
 
-		const Tensor* inputs;     // tensor<float, 3>
-		const Tensor* indexs;     // tensor<int, 3>
-		const Tensor* in_labels;  // matrix<int>
-		const Tensor* weights;    // matrix<float>
-		const Tensor* statesinfo; // tensor<int, 3>
-		const Tensor* num_states; // vector<int>
-		const Tensor* supervision_weights; // float
-		const Tensor* num_sequences; // int
-		const Tensor* frames_per_sequence; // int
+		const tf::Tensor* inputs;     // tensor<float, 3>
+		const tf::Tensor* indexs;     // tensor<int, 3>
+		const tf::Tensor* in_labels;  // matrix<int>
+		const tf::Tensor* weights;    // matrix<float>
+		const tf::Tensor* statesinfo; // tensor<int, 3>
+		const tf::Tensor* num_states; // vector<int>
+		//const tf::Tensor* supervision_weights; // float
+		//const tf::Tensor* num_sequences; // int
+		//const tf::Tensor* frames_per_sequence; // int
 
 		OP_REQUIRES_OK(ctx, ctx->input("inputs", &inputs));
 		OP_REQUIRES_OK(ctx, ctx->input("indexs", &indexs));
@@ -146,50 +148,50 @@ public:
 		OP_REQUIRES_OK(ctx, ctx->input("num_states", &num_states));
 		
 		OP_REQUIRES(ctx, inputs->shape().dims() == 3,
-				errors::InvalidArgument("inputs is not a 3-Tensor"));
+				tf::errors::InvalidArgument("inputs is not a 3-Tensor"));
 
 		OP_REQUIRES(ctx, indexs->shape().dims() == 3,
-				errors::InvalidArgument("indexs is not a 3-Tensor"));
+				tf::errors::InvalidArgument("indexs is not a 3-Tensor"));
 
-		OP_REQUIRES(ctx, TensorShapeUtils::IsMatrix(in_labels->shape()),
-				errors::InvalidArgument("in_labels is not a matrix"));
+		OP_REQUIRES(ctx, tf::TensorShapeUtils::IsMatrix(in_labels->shape()),
+				tf::errors::InvalidArgument("in_labels is not a matrix"));
 
-		OP_REQUIRES(ctx, TensorShapeUtils::IsMatrix(weights->shape()),
-				errors::InvalidArgument("weights is not a matrix"));
+		OP_REQUIRES(ctx, tf::TensorShapeUtils::IsMatrix(weights->shape()),
+				tf::errors::InvalidArgument("weights is not a matrix"));
 
 		OP_REQUIRES(ctx, statesinfo->shape().dims() == 3,
-				errors::InvalidArgument("statesinfo is not 3-Tensor"));
+				tf::errors::InvalidArgument("statesinfo is not 3-Tensor"));
 
-		OP_REQUIRES(ctx, TensorShapeUtils::IsVector(num_states->shape()),
-				error::InvalidArgument("num_states should be vector "
+		OP_REQUIRES(ctx, tf::TensorShapeUtils::IsVector(num_states->shape()),
+				tf::errors::InvalidArgument("num_states should be vector "
 					"but received shapes: ",num_states->shape().DebugString()));
 
-		const TensorShape& inputs_shape = inputs->shape();
-		const int64 max_time = inputs_shape.dim_size(0);
-		const int64 batch_size = inputs_shape.dim_size(1);
-		const int64 num_classes_raw = inputs_shape.dim_size(2);
+		const tf::TensorShape& inputs_shape = inputs->shape();
+		const tf::int64 max_time = inputs_shape.dim_size(0);
+		const tf::int64 batch_size = inputs_shape.dim_size(1);
+		const tf::int64 num_classes_raw = inputs_shape.dim_size(2);
 		
-		const TensorShape& indexs_shape = indexs->shape();
-		const int32 max_num_arcs = indexs_shape.dim_size(1);
+		const tf::TensorShape& indexs_shape = indexs->shape();
+		const tf::int32 max_num_arcs = indexs_shape.dim_size(1);
 
-		const TensorShape& statesinfo_shape = statesinfo->shape();
-		const int32 max_num_states = statesinfo_shape.dim_size(1);
+		const tf::TensorShape& statesinfo_shape = statesinfo->shape();
+		const tf::int32 max_num_states = statesinfo_shape.dim_size(1);
 
 		// check num_classes_raw less then std::numeric_limits<int>::max()
 		OP_REQUIRES(
-				ctx, FastBoundsCheck(num_classes_raw, std::numeric_limits<int>::max()),
-				errors::InvalidArgument("num_classes cannot exceed max int"));
+				ctx, tf::FastBoundsCheck(num_classes_raw, std::numeric_limits<int>::max()),
+				tf::errors::InvalidArgument("num_classes cannot exceed max int"));
 		const int num_classes = static_cast<const int>(num_classes_raw);
 
 		OP_REQUIRES(ctx, num_classes == _label_dim,
-				error::InvalidArgument("input feature dim and label dim should be equal"))
+				tf::errors::InvalidArgument("input feature dim and label dim should be equal"));
 		// malloc loss space
 		//Tensor* loss = nullptr;
 		//OP_REQUIRES_OK(ctx, ctx->allocate_output("loss", sequence_length->shape(), &loss));
 		//auto loss_t = loss->vec<float>();
 
 		// malloc gradient space
-		Tensor* gradient;
+		tf::Tensor* gradient;
 		OP_REQUIRES_OK(ctx,
 				ctx->allocate_output("gradient", inputs_shape, &gradient));
 
@@ -202,8 +204,8 @@ public:
 		// gradient_t.setZero();
 
 		auto indexs_t = indexs->tensor<int, 3>();
-		auto in_labels_t = pdf_values->matrix<int>();
-		auto weight_t = lm_ws->matrix<float>();
+		auto in_labels_t = in_labels->matrix<int>();
+		auto weights_t = weights->matrix<float>();
 		auto statesinfo_t = statesinfo->tensor<int, 3>();
 		auto num_states_t = num_states->vec<int>();
 
@@ -212,15 +214,15 @@ public:
 		int supervision_num_sequences = batch_size;
 		int supervision_frames_per_sequence = max_time;
 
-		bool ret = ChainLossDen(indexs_t, in_labels_t, in_labels_t, 
-				weights_t, statesinfo_t, num_states_t,
+		bool ret = ChainLossDen(indexs_t.data(), in_labels_t.data(), in_labels_t.data(), 
+				weights_t.data(), statesinfo_t.data(), num_states_t.data(),
 				max_num_arcs, max_num_states,
 				supervision_weights, supervision_num_sequences, supervision_frames_per_sequence, 
 				_label_dim,
-				inputs_t,
+				inputs_t.data(),
 				max_time, batch_size, num_classes_raw,
 				_den_graph_saver,
-				gradient,
+				gradient_t.data(),
 				_l2_regularize, _leaky_hmm_coefficient, _xent_regularize);
 
 #ifdef DEBUG_SPEED
@@ -229,7 +231,7 @@ public:
 			<< (end.tv_sec - start.tv_sec)+(end.tv_usec-start.tv_usec)*1.0/1e6<< std::endl;
 #endif
 
-		bool ret_chain = hubo::ChainLoss();
+		//bool ret_chain = hubo::ChainLoss();
 
 #ifdef DEBUG_SPEED
 		gettimeofday(&end, NULL);
@@ -238,10 +240,10 @@ public:
 #endif
 	}
 private:
-	Tensor _den_indexs;
-	Tensor _den_in_labels;
-	Tensor _den_weights;
-	Tensor _den_statesinfo;
+	tf::Tensor _den_indexs;
+	tf::Tensor _den_in_labels;
+	tf::Tensor _den_weights;
+	tf::Tensor _den_statesinfo;
 	int	_den_num_states;
 	int _den_start_state;
 	int _label_dim;
@@ -272,12 +274,12 @@ private:
 };
 
 REGISTER_KERNEL_BUILDER(Name("ChainLoss")
-		.Device(DEVICE_GPU)
+		.Device(::tf::DEVICE_GPU)
 		.HostMemory("indexs")
 		.HostMemory("in_labels")
 		.HostMemory("weights")
 		.HostMemory("statesinfo")
-		.HostMemory("num_states"),
+		.HostMemory("num_states")
 		.HostMemory("objf"),
 		ChainLossOp);
 
