@@ -107,6 +107,7 @@ bool ChainLoss(const int32 *indexs, const int32 *in_labels, const int32 *out_lab
 		const int32* den_statesinfo, const int32 den_start_state,
 		const int32 den_num_states,
 		BaseFloat* gradient,
+		BaseFloat* objf,
 		float l2_regularize, float leaky_hmm_coefficient, float xent_regularize,
 		fst::VectorFst<fst::StdArc> *den_fst_test, DenominatorGraph * den_graph_test, chain::Supervision *merge_supervision_test)
 {
@@ -130,6 +131,7 @@ bool ChainLoss(const int32 *indexs, const int32 *in_labels, const int32 *out_lab
 			nnet_out, rows, batch_size, cols,
 			den_graph_saver, 
 			gradient,
+			objf,
 			l2_regularize, leaky_hmm_coefficient, xent_regularize);
 
 	return ret;
@@ -175,7 +177,9 @@ bool ChainLossDen(const int32 *indexs, const int32 *in_labels, const int32 *out_
 		int32 rows, int32 batch_size, int32 cols,
 		// denominator fst
 		DenominatorGraphSaver &den_graph_saver,
+		// output
 		BaseFloat* gradient,
+		BaseFloat* objf,
 		float l2_regularize, float leaky_hmm_coefficient, float xent_regularize)
 {
 #ifdef DEBUG_SPEED
@@ -246,9 +250,11 @@ bool ChainLossDen(const int32 *indexs, const int32 *in_labels, const int32 *out_
 		xent_deriv.Resize(nnet_output.NumRows(), nnet_output.NumCols(),
 				kUndefined);
 	
-	BaseFloat tot_objf, tot_l2_term, tot_weight;
+	BaseFloat *tot_objf = objf, 
+			  *tot_l2_term = objf+1, 
+			  *tot_weight =objf+2;
 	ComputeChainObjfAndDeriv(opts, *den_graph, merge_supervision, nnet_output, 
-			&tot_objf, &tot_l2_term, &tot_weight,
+			tot_objf, tot_l2_term, tot_weight,
 			&nnet_output_deriv, 
 			(use_xent ? &xent_deriv : NULL));
 	// loss nnet_output_deriv

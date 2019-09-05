@@ -4,9 +4,9 @@ sys.path.extend(["../","./"])
 from fst.fst_base import *
 
 def SuperFinalFst(fst):
-    '''
-    fst (input): fst
-    fst (output): only one final fst
+    '''Convert only one final fst and the final is last.
+    fst (input) : fst
+    fst (output): bool
     '''
     num_states = fst.NumStates()
     final_state_list = []

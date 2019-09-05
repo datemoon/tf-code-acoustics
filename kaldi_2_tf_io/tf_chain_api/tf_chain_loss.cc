@@ -83,22 +83,22 @@ public:
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("den_indexs", &_den_indexs));
 		OP_REQUIRES(ctx, _den_indexs.dtype() == tf::DT_INT32,
 				tf::errors::InvalidArgument("_den_indexs must be int32, got ",
-					DataTypeString(_den_indexs.dtype())));
+					tf::DataTypeString(_den_indexs.dtype())));
 
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("den_in_labels", &_den_in_labels));
 		OP_REQUIRES(ctx, _den_in_labels.dtype() == tf::DT_INT32,
 				tf::errors::InvalidArgument("_den_in_labels must be int32, got ",
-					DataTypeString(_den_in_labels.dtype())));
+					tf::DataTypeString(_den_in_labels.dtype())));
 
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("den_weights", &_den_weights));
 		OP_REQUIRES(ctx, _den_weights.dtype() == tf::DT_FLOAT,
 				tf::errors::InvalidArgument("_den_weights must be float, got ",
-					DataTypeString(_den_weights.dtype())));
+					tf::DataTypeString(_den_weights.dtype())));
 
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("den_statesinfo", &_den_statesinfo));
 		OP_REQUIRES(ctx, _den_statesinfo.dtype() == tf::DT_INT32,
 				tf::errors::InvalidArgument("_den_statesinfo must be , got ",
-					DataTypeString(_den_statesinfo.dtype())));
+					tf::DataTypeString(_den_statesinfo.dtype())));
 
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("den_num_states", &_den_num_states));
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("den_start_state", &_den_start_state));
@@ -190,6 +190,9 @@ public:
 		//OP_REQUIRES_OK(ctx, ctx->allocate_output("loss", sequence_length->shape(), &loss));
 		//auto loss_t = loss->vec<float>();
 
+		tf::Tensor* objf = nullptr;
+		OP_REQUIRES_OK(ctx, 
+				ctx->allocate_output("objf", tf::TensorShape({3}), &objf));
 		// malloc gradient space
 		tf::Tensor* gradient;
 		OP_REQUIRES_OK(ctx,
@@ -197,6 +200,7 @@ public:
 
 
 		auto inputs_t = inputs->tensor<float, 3>();
+		auto objf_t = objf->vec<float>();
 		auto gradient_t = gradient->tensor<float, 3>();
 
 		// gradient set zero
@@ -223,6 +227,7 @@ public:
 				max_time, batch_size, num_classes_raw,
 				_den_graph_saver,
 				gradient_t.data(),
+				objf_t.data(),
 				_l2_regularize, _leaky_hmm_coefficient, _xent_regularize);
 
 #ifdef DEBUG_SPEED

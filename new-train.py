@@ -23,6 +23,7 @@ from util.tensor_io import print_trainable_variables
 
 import tensorflow as tf
 from tensorflow.python import debug as tf_debug
+from fst import Fst2SparseMatrix
 
 strset=('criterion', 'feature_transfile', 'checkpoint_dir')
 class TrainClass(object):
@@ -131,6 +132,14 @@ class TrainClass(object):
                 self.statesinfo = tf.placeholder(tf.int32, [self.batch_size_cf, None, 2], name="statesinfo")
                 self.num_states = tf.placeholder(tf.int32, [self.batch_size_cf], name="num_states")
                 self.lattice = [self.indexs, self.pdf_values, self.lm_ws, self.am_ws, self.statesinfo, self.num_states]
+            elif 'chain' in self.criterion_cf:
+                self.indexs = tf.placeholder(tf.int32, [self.batch_size_cf, None, 2], name="indexs")
+                self.in_labels = tf.placeholder(tf.int32, [self.batch_size_cf, None], name="pdf_values")
+                self.weights = tf.placeholder(tf.float32, [self.batch_size_cf, None], name="lm_ws")
+                self.statesinfo = tf.placeholder(tf.int32, [self.batch_size_cf, None, 2], name="statesinfo")
+                self.num_states = tf.placeholder(tf.int32, [self.batch_size_cf], name="num_states")
+                self.fst = [self.indexs, self.in_labels, self.weights, self.statesinfo, self.num_states]
+
             self.seq_len = tf.placeholder(tf.int32,[None], name = 'seq_len')
             
             #self.learning_rate_var_tf = tf.Variable(float(self.learning_rate_cf), 
@@ -224,6 +233,17 @@ class TrainClass(object):
                         time_major = True)
                 mean_loss = mpe_mean_loss
                 loss = mpe_loss
+            elif 'chian' in self.criterion_cf:
+                den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states, den_start_state, laststatesuperfinal = Fst2SparseMatrix(self.conf_dict['den_fst'])
+                chain_mean_loss, chain_loss, label_error_rate, rnn_keep_state_op, rnn_state_zero_op = nnet_model.ChainLoss(
+                        self.X, 
+                        self.indexs, self.in_labels, self.weights, self.statesinfo, self.num_states,
+                        label_dim,
+                        den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states, 
+                        den_start_state, delete_laststatesuperfinal,
+                        l2_regularize, leaky_hmm_coefficient, xent_regularize)
+                mean_loss = chain_mean_loss
+                loss = chain_loss
 
             if self.use_sgd_cf and self.use_normal_cf: 
                 tvars = tf.trainable_variables()

@@ -91,8 +91,19 @@ class FstHeader(object):
         self._numstates = struct.unpack(str('<q'), fp.read(8))[0]
         self._numarcs = struct.unpack(str('<q'), fp.read(8))[0]
 
-    def Write(self, fp):
-        pass
+    def Write(self, fp = None):
+        if fp is None:
+            print("fst type     :" , self._fsttype)
+            print("arc type     :" , self._arctype)
+            print("version      :" , self._version)
+            print("flags        :" , self._flags)
+            print("properties   :" , self._properties)
+            print("start        :" , self._start)
+            print("numstates    :" , self._numstates)
+            print("numarcs      :" , self._numarcs)
+        else:
+            # write file
+            pass
 
     def __repr__(self):
         pri = 'fstheader parameters:\n'
@@ -184,6 +195,7 @@ class Fst(FstHeader, object):
             nstate += 1
 
     def Write(self, fp = None):
+        FstHeader.Write(self, fp)
         if fp is None:
             nstate = 0
             for state in self._states:
@@ -257,4 +269,5 @@ if __name__ == "__main__":
     fp = open(sys.argv[1],'r')
     fst.Read(fp)
     fst.Write()
+    fp.close()
 

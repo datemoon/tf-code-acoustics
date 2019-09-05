@@ -46,6 +46,12 @@ struct Arc
 class Lattice
 {
 public:
+	// indexs     : the same as arc number,recode [instate, tostate]
+	// pdf_values : the same as arc number,recode [in_label]
+	// lm_ws      : the same as arc number
+	// am_ws      : the same as arc number
+	// statesinfo : length is num_states * 2, recode [state_start_offset, narcs]
+	// num_states : state number
 	Lattice(const int32 *indexs, const int32 *pdf_values,
 			BaseFloat* lm_ws, BaseFloat* am_ws, const int32* statesinfo, 
 			int32 num_states):

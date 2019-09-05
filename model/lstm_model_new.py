@@ -11,6 +11,12 @@ try:
 except ImportError:
     print("no mmi module")
 
+try:
+    from tf_chain_py_api import chainloss
+except ImportError:
+    print("no chainloss module")
+
+
 from model.nnet_base import NnetBase
 import model.nnet_compoment as nnet_compoment
 import model.lc_blstm_rnn as lc_blstm_rnn
@@ -636,6 +642,29 @@ class LstmModel(NnetBase):
             label_error_rate = self.CalculateLabelErrorRate(last_output, labels, mask, total_frames)
 
         return ce_mean_loss, ce_loss, label_error_rate , rnn_keep_state_op, rnn_state_zero_op
+
+    def ChainLoss(self, input_feats,
+            indexs, in_lables, weights, statesinfo, num_states,
+            label_dim,
+            den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states,
+            den_start_state = 0 ,delete_laststatesuperfinal = True,
+            l2_regularize = 0.0, leaky_hmm_coefficient = 0.0, xent_regularize =0.0):
+        last_output, rnn_keep_state_op, rnn_state_zero_op = self.CreateModel(
+                input_feats, seq_len)
+        with tf.name_scope('ChainLoss'):
+            chain_loss = chainloss(input_feats,
+                    indexs, in_lables, weights, statesinfo, num_states,
+                    label_dim,
+                    den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states,
+                    den_start_state, delete_laststatesuperfinal,
+                    l2_regularize, leaky_hmm_coefficient, xent_regularize, 
+                    time_major = self.time_major_cf)
+
+            total_frames = 0
+            chain_mean_loss = chain_loss[0]
+
+        return chain_mean_loss, chain_loss, 1.0, rnn_keep_state_op, rnn_state_zero_op
+
 
     #def MmiLoss(self, input_feats, labels, seq_len, lattice, old_acoustic_scale = 0.0, acoustic_scale = 0.083, time_major = True):
     def MmiLoss(self, input_feats, labels, seq_len,

@@ -71,7 +71,9 @@ bool ChainLoss(const int32 *indexs, const int32 *in_labels, const int32 *out_lab
 		const int32 *den_out_labels, BaseFloat* den_weights, 
 		const int32* den_statesinfo, const int32 start_state,
 		const int32 den_num_states,
+		// output
 		BaseFloat* gradient,
+		BaseFloat* objf,
 		float l2_regularize, float leaky_hmm_coefficient, float xent_regularize,
 		fst::VectorFst<fst::StdArc> *den_fst_test = NULL, DenominatorGraph * den_graph_test = NULL, chain::Supervision *merge_supervision_test = NULL);
 
@@ -92,6 +94,7 @@ bool ChainLossDen(const int32 *indexs, const int32 *in_labels, const int32 *out_
 		// denominator fst
 		DenominatorGraphSaver &den_graph,
 		BaseFloat* gradient,
+		BaseFloat* objf,
 		float l2_regularize, float leaky_hmm_coefficient, float xent_regularize);
 
 }

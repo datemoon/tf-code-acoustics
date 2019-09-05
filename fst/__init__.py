@@ -7,6 +7,17 @@ from fst.lattice import *
 from fst.convert_lattice_to_sparsematrix import *
 from fst.topsort import *
 
+def Fst2SparseMatrix(fst_file):
+    fst = Fst()
+    fp = open(fst_file, 'r')
+    fst.Read(fp)
+    fp.close()
+    laststatesuperfinal = SuperFinalFst(fst)
+    indexs, in_labels, weights, statesinfo, start_state, shape = ConvertFstToSparseMatrix(fst)
+    num_state = shape[0]
+
+    return indexs, in_labels, weights, statesinfo, num_state, start_state, laststatesuperfinal
+
 # realize lattice package io
 
 def LatticeMaxTime(lattice):
@@ -14,6 +25,11 @@ def LatticeMaxTime(lattice):
     return max_time
 
 def ReadLatticeScp(scp_line):
+    '''
+    read kaldi lattice
+    in     : lat.scp 
+    out    : key, max_time, standered lattice ( super final lattice and top sort )
+    '''
     lattice = Lattice()
     key = lattice.ReadScp(scp_line)
     # convert standered lattice
