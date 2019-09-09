@@ -176,7 +176,7 @@ def ReadIndexVector(fd, binary=True):
     else:
         pass
 
-    return vec
+    return size, vec
 
 class NnetIo(object):
     '''
@@ -187,11 +187,21 @@ class NnetIo(object):
         self.name = None
         self.indexes = None
         self.features = None
+        self.size = None
+
+    def GetFeat(self):
+        return self.features
+    
+    def GetIndex(self):
+        return self.indexes
+
+    def GetSize(self):
+        return self.size
 
     def Read(self, fd):
         ExpectToken(fd, "<NnetIo>")
         self.name = read_token(fd)
-        self.indexes = ReadIndexVector(fd)
+        self.size, self.indexes = ReadIndexVector(fd)
         self.features = read_matrix_or_vector(fd, endian='<',
                 return_size=False, read_binary_flag=False)
         ExpectToken(fd, "</NnetIo>")
@@ -239,7 +249,16 @@ class NnetChainSupervision(object):
         self.indexes = None
         self.supervision = None
         self.deriv_weights = None
+        self.size = None
 
+    def GetFst(self):
+        return self.supervision.fst
+
+    def GetIndex(self):
+        return self.indexes
+
+    def GetSize(self):
+        return self.size
 
     def Read(self, fd):
 	    '''
@@ -247,7 +266,7 @@ class NnetChainSupervision(object):
 	    '''
 	    ExpectToken(fd, "<NnetChainSup>")
 	    self.name = read_token(fd)
-	    self.indexes = ReadIndexVector(fd)
+	    self.size, self.indexes = ReadIndexVector(fd)
 	    self.supervision = Supervision()
 	    self.supervision.Read(fd)
 	
@@ -293,11 +312,29 @@ class NnetChainExample(object):
         self.outputs = []
         self.key = None
 
-    def Read(self, fd):
-        self.key = ReadKey(fd)
-        if self.key in [None, '']:
-            # the end of file
-            return False
+    def GetKey(self):
+        return self.key
+
+    def Input(self):
+        return self.inputs
+
+    def Output(self):
+        return self.outputs
+
+    def ReadScp(self, scp_line):
+        utt_id, path_pos = scp_line.replace('\n','').split(' ')
+        path, pos = path_pos.split(':')
+        self.key = utt_id
+        with open(path, 'rb') as fd:
+            fd.seek(int(pos),0)
+            return self.Read(fd, read_key=False)
+
+    def Read(self, fd, read_key=True):
+        if read_key:
+            self.key = ReadKey(fd)
+            if self.key in [None, '']:
+                # the end of file
+                return False
         binary = []
         InitKaldiInputStream(fd, binary)
         if binary[0] is False:
@@ -340,21 +377,75 @@ class NnetChainExample(object):
         else:
             pass
 
-    
-if __name__ == '__main__':
-    fd = smart_open(sys.argv[1],'rb')
-    while True:
-        chain_example = NnetChainExample()
-        ret = chain_example.Read(fd)
-        if ret is False:
-            break
-        print('read ' + chain_example.key + ' ok.')
-        chain_example.Write()
+def ReadEgsScp(scp_line):
+    chain_example = NnetChainExample()
+    chain_example.ReadScp(scp_line)
 
+    return 
+
+def ProcessEgsFeat(feat, in_indexes, out_indexes, splice_info, offset = 0):
+    '''
+    feat: must be pooling splice
+    '''
+    const_add = 2
+    skip = out_indexes[1][1]-out_indexes[0][1]
+    assert offset < skip
+    
+    in_frames = len(in_indexes)
+    assert len(feat) == in_frames
+
+    out_frames = len(out_indexes)
+
+    in_start = in_indexes[0][1]
+    in_end = in_indexes[-1][1]
+
+    out_start = out_indexes[0][1]
+    out_end = out_indexes[-1][1]
+
+    left = splice_info[0]
+    right = splice_info[-1]
+    
+    # calcluate start frame
+    start_numframes = int(int(abs(in_start)-int(const_add/2) - abs(left) - abs(out_start)) / skip)
+    end_numframes = int(int(abs(in_end) - int(const_add/2) - abs(right) -abs(out_end))/ skip)
+
+    total_frames = start_numframes + end_numframes + out_frames
+
+    start_id = abs(in_start - out_start + skip * start_numframes)
+    end_id = abs(out_end) + end_numframes * skip - in_start 
+    assert end_id == start_id + (total_frames-1) * skip 
+
+    ret_feat = feat[start_id : end_id + 1 : skip]
+    assert len(ret_feat) == total_frames
+    #print("inframes:",in_frames)
+    #print("out_frames:",out_frames)
+    #print("total_frames:",total_frames)
+    #assert total_frames-out_frames==12 or total_frames-out_frames==25
+    return ret_feat
+
+
+
+if __name__ == '__main__':
+#    fd = smart_open(sys.argv[1],'rb')
+#    while True:
+#        chain_example = NnetChainExample()
+#        ret = chain_example.Read(fd)
+#        if ret is False:
+#            break
+#        print('read ' + chain_example.key + ' ok.')
+        #chain_example.Write()
+
+    for line in open(sys.argv[1],'rb'):
+        chain_example = NnetChainExample()
+        chain_example.ReadScp(line)
+        print('read ' + chain_example.key + ' ok.')
+        inputs = chain_example.Input()
+        outputs = chain_example.Output()
+        for iput,oput in zip(inputs,outputs):
+            feat = iput.GetFeat()
+            isize = iput.GetSize()
+            assert isize == np.shape(feat)[0]
+            feat = ProcessEgsFeat(feat, iput.GetIndex(), oput.GetIndex(),[-2,-1,0,1,2],0)
+        #chain_example.Write()
     print('read NnetChainExample end')
 
-
-    
-    
-    
-    

@@ -18,6 +18,71 @@ def Fst2SparseMatrix(fst_file):
 
     return indexs, in_labels, weights, statesinfo, num_state, start_state, laststatesuperfinal
 
+
+def PackageFst(fst_list):
+    max_time = 0
+    max_arcs = 0
+    max_states = 0
+    # lattice struct
+    indexs_info_list = []
+    inlabels_list = []
+    weights_list = []
+    statesinfo_list = []
+    statenum_list = []
+    # convert all lattice
+    for ifst in fst_list:
+        indexs, in_labels, weights, statesinfo, start_state, shape = ConvertFstToSparseMatrix(ifst)
+#        key, max_t, lattice = ReadLatticeScp(scp_line)
+#        time_list.append(max_t)
+
+#        indexs_info, pdf_values , lmweight_values, amweight_values, statesinfo, shape = ConvertLatticeToSparseMatrix(lattice)
+#        if map_pdf_phone is not None:
+#            pdf_values = AliToPdf(map_pdf_phone, pdf_values, offset = 1)
+        arc_n = np.shape(indexs)[0]
+        state_n = shape[0]
+        assert np.shape(statesinfo)[0] == state_n
+        if np.shape(in_labels)[0] > max_arcs:
+            max_arcs = arc_n
+   #     if max_time < max_t:
+   #         max_time = max_t
+        if max_states < shape[0]:
+            max_states = state_n
+
+        indexs_info_list.append(indexs)
+        inlabels_list.append(in_labels)
+        weights_list.append(weights)
+        statesinfo_list.append(statesinfo)
+        statenum_list.append(shape[0])
+    # package all sparse fst
+
+    indexs_info_list = ListZeroFill(indexs_info_list, max_arcs)
+    inlabels_list = ListZeroFill(inlabels_list, max_arcs)
+    weights_list = ListZeroFill(weights_list, max_arcs)
+    statesinfo_list = ListZeroFill(statesinfo_list, max_states)
+    
+    return [indexs_info_list, inlabels_list, weights_list, statesinfo_list, statenum_list]
+    
+
+
+
+if __name__ == '__main__':
+    batch = 0
+    in_lat_list = []
+    map_pdf_phone = None
+    if len(sys.argv) == 3:
+        map_pdf_phone = LoadMapPdfAndPhone(sys.argv[2])
+    with open(sys.argv[1],'r') as fp:
+        for line in fp:
+            if batch != 0 and batch % 32 == 0:
+                indexs_info_list, pdf_values_list, lmweight_values_list, amweight_values_list, statesinfo_list, statenum_list, time_list = PackageLattice(in_lat_list, map_pdf_phone)
+                in_lat_list = []
+                batch = 0
+                print(indexs_info_list.shape, pdf_values_list.shape, lmweight_values_list.shape, amweight_values_list.shape, statesinfo_list.shape, len(statenum_list), time_list)
+                print(pdf_values_list)
+            in_lat_list.append(line.strip())
+            batch += 1
+
+
 # realize lattice package io
 
 def LatticeMaxTime(lattice):

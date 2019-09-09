@@ -644,15 +644,18 @@ class LstmModel(NnetBase):
         return ce_mean_loss, ce_loss, label_error_rate , rnn_keep_state_op, rnn_state_zero_op
 
     def ChainLoss(self, input_feats,
-            indexs, in_lables, weights, statesinfo, num_states,
+            indexs, in_lables, weights, statesinfo, num_states, frames,
             label_dim,
             den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states,
             den_start_state = 0 ,delete_laststatesuperfinal = True,
             l2_regularize = 0.0, leaky_hmm_coefficient = 0.0, xent_regularize =0.0):
         last_output, rnn_keep_state_op, rnn_state_zero_op = self.CreateModel(
                 input_feats, seq_len)
+        
+        last_output = last_output[-1 * frames:]
+
         with tf.name_scope('ChainLoss'):
-            chain_loss = chainloss(input_feats,
+            chain_loss = chainloss(last_output,
                     indexs, in_lables, weights, statesinfo, num_states,
                     label_dim,
                     den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states,

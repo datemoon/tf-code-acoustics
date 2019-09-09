@@ -266,7 +266,8 @@ def read_next_utt(next_scp_line):
     # Load as ascii
     else:
         array, size = read_ascii_mat(ark_read_buffer, return_size=True)
-
+    
+    ark_read_buffer.close()
     return utt_id, array
 
 if __name__ == '__main__':

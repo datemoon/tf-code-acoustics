@@ -44,6 +44,12 @@ class Splice(object):
         self.data_ = None
         self.key_ = None
 
+    def GetTypeStr(self):
+        return 'Splice'
+
+    def GetSplice(self):
+        return self.data_
+
     def Propagate(self, input_data):
         # now self.data_ must be intervalles 1
         for x in range(len(self.data_)-1):
@@ -88,6 +94,9 @@ class AddShift(object):
         self.data_ = None
         self.key_ = None
     
+    def GetTypeStr(self):
+        return 'AddShift'
+    
     def Propagate(self, input_data):
         return input_data + self.data_
 
@@ -106,6 +115,9 @@ class Rescale(object):
         self.output_dim_ = output_dim
         self.data_ = None
         self.key_ = None
+    
+    def GetTypeStr(self):
+        return 'Rescale'
 
     def Propagate(self, input_data):
         return np.multiply(self.data_, input_data)
@@ -151,6 +163,12 @@ class FeatureTransform(object):
         for cal in self.trans_:
             res = cal.Propagate(res)
         return res
+
+    def GetSplice(self):
+        for cal in self.trans_:
+            if cal.GetTypeStr() == 'Splice':
+                return cal.GetSplice()
+        return [0]
 
     def GetOutDim(self):
         return self.trans_[-1].GetOutDim()

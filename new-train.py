@@ -138,6 +138,7 @@ class TrainClass(object):
                 self.weights = tf.placeholder(tf.float32, [self.batch_size_cf, None], name="lm_ws")
                 self.statesinfo = tf.placeholder(tf.int32, [self.batch_size_cf, None, 2], name="statesinfo")
                 self.num_states = tf.placeholder(tf.int32, [self.batch_size_cf], name="num_states")
+                self.length = tf.placeholder(tf.int32, [1], name="length")
                 self.fst = [self.indexs, self.in_labels, self.weights, self.statesinfo, self.num_states]
 
             self.seq_len = tf.placeholder(tf.int32,[None], name = 'seq_len')
@@ -235,9 +236,10 @@ class TrainClass(object):
                 loss = mpe_loss
             elif 'chian' in self.criterion_cf:
                 den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states, den_start_state, laststatesuperfinal = Fst2SparseMatrix(self.conf_dict['den_fst'])
+                label_dim = self.conf_dict['label_dim']
                 chain_mean_loss, chain_loss, label_error_rate, rnn_keep_state_op, rnn_state_zero_op = nnet_model.ChainLoss(
                         self.X, 
-                        self.indexs, self.in_labels, self.weights, self.statesinfo, self.num_states,
+                        self.indexs, self.in_labels, self.weights, self.statesinfo, self.num_states, self.length,
                         label_dim,
                         den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states, 
                         den_start_state, delete_laststatesuperfinal,
@@ -534,6 +536,10 @@ class TrainClass(object):
                 feed_dict = {self.X : feat, self.Y : label, self.seq_len : length,
                         self.indexs : lat_list[0], self.pdf_values : lat_list[1], self.lm_ws : lat_list[2],
                         self.am_ws : lat_list[3], self.statesinfo : lat_list[4], self.num_states : lat_list[5]}
+            elif 'chain' in self.criterion_cf:
+                feed_dict = {self.X : feat, self.length : length, 
+                        self.indexs : lat_list[0], self.in_labels : lat_list[1], self.weights : lat_list[2],
+                        self.statesinfo : lat_list[3], self.num_states : lat_list[4]}
             else:
                 feed_dict = {self.X : feat, self.Y : label, self.seq_len : length}
 
