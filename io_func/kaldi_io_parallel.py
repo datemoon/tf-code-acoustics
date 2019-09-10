@@ -286,8 +286,12 @@ class KaldiDataReadParallel(object):
         self.criterion = None
         self.feature_transform = None
 
-        # self.egs_dict = { key1: [[name],[feat],[fst]], ...}
+        # self.egs_dict = { key1: index, ...}
         self.egs_dict = {}
+        # self.egs_queue = [[queue, ...],[size, ...]]
+        self.egs_queue = [[],[]]
+        self.max_egs_kind = 5
+
         self.input_thread = []
         
     def Initialize(self, conf_dict = None, scp_file = None, label = None, feature_transform = None, criterion = None, lat_scp_file = None):
@@ -332,9 +336,18 @@ class KaldiDataReadParallel(object):
         self.input_queue = multiprocessing.Queue(self.queue_cache)
 
         # shared memery
+        if 'chain' in self.criterion:
+            # self.egs_dict = { key1: index, ...}
+            self.egs_dict = multiprocessing.Manager().dict()
+            #self.max_egs_kind = multiprocessing.Value(ctypes.c_int, self.max_egs_kind, lock=True)
+            # self.egs_queue = [[queue, ...],[size, ...]]
+            for i in range(self.max_egs_kind):
+                self.egs_queue[0].append(multiprocessing.Value(ctypes.c_int, 0, lock=True))
+                self.egs_queue[1].append(multiprocessing.Queue(maxsize=0))
+        
         self.package_feat_ali = multiprocessing.Manager().list([])
         self.read_offset = multiprocessing.Value(ctypes.c_int, 0, lock=True)
-        self.package_end=multiprocessing.Manager().list([False])
+        self.package_end = multiprocessing.Manager().list([False])
 
         # read feature transform parameter
         if feature_transform != None:
@@ -365,6 +378,7 @@ class KaldiDataReadParallel(object):
         #if self.shuffle is True:
         #    random.shuffle(self.package_feat_ali)
         return self.output_feat_dim
+    
 
     # package input feats.scp, label and lattice.
     # save index to self.package_feat_ali
@@ -410,7 +424,7 @@ class KaldiDataReadParallel(object):
             self.skip_offset = skip_offset % self.skip_frame
             self.read_offset.value = 0
             self.io_end_times = 0
-            #self.ThreadPackageInput()
+            self.ThreadPackageInput()
         if shuffle is True or self.shuffle is True:
             self.shuffle = True
             self.input_lock.acquire()
@@ -423,21 +437,24 @@ class KaldiDataReadParallel(object):
         logging.info('Reset and no shuffle package_feat_ali')
 
     def PackBatchEgs(self):
+        name_list = []
+        feat_mat = []
+        fst_list = []
         self.input_lock.acquire()
-        for i in self.egs_dict.keys():
-            egs = self.egs_dict[i]
-            if len(egs[0]) >= self.batch_size:
-                # return one batch
-                name_list = egs[0][0:self.batch_size]
-                feat_mat = egs[1][0:self.batch_size]
-                fst_list = egs[2][0:self.batch_size]
-                self.egs_dict[i][0] = egs[0][self.batch_size:]
-                self.egs_dict[i][1] = egs[1][self.batch_size:]
-                self.egs_dict[i][2] = egs[2][self.batch_size:]
+        egs_len = len(self.egs_queue[0])
+        for i in range(egs_len):
+            if self.egs_queue[0][i].value >= self.batch_size:
+                #print("package one batch")
+                for n in range(self.batch_size):
+                    [name, feat, ofst] = self.egs_queue[1][i].get()
+                    name_list.append(name)
+                    feat_mat.append(feat)
+                    fst_list.append(ofst)
+                self.egs_queue[0][i].value -= self.batch_size
                 self.input_lock.release()
                 max_frame_num = len(feat_mat[0])
                 fst_list = PackageFst(fst_list)
-                return [feat_mat, None, None, max_frame_num, fst_list]
+                return feat_mat, None, None, max_frame_num, fst_list
 
         self.input_lock.release()
         return None
@@ -445,7 +462,9 @@ class KaldiDataReadParallel(object):
     # load chain egs
     def LoadOnePackageEgs(self):
         while True:
+            self.input_lock.acquire()
             if self.read_offset.value >= len(self.package_feat_ali):
+                self.input_lock.release()
                 packfst = self.PackBatchEgs()
                 if packfst is not None:
                     return packfst
@@ -455,10 +474,9 @@ class KaldiDataReadParallel(object):
                     return None, None, None, None, None
                 else:
                     self.input_lock.release()
-                    time.sleep(0.05)
+                    time.sleep(0.01)
                     continue
             else:
-                self.input_lock.acquire()
                 package = self.package_feat_ali[self.read_offset.value]
                 self.read_offset.value += 1
                 self.input_lock.release()
@@ -489,14 +507,20 @@ class KaldiDataReadParallel(object):
                         def EgsKey(isize, osize):
                             return str(isize) + '-' + str(osize)
                         egskey = EgsKey(isize, osize)
+                        #print('name',name)
                         self.input_lock.acquire()
                         if egskey in self.egs_dict.keys():
-                            self.egs_dict[egskey][0].append(name)
-                            self.egs_dict[egskey][1].append(feat)
-                            self.egs_dict[egskey][2].append(ofst)
+                            index = self.egs_dict[egskey]
+                            self.egs_queue[0][index].value += 1
+                            self.egs_queue[1][index].put([name, feat, ofst])
                             self.input_lock.release()
                         else:
-                            self.egs_dict[egskey] = [[name], [feat], [ofst]]
+                            index = len(self.egs_dict.keys())
+                            self.egs_dict[egskey] = index
+                            assert index < self.max_egs_kind
+                            self.egs_queue[0][index].value += 1
+                            self.egs_queue[1][index].put([name, feat, ofst])
+
                             self.input_lock.release()
                     # end one NnetChainExample
 
@@ -588,8 +612,14 @@ class KaldiDataReadParallel(object):
                 if 'ctc' in self.criterion:
                     label = sparse_tuple_from(label)
             self.input_queue.put((feat,label,length,lattice))
+            
+            if feat is not None:
+                print(numpy.shape(feat))
+            else:
+                print(feat)
             if feat is None:
                 break
+        print('end LoadBatch')
 
     # because efficiency, so should use multiprocessing
     def ThreadPackageInput(self):
@@ -603,8 +633,18 @@ class KaldiDataReadParallel(object):
             logging.info('ProcessPackageInput start')
             thr.start()
     
+    def ClearEgsQueue(self):
+        self.input_lock.acquire()
+        #for i in range(len(self.egs_queue[0])):
+        for i in range(len(self.egs_queue[0])):
+            for n in range(self.egs_queue[0][i].value):
+                self.egs_queue[1][i].get()
+            self.egs_queue[0][i].value = 0
+        self.input_lock.release()
+    
     # must be join io thread
     def JoinInput(self):
+        self.ClearEgsQueue()
         for i in range(self.io_thread_num):
             self.input_thread[i].join()
         self.input_thread = []
@@ -686,6 +726,9 @@ class KaldiDataReadParallel(object):
         if feat_mat.__len__() == self.batch_size:
             feat_mat_nstream = numpy.hstack(feat_mat).reshape(-1, self.batch_size, self.output_dim)
             return feat_mat_nstream , None, None, fst_list
+        else:
+            return None, None, None, None
+
 
     # load batch_size features and labels, it's whole sentence train.
     def LoadNextNstreams(self):
@@ -810,7 +853,7 @@ if __name__ == '__main__':
             'skip_offset': 0,
             'shuffle': False,
             'queue_cache':100,
-            'io_thread_num':1}
+            'io_thread_num':5}
 
     feat_trans_file = '../conf/final.feature_transform'
     feat_trans = FeatureTransform()
@@ -819,21 +862,36 @@ if __name__ == '__main__':
     logging.getLogger().setLevel('INFO')
     io_read = KaldiDataReadParallel()
     
-    io_read.Initialize(conf_dict, scp_file=path+'cegs.1.scp',
+    #io_read.Initialize(conf_dict, scp_file=path+'cegs.1.scp',
+    io_read.Initialize(conf_dict, scp_file=path+'../test.1.scp',
             feature_transform = feat_trans, criterion = 'chain')
     start = time.time()
     io_read.Reset(shuffle = False)
     batch_num = 0
     while True:
         start1 = time.time()
-        #feat_mat, label, length, lat_list = io_read.GetInput()
-        feat_mat, label, length, _, lat_list = io_read.LoadOnePackageEgs()
+        feat_mat, label, length, lat_list = io_read.GetInput()
+        #feat_mat, label, length, _, lat_list = io_read.LoadOnePackageEgs()
         end1 = time.time()
         if feat_mat is None:
             break
-        for i in range(numpy.shape(feat_mat)[0]):
-            logging.info(str(numpy.shape(feat_mat[i]))+str(length[i]))
-        logging.info('batch number: '+str(batch_num) + ' ' + str(numpy.shape(feat_mat))+str(numpy.shape(label))+str(numpy.shape(length)))
+        logging.info('batch number: '+str(batch_num) + ' ' + str(numpy.shape(feat_mat)))
+        logging.info("time:"+str(end1-start1))
+        batch_num += 1
+    end = time.time()
+    io_read.JoinInput()
+    logging.info("all process time:"+str(end-start))
+    start = time.time()
+    io_read.Reset(shuffle = True)
+    batch_num = 0
+    while True:
+        start1 = time.time()
+        feat_mat, label, length, lat_list = io_read.GetInput()
+        #feat_mat, label, length, _, lat_list = io_read.LoadOnePackageEgs()
+        end1 = time.time()
+        if feat_mat is None:
+            break
+        logging.info('batch number: '+str(batch_num) + ' ' + str(numpy.shape(feat_mat)))
         logging.info("time:"+str(end1-start1))
         batch_num += 1
     end = time.time()
