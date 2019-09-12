@@ -73,7 +73,19 @@ def parse_args(args_list):
             default=100,
             help='input data cache' '(int, default = 100)')
 
+    parser.add_argument('--label-dim', dest='label_dim', type=int, default=-1,
+            help='nnet out dim(int, default = -1)')
+
+    parser.add_argument('--den-fst', dest='den_fst', type=str, default=None,
+            help='denominator fst file(int, default = None)')
+
     # features parameters
+    parser.add_argument('--io-thread-num', dest='io_thread_num', type=int, default=1,
+            help='io threads number(int, default = 1)')
+    
+    parser.add_argument('--max-egs-kind', dest='max_egs_kind', type=int, default=1,
+            help='max egs kind(int, default = 5)')
+
     parser.add_argument('--tdnn-start-frames', dest='tdnn_start_frames',type=int,
             default=0,
             help='tdnn start add frames' '(int, default = 0)')
@@ -340,7 +352,7 @@ def parse_args(args_list):
         raise 'input scp file it\'s None'
 
     if args.tr_label is None:
-        raise 'input label it\'s None'
+        logging.info('input label it\'s None')
     
     return args.__dict__
 

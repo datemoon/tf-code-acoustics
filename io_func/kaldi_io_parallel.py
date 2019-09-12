@@ -37,7 +37,7 @@ from io_func import smart_open, skip_frame, sparse_tuple_from
 from feat_process.feature_transform import FeatureTransform
 from io_func.matio import read_next_utt
 from fst import *
-from kaldi_io_egs import NnetChainExample,ProcessEgsFeat
+from io_func.kaldi_io_egs import NnetChainExample,ProcessEgsFeat
 
 
 # read the alignment of all the utterances and keep the alignment in CPU memory.
@@ -440,21 +440,23 @@ class KaldiDataReadParallel(object):
         name_list = []
         feat_mat = []
         fst_list = []
+        osize = 0
         self.input_lock.acquire()
         egs_len = len(self.egs_queue[0])
         for i in range(egs_len):
             if self.egs_queue[0][i].value >= self.batch_size:
                 #print("package one batch")
                 for n in range(self.batch_size):
-                    [name, feat, ofst] = self.egs_queue[1][i].get()
+                    [name, feat, ofst, osize] = self.egs_queue[1][i].get()
                     name_list.append(name)
                     feat_mat.append(feat)
                     fst_list.append(ofst)
                 self.egs_queue[0][i].value -= self.batch_size
                 self.input_lock.release()
                 max_frame_num = len(feat_mat[0])
+                valid_length = osize
                 fst_list = PackageFst(fst_list)
-                return feat_mat, None, None, max_frame_num, fst_list
+                return feat_mat, None, valid_length, max_frame_num, fst_list
 
         self.input_lock.release()
         return None
@@ -512,14 +514,14 @@ class KaldiDataReadParallel(object):
                         if egskey in self.egs_dict.keys():
                             index = self.egs_dict[egskey]
                             self.egs_queue[0][index].value += 1
-                            self.egs_queue[1][index].put([name, feat, ofst])
+                            self.egs_queue[1][index].put([name, feat, ofst, osize])
                             self.input_lock.release()
                         else:
                             index = len(self.egs_dict.keys())
                             self.egs_dict[egskey] = index
                             assert index < self.max_egs_kind
                             self.egs_queue[0][index].value += 1
-                            self.egs_queue[1][index].put([name, feat, ofst])
+                            self.egs_queue[1][index].put([name, feat, ofst, osize])
 
                             self.input_lock.release()
                     # end one NnetChainExample
@@ -719,13 +721,13 @@ class KaldiDataReadParallel(object):
 
     # load chain egs batch data
     def ChainLoadNextNstreams(self):
-        feat_mat, _, _, max_frame_num, fst_list = self.LoadOnePackageEgs()
+        feat_mat, _, valid_length, max_frame_num, fst_list = self.LoadOnePackageEgs()
 
         if feat_mat is None:
             return None, None, None, None
         if feat_mat.__len__() == self.batch_size:
             feat_mat_nstream = numpy.hstack(feat_mat).reshape(-1, self.batch_size, self.output_dim)
-            return feat_mat_nstream , None, None, fst_list
+            return feat_mat_nstream , None, valid_length, fst_list
         else:
             return None, None, None, None
 
@@ -849,11 +851,11 @@ class KaldiDataReadParallel(object):
 
 if __name__ == '__main__':
     path = '/search/speech/hubo/git/tf-code-acoustics/chain_source/egs-vecfst/'
-    conf_dict = { 'batch_size' :10,
+    conf_dict = { 'batch_size' :64,
             'skip_offset': 0,
             'shuffle': False,
             'queue_cache':100,
-            'io_thread_num':5}
+            'io_thread_num':20}
 
     feat_trans_file = '../conf/final.feature_transform'
     feat_trans = FeatureTransform()
@@ -862,8 +864,8 @@ if __name__ == '__main__':
     logging.getLogger().setLevel('INFO')
     io_read = KaldiDataReadParallel()
     
-    #io_read.Initialize(conf_dict, scp_file=path+'cegs.1.scp',
-    io_read.Initialize(conf_dict, scp_file=path+'../test.1.scp',
+    io_read.Initialize(conf_dict, scp_file=path+'cegs.1.scp',
+    #io_read.Initialize(conf_dict, scp_file=path+'../test.1.scp',
             feature_transform = feat_trans, criterion = 'chain')
     start = time.time()
     io_read.Reset(shuffle = False)

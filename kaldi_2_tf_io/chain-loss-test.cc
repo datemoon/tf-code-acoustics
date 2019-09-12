@@ -136,6 +136,7 @@ int main(int argc, char *argv[])
 		CuMatrix<BaseFloat> nnet_output_deriv_tf(nnet_output.NumRows(),
 				nnet_output.NumCols(), 
 				kSetZero, kStrideEqualNumCols);
+		BaseFloat  objf[3];
 
 		hubo::ChainLoss(indexs, in_labels, out_labels, weights, stateinfo, &num_states,
 				num_arc, num_states, 
@@ -146,6 +147,7 @@ int main(int argc, char *argv[])
 				den_indexs, den_in_labels, den_out_labels, den_weights, den_stateinfo, den_start_state,
 				den_num_states,
 				nnet_output_deriv_tf.Data(),
+				objf,
 				chain_config.l2_regularize, chain_config.leaky_hmm_coefficient, chain_config.xent_regularize);
 
 		Matrix<BaseFloat> tf_output_deriv(nnet_output_deriv_tf);
@@ -185,6 +187,7 @@ int main(int argc, char *argv[])
 					nnet_output_batch.NumCols(), 
 					kSetZero, kStrideEqualNumCols);
 		
+			BaseFloat  objf[3];
 			hubo::ChainLoss(indexs, in_labels, out_labels, weights, stateinfo, batch_num_states,
 					num_arc, num_states, 
 					chain_eg.outputs[0].supervision.weight, chain_eg.outputs[0].supervision.num_sequences,
@@ -194,6 +197,7 @@ int main(int argc, char *argv[])
 					den_indexs, den_in_labels, den_out_labels, den_weights, den_stateinfo, den_start_state,
 					den_num_states,
 					nnet_output_deriv_batch_tf.Data(),
+					objf,
 					chain_config.l2_regularize, chain_config.leaky_hmm_coefficient, chain_config.xent_regularize);
 
 			Matrix<BaseFloat> tf_batch_output_deriv(nnet_output_deriv_batch_tf);

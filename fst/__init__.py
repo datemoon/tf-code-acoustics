@@ -9,7 +9,7 @@ from fst.topsort import *
 
 def Fst2SparseMatrix(fst_file):
     fst = Fst()
-    fp = open(fst_file, 'r')
+    fp = open(fst_file, 'rb')
     fst.Read(fp)
     fp.close()
     laststatesuperfinal = SuperFinalFst(fst)
@@ -31,6 +31,7 @@ def PackageFst(fst_list):
     statenum_list = []
     # convert all lattice
     for ifst in fst_list:
+        laststatesuperfinal = SuperFinalFst(ifst)
         indexs, in_labels, weights, statesinfo, start_state, shape = ConvertFstToSparseMatrix(ifst)
 #        key, max_t, lattice = ReadLatticeScp(scp_line)
 #        time_list.append(max_t)

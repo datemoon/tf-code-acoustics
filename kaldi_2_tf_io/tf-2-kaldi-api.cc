@@ -25,7 +25,10 @@ void DenominatorGraphSaver::Init(const int32 *indexs, const int32 *in_labels,
 	fst::ConvertSparseFstToOpenFst(indexs, in_labels,
 			out_labels, weights, statesinfo, num_states, &den_fst, 
 			delete_laststatesuperfinal, den_start_state );
+	std::cout << "---delete_laststatesuperfinal:" <<delete_laststatesuperfinal << std::endl;
+	//fst::PrintStandardFst(den_fst);
 	_den_graph = new DenominatorGraph(den_fst, num_pdfs);
+	std::cout << "DenominatorGraphSaver ok" << std::endl;
 }
 
 bool EqualDenGraph(DenominatorGraph &den_graph1, DenominatorGraph &den_graph2)
@@ -157,7 +160,7 @@ bool BatchFst(const int32 *indexs, const int32 *in_labels, const int32 *out_labe
 		const BaseFloat* cur_weights = weights + i * max_num_arcs;
 		fst::VectorFst<fst::StdArc> fst;
 		bool ret = fst::ConvertSparseFstToOpenFst(cur_indexs, cur_in_labels, 
-				cur_out_labels, cur_weights, cur_statesinfo, cur_num_states, &fst, true, 0);
+				cur_out_labels, cur_weights, cur_statesinfo, cur_num_states, &fst, false, 0);
 		if (ret != true)
 		{
 			return false;
@@ -187,11 +190,13 @@ bool ChainLossDen(const int32 *indexs, const int32 *in_labels, const int32 *out_
 	struct timeval end;
 	gettimeofday(&start, NULL);
 #endif
+	std::cout << "---start ChainLossDen calculate" << std::endl;
 	DenominatorGraph *den_graph = den_graph_saver.GetDenGraph();
 	// convert fst
 	std::vector<fst::VectorFst<fst::StdArc> > fst_v;
 	bool ret = BatchFst(indexs, in_labels, out_labels, weights, statesinfo, num_states, 
 			max_num_arcs, max_num_states, batch_size, &fst_v);
+	std::cout << "---BatchFst ok" << std::endl;
 	if(ret == false)
 	{
 		std::cerr << "batch fst failed." << std::endl;
@@ -211,6 +216,13 @@ bool ChainLossDen(const int32 *indexs, const int32 *in_labels, const int32 *out_
 		supervision.label_dim = supervision_label_dim;
 		supervision.fst = fst_v[i];
 		input_supervision_point[i] = &input_supervision[i];
+		std::cout << "Supervision info:"
+			<< "\nweight              :" << supervision.weight
+			<< "\nnum_sequences       :" << supervision.num_sequences
+			<< "\nframes_per_sequence :" << supervision.frames_per_sequence
+			<< "\nlabel_dim           :" << supervision.label_dim << std::endl;
+		std::cout << i << " fst: " << std::endl;
+		fst::PrintStandardFst(supervision.fst);
 	}
 	chain::Supervision output_supervision;
 	MergeSupervision(input_supervision_point,
@@ -218,6 +230,7 @@ bool ChainLossDen(const int32 *indexs, const int32 *in_labels, const int32 *out_
 
 	chain::Supervision merge_supervision;
 	merge_supervision.Swap(&output_supervision);
+	std::cout << "---MergeSupervision ok" << std::endl;
 	// remove eps
 	//fst::RmEpsilon(&merge_supervision.fst);
 	//fst::TopSort(&merge_supervision.fst);
@@ -253,12 +266,21 @@ bool ChainLossDen(const int32 *indexs, const int32 *in_labels, const int32 *out_
 	BaseFloat *tot_objf = objf, 
 			  *tot_l2_term = objf+1, 
 			  *tot_weight =objf+2;
+	std::cout << "---Data prepare ok" << std::endl;
+	std::cout << "supervisoin info:" 
+		<< "\nweight:             "<< merge_supervision.weight 
+		<< "\nnum_sequences:      " << merge_supervision.num_sequences 
+		<< "\nframes_per_sequence:" << merge_supervision.frames_per_sequence 
+		<< "\nlabel_dim:          " << merge_supervision.label_dim <<  std::endl;
+	std::cout << "nnet_output info:(row,col)" << nnet_output.NumRows() << "," 
+		<< nnet_output.NumCols() << std::endl;
 	ComputeChainObjfAndDeriv(opts, *den_graph, merge_supervision, nnet_output, 
 			tot_objf, tot_l2_term, tot_weight,
 			&nnet_output_deriv, 
 			(use_xent ? &xent_deriv : NULL));
 	// loss nnet_output_deriv
 
+	std::cout << "end ChainLossDen calculate" << std::endl;
 	return true;
 }
 

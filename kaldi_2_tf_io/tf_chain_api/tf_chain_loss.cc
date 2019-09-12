@@ -104,6 +104,7 @@ public:
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("den_start_state", &_den_start_state));
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("label_dim", &_label_dim));
 
+		OP_REQUIRES_OK(ctx, ctx->GetAttr("delete_laststatesuperfinal", &_delete_laststatesuperfinal));
 
 		// loss config
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("l2_regularize", &_l2_regularize));
@@ -215,7 +216,7 @@ public:
 
 		// every sequences must be equal length.
 		float supervision_weights = 1.0;
-		int supervision_num_sequences = batch_size;
+		int supervision_num_sequences = 1.0;
 		int supervision_frames_per_sequence = max_time;
 
 		bool ret = ChainLossDen(indexs_t.data(), in_labels_t.data(), in_labels_t.data(), 
@@ -279,6 +280,10 @@ private:
 };
 
 REGISTER_KERNEL_BUILDER(Name("ChainLoss")
+		.Device(::tf::DEVICE_CPU),
+		ChainLossOp);
+
+/*REGISTER_KERNEL_BUILDER(Name("ChainLoss")
 		.Device(::tf::DEVICE_GPU)
 		.HostMemory("indexs")
 		.HostMemory("in_labels")
@@ -287,7 +292,7 @@ REGISTER_KERNEL_BUILDER(Name("ChainLoss")
 		.HostMemory("num_states")
 		.HostMemory("objf"),
 		ChainLossOp);
-
+*/
 } // namespace
 
 

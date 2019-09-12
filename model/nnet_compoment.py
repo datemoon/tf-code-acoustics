@@ -71,6 +71,7 @@ class SpliceLayer(object):
         self.input_dim = 0
         self.name = 'SpliceLayer'
         self.time_major = True
+        self.padding = False
         for key in self.__dict__:
             if key in conf_opt.keys():
                 if key in strset:
@@ -129,13 +130,13 @@ class SpliceLayer(object):
         #return output[start_nframe:-end_nframe]
 
     # b=tf.pad(input_feats,[[1,1],[0,0],[0,0]],"SYMMETRIC")
-    def __call__(self, input_feats, add_head_tail = True):
+    def __call__(self, input_feats):
         '''
         in advance at head and tail add frames, 
         so extract need features
         '''
         # no padding
-        if add_head_tail is True:
+        if self.padding is False:
             output = None
             start_nframe = -1 * self.splice[0]
             end_nframe = self.splice[-1]

@@ -7,7 +7,7 @@ lib_file = imp.find_module('chainloss', __path__)[1]
 _warpchain = tf.load_op_library(lib_file)
 
 def chainloss(inputs, 
-        indexs, in_lables, weights, statesinfo, num_states,
+        indexs, in_labels, weights, statesinfo, num_states,
         label_dim, 
         den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states,
         den_start_state = 0 ,delete_laststatesuperfinal = True,

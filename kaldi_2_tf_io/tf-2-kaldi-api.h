@@ -28,6 +28,10 @@ public:
 		delete _den_graph;
 	}
 
+	void Info()
+	{
+		;
+	}
 private:
 	DenominatorGraph *_den_graph;
 };

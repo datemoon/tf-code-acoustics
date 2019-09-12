@@ -6,7 +6,7 @@ import sys
 
 sys.path.extend(["../","./"])
 from fst.fst_base import *
-from matio import read_token, read_matrix_or_vector
+from io_func.matio import read_token, read_matrix_or_vector
 from io_func import smart_open
 import numpy as np
 
