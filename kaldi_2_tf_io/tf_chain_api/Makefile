@@ -35,4 +35,26 @@ ADDLIBS = ../chain-loss.a \
 
 include $(KALDIDIR)/makefiles/default_rules.mk
 
+LDFLAGS_STATIC=$(OPENFSTLDFLAGS) -rdynamic $(CUDA_LDFLAGS)
+MKLLIB_STATIC=-Wl,--start-group $(MKLLIB)/libmkl_intel_lp64.a $(MKLLIB)/libmkl_core.a $(MKLLIB)/libmkl_sequential.a -Wl,--end-group -ldl -lpthread -lm
+LDLIBS_STATIC=$(OPENFSTLIBS) -lm -lpthread -ldl $(CUDA_LDLIBS) -L/usr/lib/python3.4/site-packages/tensorflow -ltensorflow_framework
+
+STATIC_LIB=lib$(LIBNAME)-static.so
+.PHONY:
+static:$(OBJFILES)
+	g++ -shared -o $(STATIC_LIB) $(LDFLAGS_STATIC) $^ $(ADDLIBS) $(MKLLIB_STATIC) $(LDLIBS_STATIC)
+
+#LDFLAGS_STATIC=$(OPENFSTLDFLAGS) -rdynamic $(CUDA_LDFLAGS)
+#LDLIBS_STATIC=$(OPENFSTLIBS) -lm -lpthread -ldl $(CUDA_LDLIBS) -L/usr/lib/python3.4/site-packages/tensorflow -ltensorflow_framework
+
+#STATIC_LIB=lib$(LIBNAME)-static.so
+#.PHONY:
+#static:$(OBJFILES)
+#	g++ -shared -o $(STATIC_LIB) $(LDFLAGS_STATIC) $^ $(ADDLIBS) $(LDLIBS_STATIC)
+
+#STATIC_LIB=lib$(LIBNAME)-static.so
+#LDLIBS_STATIC = -L/usr/lib/python3.4/site-packages/tensorflow -ltensorflow_framework 
+#.PHONY:
+#static:$(OBJFILES) ../libchain-loss-static.so
+#	g++ -shared -o $(STATIC_LIB) -rdynamic -Wl,-rpath=/search/speech/hubo/git/tf-code-acoustics/kaldi_2_tf_io/tf_chain_api $^ $(LDLIBS_STATIC)
 

@@ -1,0 +1,13 @@
+export LD_LIBRARY_PATH=$(python3 -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_compile_flags()))')
+
+
+configure hubo.mk
+
+make
+make static
+python3 setup.py install
+
+#verify
+python3
+import tf_chain_py_api
+

@@ -1,6 +1,5 @@
 
 all:
-
 EXTRA_CXXFLAGS += -Wno-sign-compare
 include hubo.mk
 include $(KALDIDIR)/kaldi.mk
@@ -13,11 +12,12 @@ CXXFLAGS += -I$(KALDIDIR)
 #-DDEBUG_SPEED
 #-DDEBUG_PRINT
 
-OBJFILES = fst-convert-openfst.o tf-2-kaldi-api.o
+TESTFILES = chain-loss-test
+
+OBJFILES = fst-convert-openfst.o tf-2-kaldi-api.o chain-loss-test.o
 
 LIBNAME = chain-loss
 
-TESTFILES = chain-loss-test
 
 ADDLIBS = $(KALDIDIR)/nnet3/kaldi-nnet3.a $(KALDIDIR)/chain/kaldi-chain.a $(KALDIDIR)/cudamatrix/kaldi-cudamatrix.a \
 		  $(KALDIDIR)/decoder/kaldi-decoder.a $(KALDIDIR)/lat/kaldi-lat.a \
@@ -26,5 +26,18 @@ ADDLIBS = $(KALDIDIR)/nnet3/kaldi-nnet3.a $(KALDIDIR)/chain/kaldi-chain.a $(KALD
 		  $(KALDIDIR)/tree/kaldi-tree.a $(KALDIDIR)/util/kaldi-util.a $(KALDIDIR)/matrix/kaldi-matrix.a \
 		  $(KALDIDIR)/base/kaldi-base.a 
 
+
+
 include $(KALDIDIR)/makefiles/default_rules.mk
+
+LDFLAGS_STATIC=$(OPENFSTLDFLAGS) -rdynamic $(CUDA_LDFLAGS)
+MKLLIB_STATIC=-Wl,--start-group $(MKLLIB)/libmkl_intel_lp64.a $(MKLLIB)/libmkl_core.a $(MKLLIB)/libmkl_sequential.a -Wl,--end-group -ldl -lpthread -lm
+LDLIBS_STATIC=$(OPENFSTLIBS) -lm -lpthread -ldl $(CUDA_LDLIBS)
+
+STATIC_LIB=lib$(LIBNAME)-static.so
+.PHONY:
+static:fst-convert-openfst.o tf-2-kaldi-api.o
+	g++ -shared -o $(STATIC_LIB) $(LDFLAGS_STATIC) $^ $(ADDLIBS) $(MKLLIB_STATIC) $(LDLIBS_STATIC)
+
+
 

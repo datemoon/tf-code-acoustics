@@ -55,9 +55,6 @@ if tf.__version__ >= '1.4':
     if os.path.exists(os.path.join(tf_src_dir, 'libtensorflow_framework.so')):
         extra_link_args = ['-L' + tf.sysconfig.get_lib(), '-ltensorflow_framework']
 
-if tf.__version__ >= '1.4':
-    include_dirs += [tf_include + '/../../external/nsync/public']
-
 # add kaldi config
 
 # kaldi fst mkl
@@ -79,7 +76,7 @@ extra_compile_args += ['-Wno-sign-compare', '-Wall', '-Wno-sign-compare',
         '-DHAVE_EXECINFO_H=1', '-DHAVE_CXXABI_H', '-DHAVE_MKL', '-isystem ' + fstroot + 'include' ] 
 
 # add mkl link extra args
-extra_link_args += [ '-Wl,-rpath=' + mklroot + '/lib/intel64']
+#extra_link_args += [ '-Wl,-rpath=' + mklroot + '/lib/intel64']
         
 
 # add fst and cuda link
@@ -88,23 +85,17 @@ extra_link_args += ['-Wl,--no-undefined', '-Wl,--as-needed',
         '-Wl,--no-whole-archive',
         '-Wl,-rpath=' + fstroot + '/lib', '-rdynamic']
 
-extra_link_args += ['-Wl,-rpath,' + cudalib, '-Wl,-rpath=' + kaldi_src_dir + '/lib']
+mkllib = mklroot + '/lib/intel64/'
+#extra_link_args += [ '-Wl,--start-group ' + mkllib +'/libmkl_intel_lp64.a ' + mkllib + 'libmkl_core.a ' + mkllib + 'libmkl_sequential.a -Wl,--end-group -ldl -lpthread -lm', '-Wl,-rpath,' + cudalib, '-Wl,-rpath=' + kaldi_src_dir + '/lib']
+extra_link_args += [ '-Wl,-rpath,' + cudalib, '-Wl,-rpath=' + kaldi_src_dir + '/lib']
 
 include_dirs += kaldi_include + cuda_include + fst_include
 
-shared_libraries = ['chain-loss', 
-        'kaldi-nnet3', 'kaldi-chain',
-        'kaldi-cudamatrix', 'kaldi-decoder',
-        'kaldi-lat', 'kaldi-lat', 
-        'kaldi-fstext', 'kaldi-hmm', 
-        'kaldi-transform', 'kaldi-gmm',
-        'kaldi-tree', 'kaldi-util',
-        'kaldi-matrix', 'kaldi-base',
+shared_libraries = ['chain-loss-static', 
         'fst',
-        'cublas', 'cusparse', 'cudart', 'curand', 'cufft', 'nvToolsExt', 
-        'mkl_intel_lp64', 'mkl_core', 'mkl_sequential']
+        'cublas', 'cusparse', 'cudart', 'curand', 'cufft', 'nvToolsExt']
 
-library_dirs = [chain_path] + [kaldi_src_dir+'/lib'] + [fstroot + '/lib'] + [mklroot + '/lib/intel64'] + [cudalib]
+library_dirs = [chain_path] + [fstroot + '/lib'] + [cudalib]
 
 class build_tf_ext(orig_build_ext):
     def build_extensions(self):
