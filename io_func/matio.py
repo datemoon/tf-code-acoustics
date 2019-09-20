@@ -9,6 +9,7 @@ import struct
 import sys
 import warnings
 import logging
+import time
 
 import numpy as np
 from six import binary_type
@@ -21,13 +22,13 @@ from io_func import smart_open
 
 PY3 = sys.version_info[0] == 3
 
-def read_token(fd, flag=[' ']):
+def read_token(fd, flag=set(' ')):
     """Read token
     Args:
         fd (file):
     """
     # add end flag ''
-    flag.append('') 
+    flag.add('') 
     token = []
     while True:
         char = fd.read(1)
@@ -237,7 +238,7 @@ def read_ark(ark_file, endian='<', return_position=False):
             break
         size += len(key) + 1
         array, _size = read_kaldi(fd, str(endian), return_size=True)
-        print(key, array)
+        #print(key, array)
         size += _size
 
 

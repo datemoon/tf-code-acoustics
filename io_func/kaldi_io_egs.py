@@ -9,9 +9,10 @@ from fst.fst_base import *
 from io_func.matio import read_token, read_matrix_or_vector
 from io_func import smart_open
 import numpy as np
+from six import binary_type
 
 def ReadKey(fd):
-    key = read_token(fd, [' ', '\t', '\n'])
+    key = read_token(fd, set((' ', '\t', '\n')) )
     return key
 
 def ExpectToken(fd, token):
@@ -113,7 +114,7 @@ class Supervision(object):
         
         ExpectToken(fd, "<End2End>")
         self.e2e = ReadBasicChar(fd, 'bool')
-        
+
         if self.e2e == b'F':
             # read fst
             if binary:
@@ -122,7 +123,7 @@ class Supervision(object):
             pass
         else:
             pass
-        
+
         ExpectToken(fd, "</Supervision>")
 
     def Write(self, fd = None):
@@ -261,25 +262,24 @@ class NnetChainSupervision(object):
         return self.size
 
     def Read(self, fd):
-	    '''
-	    Read ChainSupervision data
-	    '''
-	    ExpectToken(fd, "<NnetChainSup>")
-	    self.name = read_token(fd)
-	    self.size, self.indexes = ReadIndexVector(fd)
-	    self.supervision = Supervision()
-	    self.supervision.Read(fd)
-	
-	    token = read_token(fd)
-	
-	    if token != "</NnetChainSup>":
-	        assert token == "<DW>" or token == "<DW2>"
-	        if token == "<DW>":
-	            self.deriv_weights = ReadVectorAsChar(fd, 1)
-	        else:
-	            self.deriv_weights = ReadVectorAsFloat(fd)
-	
-	        ExpectToken(fd, "</NnetChainSup>")
+        '''
+        Read ChainSupervision data
+        '''
+        ExpectToken(fd, "<NnetChainSup>")
+        self.name = read_token(fd)
+        self.size, self.indexes = ReadIndexVector(fd)
+        self.supervision = Supervision()
+        self.supervision.Read(fd)
+        token = read_token(fd)
+        
+        if token != "</NnetChainSup>":
+            assert token == "<DW>" or token == "<DW2>"
+            if token == "<DW>":
+                self.deriv_weights = ReadVectorAsChar(fd, 1)
+            else:
+                self.deriv_weights = ReadVectorAsFloat(fd)
+                
+        ExpectToken(fd, "</NnetChainSup>")
 
     def Write(self, fd = None):
         if fd is None:
