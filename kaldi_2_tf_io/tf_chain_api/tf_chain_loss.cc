@@ -237,13 +237,6 @@ public:
 			<< (end.tv_sec - start.tv_sec)+(end.tv_usec-start.tv_usec)*1.0/1e6<< std::endl;
 #endif
 
-		//bool ret_chain = hubo::ChainLoss();
-
-#ifdef DEBUG_SPEED
-		gettimeofday(&end, NULL);
-		std::cout << "DEBUG_SPEED : " << __FILE__ << " : mmi_loss_op calculate mmi time:"
-			<< (end.tv_sec - start.tv_sec)+(end.tv_usec-start.tv_usec)*1.0/1e6<< std::endl;
-#endif
 	}
 private:
 	tf::Tensor _den_indexs;

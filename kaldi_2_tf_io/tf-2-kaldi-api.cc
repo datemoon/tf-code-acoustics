@@ -25,14 +25,14 @@ void DenominatorGraphSaver::Init(const int32 *indexs, const int32 *in_labels,
 	fst::ConvertSparseFstToOpenFst(indexs, in_labels,
 			out_labels, weights, statesinfo, num_states, &den_fst, 
 			delete_laststatesuperfinal, den_start_state );
-	std::cout << "---delete_laststatesuperfinal:" <<delete_laststatesuperfinal << std::endl;
+	//std::cout << "---delete_laststatesuperfinal:" <<delete_laststatesuperfinal << std::endl;
 	//fst::PrintStandardFst(den_fst);
 #if HAVE_CUDA==1
 	CuDevice::Instantiate().SelectGpuId("yes");
 	CuDevice::Instantiate().AllowMultithreading();
 #endif
 	_den_graph = new DenominatorGraph(den_fst, num_pdfs);
-	std::cout << "DenominatorGraphSaver ok" << std::endl;
+	//std::cout << "DenominatorGraphSaver ok" << std::endl;
 }
 
 bool EqualDenGraph(DenominatorGraph &den_graph1, DenominatorGraph &den_graph2)
@@ -200,18 +200,18 @@ bool ChainLossDen(const int32 *indexs, const int32 *in_labels, const int32 *out_
 	gettimeofday(&start, NULL);
 	std::cout << "l2_regularize: " << l2_regularize << " leaky_hmm_coefficient: " << leaky_hmm_coefficient
 		<< " xent_regularize: " << xent_regularize << std::endl;
+	std::cout << "---start ChainLossDen calculate" << std::endl;
 #endif
 //#if HAVE_CUDA==1
 //	CuDevice::Instantiate().SelectGpuId("yes");
 //	//CuDevice::Instantiate().AllowMultithreading();
 //#endif
-	std::cout << "---start ChainLossDen calculate" << std::endl;
 	DenominatorGraph *den_graph = den_graph_saver.GetDenGraph();
 	// convert fst
 	std::vector<fst::VectorFst<fst::StdArc> > fst_v;
 	bool ret = BatchFst(indexs, in_labels, out_labels, weights, statesinfo, num_states, 
 			max_num_arcs, max_num_states, batch_size, &fst_v);
-	std::cout << "---BatchFst ok" << std::endl;
+	//std::cout << "---BatchFst ok" << std::endl;
 	if(ret == false)
 	{
 		std::cerr << "batch fst failed." << std::endl;
@@ -322,7 +322,7 @@ bool ChainLossDen(const int32 *indexs, const int32 *in_labels, const int32 *out_
 		// at this point, xent_deriv is posteriors derived from the numerator
 		// computation.  note, xent_objf has a factor of '.supervision.weight'
 		BaseFloat xent_objf = TraceMatMat(xent_output, xent_deriv, kTrans);
-		std::cout << "xent_objf:" << xent_objf << std::endl;
+		//std::cout << "xent_objf:" << xent_objf << std::endl;
 	}
 	//if (opts_.apply_deriv_weights && sup.deriv_weights.Dim() != 0)
 	//{
@@ -339,8 +339,8 @@ bool ChainLossDen(const int32 *indexs, const int32 *in_labels, const int32 *out_
 	gettimeofday(&end, NULL);
 	std::cout << "DEBUG_SPEED : " << __FILE__ << " : xent_deriv time:"
 		<< (end.tv_sec - start.tv_sec)+(end.tv_usec-start.tv_usec)*1.0/1e6<< std::endl;
-#endif
 	std::cout << "end ChainLossDen calculate" << std::endl;
+#endif
 	return true;
 }
 
