@@ -26,7 +26,7 @@ int main(int argc, char *argv[])
 
 	int32 online_ivector_period = 0;
 	//bool apply_exp = false, use_priors = false;
-	std::string use_gpu = "yes";
+	std::string use_gpu = "no";
 
 	Vector<BaseFloat> priors;
 	po.Read(argc, argv);
@@ -38,10 +38,30 @@ int main(int argc, char *argv[])
 		tf_matrix_wspecifier = po.GetArg(5),
 		tf_batch_matrix_wspecifier = po.GetArg(6);
 	
+	//CuDevice::Instantiate().SelectGpuId(use_gpu);
 	// den fst
 	fst::StdVectorFst den_fst;
 	ReadFstKaldi(den_fst_rxfilename, &den_fst);
 
+#define TEST_TF
+#ifdef TEST_TF
+		int32 *den_indexs = NULL;
+		int32 *den_in_labels = NULL;
+		int32 *den_out_labels = NULL;
+		BaseFloat *den_weights = NULL;
+		int32 *den_stateinfo = NULL;
+		int32 den_start_state = 0;
+		int32 den_num_states = fst::ConvertKaldiLatticeToSparseLattice(den_fst, &den_indexs, &den_in_labels, &den_out_labels,
+				&den_weights, &den_stateinfo, &den_start_state);
+		bool delete_laststatesuperfinal = true;
+		
+		hubo::DenominatorGraphSaver den_graph_saver;
+		den_graph_saver.Init(den_indexs, den_in_labels, den_out_labels,
+				den_weights, den_stateinfo,
+				den_num_states, 3766,
+				delete_laststatesuperfinal, den_start_state);
+
+#endif
 	//fst::RmEpsilon(&den_fst);
 	fst::PrintStandardFst(den_fst);
 	chain::DenominatorGraph den_graph(den_fst, 3766);
@@ -110,16 +130,7 @@ int main(int argc, char *argv[])
 				&nnet_output_deriv,
 				(use_xent ? &xent_deriv : NULL));
 
-#define TEST_TF
 #ifdef TEST_TF
-		int32 *den_indexs = NULL;
-		int32 *den_in_labels = NULL;
-		int32 *den_out_labels = NULL;
-		BaseFloat *den_weights = NULL;
-		int32 *den_stateinfo = NULL;
-		int32 den_start_state = 0;
-		int32 den_num_states = fst::ConvertKaldiLatticeToSparseLattice(den_fst, &den_indexs, &den_in_labels, &den_out_labels,
-				&den_weights, &den_stateinfo, &den_start_state);
 		int32 *indexs = NULL;
 		int32 *in_labels = NULL;
 		int32 *out_labels = NULL;
@@ -138,6 +149,18 @@ int main(int argc, char *argv[])
 				kSetZero, kStrideEqualNumCols);
 		BaseFloat  objf[3];
 
+		hubo::ChainLossDen(indexs, in_labels, out_labels, weights, stateinfo, &num_states,
+				num_arc, num_states,
+				chain_eg.outputs[0].supervision.weight, chain_eg.outputs[0].supervision.num_sequences,
+				chain_eg.outputs[0].supervision.frames_per_sequence, chain_eg.outputs[0].supervision.label_dim,
+				nnet_output_gpu_tmp.Data(),
+				nnet_output_gpu_tmp.NumRows(), 1, nnet_output_gpu_tmp.NumCols(),
+				den_graph_saver,
+				nnet_output_deriv_tf.Data(),
+				objf,
+				chain_config.l2_regularize, chain_config.leaky_hmm_coefficient, chain_config.xent_regularize);
+
+/*
 		hubo::ChainLoss(indexs, in_labels, out_labels, weights, stateinfo, &num_states,
 				num_arc, num_states, 
 				chain_eg.outputs[0].supervision.weight, chain_eg.outputs[0].supervision.num_sequences,
@@ -149,7 +172,7 @@ int main(int argc, char *argv[])
 				nnet_output_deriv_tf.Data(),
 				objf,
 				chain_config.l2_regularize, chain_config.leaky_hmm_coefficient, chain_config.xent_regularize);
-
+*/
 		Matrix<BaseFloat> tf_output_deriv(nnet_output_deriv_tf);
 		tf_matrix_writer.Write("aaa", tf_output_deriv);
 
@@ -188,14 +211,15 @@ int main(int argc, char *argv[])
 					kSetZero, kStrideEqualNumCols);
 		
 			BaseFloat  objf[3];
-			hubo::ChainLoss(indexs, in_labels, out_labels, weights, stateinfo, batch_num_states,
+			hubo::ChainLossDen(indexs, in_labels, out_labels, weights, stateinfo, batch_num_states,
 					num_arc, num_states, 
 					chain_eg.outputs[0].supervision.weight, chain_eg.outputs[0].supervision.num_sequences,
 					chain_eg.outputs[0].supervision.frames_per_sequence, chain_eg.outputs[0].supervision.label_dim, 
 					nnet_output_gpu_batch_tmp.Data(), 
 					nnet_output_gpu_batch_tmp.NumRows()/batch_size, batch_size, nnet_output_gpu_batch_tmp.NumCols(),
-					den_indexs, den_in_labels, den_out_labels, den_weights, den_stateinfo, den_start_state,
-					den_num_states,
+//					den_indexs, den_in_labels, den_out_labels, den_weights, den_stateinfo, den_start_state,
+//					den_num_states,
+					den_graph_saver,
 					nnet_output_deriv_batch_tf.Data(),
 					objf,
 					chain_config.l2_regularize, chain_config.leaky_hmm_coefficient, chain_config.xent_regularize);
@@ -205,11 +229,11 @@ int main(int argc, char *argv[])
 
 
 		}
-
+		CuDevice::Instantiate().PrintProfile();
 #endif
-
 		Matrix<BaseFloat> output_deriv(nnet_output_deriv);
 		matrix_writer.Write("aaa", output_deriv);
+
 		return 0;
 
 	}

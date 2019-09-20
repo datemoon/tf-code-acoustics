@@ -238,8 +238,9 @@ class TrainClass(object):
                 den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states, den_start_state, laststatesuperfinal = Fst2SparseMatrix(self.conf_dict['den_fst'])
                 label_dim = self.conf_dict['label_dim']
                 delete_laststatesuperfinal = True
-                l2_regularize = 0.0
-                leaky_hmm_coefficient = 1.0e-05
+                l2_regularize = 0.00005
+                leaky_hmm_coefficient = 0.1
+                #xent_regularize = 0.025
                 xent_regularize = 0.0
                 #den_indexs = tf.convert_to_tensor(den_indexs, name='den_indexs')
                 #den_in_labels = tf.convert_to_tensor(den_in_labels, name='den_in_labels')
@@ -312,7 +313,7 @@ class TrainClass(object):
             logging.info('total parameters : %d' % self.total_variables)
             
             # set gpu option
-            gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=1.0)
+            gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.5)
 
             # session config
             sess_config = tf.ConfigProto(intra_op_parallelism_threads=self.num_threads_cf,

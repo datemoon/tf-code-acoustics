@@ -283,7 +283,7 @@ REGISTER_KERNEL_BUILDER(Name("ChainLoss")
 		.Device(::tf::DEVICE_CPU),
 		ChainLossOp);
 
-/*REGISTER_KERNEL_BUILDER(Name("ChainLoss")
+REGISTER_KERNEL_BUILDER(Name("ChainLoss")
 		.Device(::tf::DEVICE_GPU)
 		.HostMemory("indexs")
 		.HostMemory("in_labels")
@@ -292,7 +292,7 @@ REGISTER_KERNEL_BUILDER(Name("ChainLoss")
 		.HostMemory("num_states")
 		.HostMemory("objf"),
 		ChainLossOp);
-*/
+
 } // namespace
 
 

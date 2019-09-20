@@ -96,8 +96,12 @@ VectorFst<StdArc> ConvertSparseFstToOpenFst(const int32 *indexs, const int32 *in
 	fst.AddState();
 
 	StateId laststatesuperfinal = 0;
+	bool delete_superfinal = false;
 	if(delete_laststatesuperfinal == true)
+	{
+		delete_superfinal = true;
 		laststatesuperfinal = num_states-1;
+	}
 	for(int s=0; s<num_states; s++)
 	{
 		int s_start = statesinfo[2*s+0];
@@ -116,21 +120,28 @@ VectorFst<StdArc> ConvertSparseFstToOpenFst(const int32 *indexs, const int32 *in
 			int in_label = in_labels[cur_offset];
 			int out_label = out_labels[cur_offset];
 			Weight w = (Weight)(weight);
-			if(delete_laststatesuperfinal == true && 
-					tostate == laststatesuperfinal)
-			{
+			if(delete_laststatesuperfinal == true 
+					&& tostate == laststatesuperfinal 
+					&& in_label != 0
+					&& out_label != 0)
+			{ // delete this arc and delete superfinal
 				fst.SetFinal(s, w);
 			}
 			else
-			{
+			{ // add src
 				fst.AddArc(instate, StdArc(in_label, out_label, w, tostate));
+				if(tostate == laststatesuperfinal)
+					delete_superfinal = false;
 			}
 		}
-		if(delete_laststatesuperfinal != true && s == num_states-1)
+		if(s == num_states-1)
 		{
-			if(s >= fst.NumStates())
-				fst.AddState();
-			fst.SetFinal(s, Weight::One());
+			if(delete_laststatesuperfinal != true || delete_superfinal == false)
+			{
+				if(s >= fst.NumStates())
+					fst.AddState();
+				fst.SetFinal(s, Weight::One());
+			}
 		}
 	}
 	fst.SetStart(start_state);
