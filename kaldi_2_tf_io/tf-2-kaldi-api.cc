@@ -245,6 +245,8 @@ bool ChainLossDen(const int32 *indexs, const int32 *in_labels, const int32 *out_
 
 	chain::Supervision merge_supervision;
 	merge_supervision.Swap(&output_supervision);
+	//std::cout << "merge_supervision:" << std::endl;
+	//fst::PrintStandardFst(merge_supervision.fst);
 	//std::cout << "---MergeSupervision ok" << std::endl;
 	// remove eps
 	//fst::RmEpsilon(&merge_supervision.fst);
@@ -332,6 +334,193 @@ bool ChainLossDen(const int32 *indexs, const int32 *in_labels, const int32 *out_
 		xent_deriv.Scale(opts.xent_regularize);
 		// if use xent add loss
 		nnet_output_deriv.AddMat(1.0, xent_deriv);
+	}
+	nnet_output_deriv.Scale(-1.0);
+
+#ifdef DEBUG_SPEED
+	gettimeofday(&end, NULL);
+	std::cout << "DEBUG_SPEED : " << __FILE__ << " : xent_deriv time:"
+		<< (end.tv_sec - start.tv_sec)+(end.tv_usec-start.tv_usec)*1.0/1e6<< std::endl;
+	std::cout << "end ChainLossDen calculate" << std::endl;
+	std::string matrix_wspecifier("ark,t:test-chainloss.txt");
+	BaseFloatMatrixWriter matrix_writer(matrix_wspecifier);
+	Matrix<BaseFloat> _output_deriv(nnet_output_deriv);
+	matrix_writer.Write("aaa", _output_deriv);
+	BaseFloatMatrixWriter matrix_writer_in("ark,t:nnet-output.txt");
+	Matrix<BaseFloat> nnet_o(nnet_output);
+	matrix_writer_in.Write("aaa", nnet_o);
+#endif
+	return true;
+}
+
+bool ChainXentLossDen(const int32 *indexs, const int32 *in_labels, const int32 *out_labels,
+		const BaseFloat* weights, const int32* statesinfo,
+		const int32 *num_states,
+		const int32 max_num_arcs, const int32 max_num_states,
+		const BaseFloat supervision_weights, const int32 supervision_num_sequences, 
+		const int32 supervision_frames_per_sequence, const int32 supervision_label_dim, 
+		const BaseFloat* nnet_out,
+		const BaseFloat* xent_nnet_out,
+		int32 rows, int32 batch_size, int32 cols,
+		// denominator fst
+		DenominatorGraphSaver &den_graph_saver,
+		// output
+		BaseFloat* gradient,
+		BaseFloat* gradient_xent,
+		BaseFloat* objf,
+		float l2_regularize, float leaky_hmm_coefficient, float xent_regularize)
+{
+#ifdef DEBUG_SPEED
+	struct timeval start;
+	struct timeval end;
+	gettimeofday(&start, NULL);
+	std::cout << "l2_regularize: " << l2_regularize << " leaky_hmm_coefficient: " << leaky_hmm_coefficient
+		<< " xent_regularize: " << xent_regularize << std::endl;
+	std::cout << "---start ChainLossDen calculate" << std::endl;
+#endif
+//#if HAVE_CUDA==1
+//	CuDevice::Instantiate().SelectGpuId("yes");
+//	//CuDevice::Instantiate().AllowMultithreading();
+//#endif
+	DenominatorGraph *den_graph = den_graph_saver.GetDenGraph();
+	// convert fst
+	std::vector<fst::VectorFst<fst::StdArc> > fst_v;
+	bool ret = BatchFst(indexs, in_labels, out_labels, weights, statesinfo, num_states, 
+			max_num_arcs, max_num_states, batch_size, &fst_v);
+	//std::cout << "---BatchFst ok" << std::endl;
+	if(ret == false)
+	{
+		std::cerr << "batch fst failed." << std::endl;
+		return ret;
+	}
+	// supervision merge
+	std::vector<const chain::Supervision*> input_supervision_point;
+	input_supervision_point.resize(batch_size);
+	std::vector<chain::Supervision> input_supervision;
+	input_supervision.resize(batch_size);
+	for(int32 i=0; i < batch_size; i++)
+	{
+		chain::Supervision &supervision = input_supervision[i];
+		supervision.weight = supervision_weights;
+		supervision.num_sequences = supervision_num_sequences;
+		supervision.frames_per_sequence = supervision_frames_per_sequence;
+		supervision.label_dim = supervision_label_dim;
+		supervision.fst = fst_v[i];
+		input_supervision_point[i] = &input_supervision[i];
+		//std::cout << "Supervision info:"
+		//	<< "\nweight              :" << supervision.weight
+		//	<< "\nnum_sequences       :" << supervision.num_sequences
+		//	<< "\nframes_per_sequence :" << supervision.frames_per_sequence
+		//	<< "\nlabel_dim           :" << supervision.label_dim << std::endl;
+		//std::cout << i << " fst: " << std::endl;
+		//fst::PrintStandardFst(supervision.fst);
+	}
+	chain::Supervision output_supervision;
+	MergeSupervision(input_supervision_point,
+			&output_supervision);
+
+	chain::Supervision merge_supervision;
+	merge_supervision.Swap(&output_supervision);
+	//std::cout << "---MergeSupervision ok" << std::endl;
+	// remove eps
+	//fst::RmEpsilon(&merge_supervision.fst);
+	//fst::TopSort(&merge_supervision.fst);
+
+	// supervision ok
+#ifdef DEBUG_SPEED
+	gettimeofday(&end, NULL);
+	std::cout << "DEBUG_SPEED : " << __FILE__ << " : convert fst time:"
+		<< (end.tv_sec - start.tv_sec)+(end.tv_usec-start.tv_usec)*1.0/1e6<< std::endl;
+	gettimeofday(&start, NULL);
+#endif
+	ChainTrainingOptions opts;
+	
+	opts.l2_regularize = l2_regularize;
+	opts.leaky_hmm_coefficient = leaky_hmm_coefficient;
+	opts.xent_regularize = xent_regularize;
+	
+	Supervision supervision;
+	// copy nnet_out to nnet_output
+	CuSubMatrix<BaseFloat> nnet_output(nnet_out, rows * batch_size, cols, cols);
+
+	CuSubMatrix<BaseFloat> nnet_output_deriv(gradient,
+			nnet_output.NumRows(),
+			nnet_output.NumCols(),
+			nnet_output.NumCols());
+
+	bool use_xent = (opts.xent_regularize != 0.0);
+	//std::string xent_name = "output" + "-xent";  // typically "output-xent".
+	CuSubMatrix<BaseFloat> xent_deriv_out(gradient_xent,
+			nnet_output.NumRows(),
+			nnet_output.NumCols(),
+			nnet_output.NumCols());
+	CuMatrix<BaseFloat> xent_deriv;
+	//if (use_xent)
+	//	xent_deriv.Resize(nnet_output.NumRows(), nnet_output.NumCols(),
+	//			kUndefined);
+	
+	BaseFloat *tot_objf = objf,
+			  *tot_l2_term = objf+1, 
+			  *tot_weight =objf+2,
+			  *xent_objf = objf+3;
+#ifdef DEBUG_SPEED
+	gettimeofday(&end, NULL);
+	std::cout << "DEBUG_SPEED : " << __FILE__ << " : nnet time:"
+		<< (end.tv_sec - start.tv_sec)+(end.tv_usec-start.tv_usec)*1.0/1e6<< std::endl;
+	gettimeofday(&start, NULL);
+#endif
+	//std::cout << "---Data prepare ok" << std::endl;
+	//std::cout << "supervisoin info:" 
+	//	<< "\nweight:             "<< merge_supervision.weight 
+	//	<< "\nnum_sequences:      " << merge_supervision.num_sequences 
+	//	<< "\nframes_per_sequence:" << merge_supervision.frames_per_sequence 
+	//	<< "\nlabel_dim:          " << merge_supervision.label_dim <<  std::endl;
+	//std::cout << "nnet_output info:(row,col)" << nnet_output.NumRows() << "," 
+	//	<< nnet_output.NumCols() << std::endl;
+	ComputeChainObjfAndDeriv(opts, *den_graph, merge_supervision, nnet_output, 
+			tot_objf, tot_l2_term, tot_weight,
+			&nnet_output_deriv, 
+			(use_xent ? &xent_deriv : NULL));
+	*tot_objf = *tot_objf / (*tot_weight);
+	// loss nnet_output_deriv
+#ifdef DEBUG_SPEED
+	gettimeofday(&end, NULL);
+	std::cout << "DEBUG_SPEED : " << __FILE__ << " : chain loss time:"
+		<< (end.tv_sec - start.tv_sec)+(end.tv_usec-start.tv_usec)*1.0/1e6<< std::endl;
+	std::cout << "tot_objf:" << *tot_objf
+		<< "\ntot_l2_term:" << *tot_l2_term
+		<< "\ntot_weight:" << *tot_weight << std::endl;
+	gettimeofday(&start, NULL);
+#endif
+	if (use_xent) 
+	{
+		// this block computes the cross-entropy objective.
+		CuSubMatrix<BaseFloat> xent_output(xent_nnet_out, rows * batch_size, cols, cols);
+		//CuMatrix<BaseFloat> xent_output;
+		//xent_output.Resize(nnet_output.NumRows(), nnet_output.NumCols(),
+		//		kUndefined);
+		//xent_output.LogSoftMaxPerRow(nnet_output);
+
+		// at this point, xent_deriv is posteriors derived from the numerator
+		// computation.  note, xent_objf has a factor of '.supervision.weight'
+		*xent_objf = TraceMatMat(xent_output, xent_deriv, kTrans);
+		std::cout << "xent_objf:" << *xent_objf << std::endl;
+	}
+	//if (opts_.apply_deriv_weights && sup.deriv_weights.Dim() != 0)
+	/*if(merge_supervision.deriv_weights.Dim() != 0)
+	{
+		CuVector<BaseFloat> cu_deriv_weights(merge_supervision.deriv_weights);
+		nnet_output_deriv.MulRowsVec(cu_deriv_weights);
+		if(use_xent)
+			xent_deriv.MulRowsVec(cu_deriv_weights);
+	}*/
+	if (use_xent) 
+	{
+		xent_deriv.Scale(-1.0 * opts.xent_regularize);
+		xent_deriv_out.CopyFromMat(xent_deriv);
+		// if use xent add loss
+		//nnet_output_deriv.AddMat(1.0, xent_deriv);
+
 	}
 	nnet_output_deriv.Scale(-1.0);
 

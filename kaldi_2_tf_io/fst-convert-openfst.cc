@@ -47,19 +47,23 @@ bool ConvertSparseFstToOpenFst(const int32 *indexs, const int32 *in_labels,
 			int in_label = in_labels[cur_offset];
 			int out_label = out_labels[cur_offset];
 			Weight w = (Weight)(weight);
-			if(delete_laststatesuperfinal == true && 
-					tostate == laststatesuperfinal)
-			{
+			if(delete_laststatesuperfinal == true
+					&& tostate == laststatesuperfinal 
+					&& in_label == 0
+					&& out_label == 0)
+			{ // delete super final
 				fst->SetFinal(s, w);
 			}
 			else
-			{
+			{ // add arc
 				fst->AddArc(instate, Arc(in_label, out_label, w, tostate));
+				if(tostate == laststatesuperfinal)
+					delete_laststatesuperfinal = false;
 			}
 		}
 		if(delete_laststatesuperfinal != true && s == num_states-1)
 		{
-			if(s >= fst->NumStates())
+			while(s >= fst->NumStates())
 				fst->AddState();
 			fst->SetFinal(s, Weight::One());
 		}
@@ -96,10 +100,8 @@ VectorFst<StdArc> ConvertSparseFstToOpenFst(const int32 *indexs, const int32 *in
 	fst.AddState();
 
 	StateId laststatesuperfinal = 0;
-	bool delete_superfinal = false;
 	if(delete_laststatesuperfinal == true)
 	{
-		delete_superfinal = true;
 		laststatesuperfinal = num_states-1;
 	}
 	for(int s=0; s<num_states; s++)
@@ -122,8 +124,8 @@ VectorFst<StdArc> ConvertSparseFstToOpenFst(const int32 *indexs, const int32 *in
 			Weight w = (Weight)(weight);
 			if(delete_laststatesuperfinal == true 
 					&& tostate == laststatesuperfinal 
-					&& in_label != 0
-					&& out_label != 0)
+					&& in_label == 0
+					&& out_label == 0)
 			{ // delete this arc and delete superfinal
 				fst.SetFinal(s, w);
 			}
@@ -131,15 +133,17 @@ VectorFst<StdArc> ConvertSparseFstToOpenFst(const int32 *indexs, const int32 *in
 			{ // add src
 				fst.AddArc(instate, StdArc(in_label, out_label, w, tostate));
 				if(tostate == laststatesuperfinal)
-					delete_superfinal = false;
+					delete_laststatesuperfinal = false;
 			}
 		}
 		if(s == num_states-1)
 		{
-			if(delete_laststatesuperfinal != true || delete_superfinal == false)
+			if(delete_laststatesuperfinal != true) 
 			{
-				if(s >= fst.NumStates())
+				while(s >= fst.NumStates())
+				{
 					fst.AddState();
+				}
 				fst.SetFinal(s, Weight::One());
 			}
 		}
