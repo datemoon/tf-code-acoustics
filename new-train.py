@@ -1,7 +1,5 @@
 #!/usr/bin/env python
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function, unicode_literals
 import os, sys, shutil, time
 import random
 import threading
@@ -25,7 +23,7 @@ import tensorflow as tf
 from tensorflow.python import debug as tf_debug
 from fst import Fst2SparseMatrix
 
-strset=('criterion', 'feature_transfile', 'checkpoint_dir')
+strset=('criterion', 'feature_transfile', 'checkpoint_dir', 'optimizer')
 class TrainClass(object):
     '''
     '''
@@ -35,6 +33,7 @@ class TrainClass(object):
         self.print_trainable_variables_cf = False
         self.use_normal_cf = False
         self.use_sgd_cf = True
+        self.optimizer_cf = 'GD'
         self.use_sync_cf = False
         self.use_clip_cf = False
         self.restore_training_cf = True
@@ -172,11 +171,33 @@ class TrainClass(object):
                         name = 'learning_rate_inverse_time_decay')
 
 
-            if self.use_sgd_cf:
+            if self.optimizer_cf == 'GD':
                 optimizer = tf.train.GradientDescentOptimizer(self.learning_rate_var_tf)
-            else:
+            elif self.optimizer_cf == 'Adam':
                 optimizer = tf.train.AdamOptimizer(learning_rate=
                         self.learning_rate_var_tf, beta1=0.9, beta2=0.999, epsilon=1e-08)
+            elif self.optimizer_cf == 'Adadelta':
+                tf.train.AdadeltaOptimizer(learning_rate=self.learning_rate_var_tf,
+                        rho=0.95,
+                        epsilon=1e-08,
+                        use_locking=False,
+                        name='Adadelta')
+            elif self.optimizer_cf == 'AdagradDA':
+                tf.train.AdagradDAOptimizer(learning_rate=self.learning_rate_var_tf,
+                        global_step = self.global_step,
+                        initial_gradient_squared_accumulator_value=0.1,
+                        l1_regularization_strength=0.0,
+                        l2_regularization_strength=0.0,
+                        use_locking=False,
+                        name='AdagradDA')
+            elif self.optimizer_cf == 'Adagrad':
+                tf.train.AdagradOptimizer(learning_rate=self.learning_rate_var_tf,
+                        initial_accumulator_value=0.1,
+                        use_locking=False,
+                        name='Adagrad')
+            else:
+                logging.error("no this opyimizer.")
+                sys.exit(1)
 
             # sync train
             if self.use_sync_cf:
@@ -263,7 +284,7 @@ class TrainClass(object):
                 logging.info("no criterion.")
                 sys.exit(1)
 
-            if self.use_sgd_cf and self.use_normal_cf: 
+            if self.use_sgd_cf :
                 tvars = tf.trainable_variables()
                 if self.use_normal_cf :
                     l2_regu = tf.contrib.layers.l2_regularizer(0.5)
