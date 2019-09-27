@@ -232,11 +232,16 @@ def parse_args(args_list):
             default = 5.0,
             help='Clipping the accumulated gradients (per-updates)'
             '(float, default = 5.0)')
+    
+    train_common_opt.add_argument('--optimizer', dest='optimizer',
+            type=str, default='GD',
+            help='optimizer : GD|Adam|Adadelta|AdagradDA|Adagrad'
+            '(string, default = ""GD)')
 
     train_common_opt.add_argument('--use-sgd', dest='use_sgd', type=bool,
             default=False,
             help='train parameter way'
-            '(bool, default = True)')
+            '(bool, default = False)')
     
     train_common_opt.add_argument('--use-normal', dest='use_normal', type=bool,
             default=False,
