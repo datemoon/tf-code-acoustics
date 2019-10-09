@@ -12,9 +12,12 @@ if __name__ == '__main__':
     blstm_struct = [
             [['cell_0/bidirectional_rnn/fw', 'cell_0/bidirectional_rnn/bw'], [[1536, 1024, 512], [1536, 1024, 512]]],
             [['cell_1/bidirectional_rnn/fw', 'cell_1/bidirectional_rnn/bw'], [[1024, 1024, 512], [1024, 1024, 512]]],
-            [['cell_2/bidirectional_rnn/fw', 'cell_2/bidirectional_rnn/bw'], [[1024, 1024, 512], [1024, 1024, 512]]]
+            [['cell_2/bidirectional_rnn/fw', 'cell_2/bidirectional_rnn/bw'], [[1024, 1024, 512], [1024, 1024, 512]]],
+            [['cell_3/bidirectional_rnn/fw', 'cell_3/bidirectional_rnn/bw'], [[1024, 1024, 512], [1024, 1024, 512]]]
             ]
-    affine_struct = ['affine',[1024, 6293]]
+    affine_structs = [['affine1',[1024, 1024]],
+            ['affine2',[1024, 1024]],
+            ['affine3',[1024, 6293]]]
 
     model_in_tf = sys.argv[1]
     model_out_kaldi = sys.argv[2]
@@ -40,10 +43,11 @@ if __name__ == '__main__':
         weight_para = WriteBlstm(fp, fp_out, layer_para)
         blstm_weights.append(weight_para)
 
-    # read softmax
-    w,b = ConvertAffineTransfromLayer(fp, affine_struct[0], affine_struct[1])
-    # write softmax
-    WriteAffineTransfrom(fp_out, w, b, affine_struct[1][0], affine_struct[1][1])
+    for affine_struct in affine_structs:
+        # read Affine
+        w,b = ConvertAffineTransfromLayer(fp, affine_struct[0], affine_struct[1])
+        # write Affine
+        WriteAffineTransfrom(fp_out, w, b, affine_struct[1][0], affine_struct[1][1])
 
     # write softmax
     WriteSoftmax(fp_out, affine_struct[1][1])
