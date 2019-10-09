@@ -147,7 +147,9 @@ class TrainClass(object):
             # init global_step and learning rate decay criterion
             #self.global_step=tf.train.get_or_create_global_step()
             self.global_step=tf.Variable(0, trainable=False, name = 'global_step',dtype=tf.int64)
-            exponential_decay = True
+            exponential_decay = False
+            piecewise_constant = False
+            inverse_time_decay = False
             if exponential_decay == True:
                 self.learning_rate_var_tf = tf.train.exponential_decay(
                         float(self.learning_rate_cf), self.global_step,
@@ -169,13 +171,19 @@ class TrainClass(object):
                         self.learning_rate_decay_rate_cf,
                         staircase=True,
                         name = 'learning_rate_inverse_time_decay')
+            else:
+                #self.learning_rate_var_tf = float(self.learning_rate_cf)
+                #self.learning_rate_var_tf = tf.Variable(float(self.learning_rate_cf), trainable=False)
+                self.learning_rate_var_tf = tf.convert_to_tensor(self.learning_rate_cf, name="learning_rate")
+            #        trainable=False, name='learning_rate')
+
 
 
             if self.optimizer_cf == 'GD':
                 optimizer = tf.train.GradientDescentOptimizer(self.learning_rate_var_tf)
             elif self.optimizer_cf == 'Adam':
                 optimizer = tf.train.AdamOptimizer(learning_rate=
-                        self.learning_rate_var_tf, beta1=0.9, beta2=0.999, epsilon=1e-08)
+                        self.learning_rate_var_tf, beta1=0.9, beta2=0.999, epsilon=1e-08, use_locking=True)
             elif self.optimizer_cf == 'Adadelta':
                 tf.train.AdadeltaOptimizer(learning_rate=self.learning_rate_var_tf,
                         rho=0.95,
@@ -342,7 +350,7 @@ class TrainClass(object):
                     allow_soft_placement=True,
                     log_device_placement=False,gpu_options=gpu_options)
             if self.reset_global_step_cf and self.task_index_cf == 0:
-                non_train_variables = [self.global_step ] + tf.local_variables()
+                non_train_variables = [self.global_step] + tf.local_variables()
             else:
                 non_train_variables = tf.local_variables()
 
@@ -748,7 +756,7 @@ if __name__ == "__main__":
         if conf_dict["use_sync"] is False:
             wait_time = 60 * 5 * task_index 
             time.sleep(wait_time)
-        while iter < 15:
+        while iter < 21:
             train_start_t = time.time()
             shuffle = False
             if iter > 0:

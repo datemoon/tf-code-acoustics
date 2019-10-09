@@ -71,7 +71,7 @@ class SpliceLayer(object):
         self.input_dim = 0
         self.name = 'SpliceLayer'
         self.time_major = True
-        self.padding = False
+        self.splice_padding = False
         for key in self.__dict__:
             if key in conf_opt.keys():
                 if key in strset:
@@ -136,7 +136,7 @@ class SpliceLayer(object):
         so extract need features
         '''
         # no padding
-        if self.padding is False:
+        if self.splice_padding is False:
             output = None
             start_nframe = -1 * self.splice[0]
             end_nframe = self.splice[-1]
