@@ -258,7 +258,7 @@ class LstmModel(NnetBase):
             # add ReluLayer
             elif layer[0] == 'ReluLayer':
                 for relu in layer[1:]:
-                    tf.nn.relu(outputs[-1])
+                    outputs.append(tf.nn.relu(outputs[-1]))
                     #relu(outputs[-1])
             # add NormalizeLayer
             elif layer[0] == 'NormalizeLayer':

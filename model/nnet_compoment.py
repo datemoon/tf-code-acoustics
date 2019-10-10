@@ -249,7 +249,7 @@ class TdnnLayer(object):
         output = [input_feats]
         for layer in self.layers:
             if type(layer) is ReluLayer:
-                tf.nn.relu(output[-1])
+                output.append(tf.nn.relu(output[-1]))
                 #layer(output[-1])
             else:
                 output.append(layer(output[-1]))
