@@ -216,7 +216,7 @@ def PackageFeatAndAli(all_package, input_lock, package_end, scp_file, ali_file, 
     input_lock.release()
 
     end_package = time.time()
-    logging.info('------PackageFeatAndAli end. Package time is : %f s, batch bumber : %d' % (end_package - start_package, len(all_package)))
+    logging.info('------PackageFeatAndAli end. Package time is : %f s, batch number : %d' % (end_package - start_package, len(all_package)))
     return True
 
 def PackageEgs(all_package, input_lock, package_end, scp_file, nstreams):
@@ -244,7 +244,7 @@ def PackageEgs(all_package, input_lock, package_end, scp_file, nstreams):
     input_lock.release()
 
     end_package = time.time()
-    logging.info('------PackageFeatAndAli end. Package time is : %f s, batch bumber : %d' % (end_package - start_package, len(all_package)))
+    logging.info('------PackageFeatAndAli end. Package time is : %f s, batch number : %d' % (end_package - start_package, len(all_package)))
     #print("********************")
     return True
 
@@ -425,6 +425,7 @@ class KaldiDataReadParallel(object):
             self.read_offset.value = 0
             self.io_end_times = 0
             self.ThreadPackageInput()
+        logging.info('self.skip_offset:%d, self.read_offset:%d' %(self.skip_offset, self.read_offset.value))
         if shuffle is True or self.shuffle is True:
             self.shuffle = True
             self.input_lock.acquire()
@@ -854,8 +855,8 @@ if __name__ == '__main__':
     conf_dict = { 'batch_size' :64,
             'skip_offset': 0,
             'shuffle': False,
-            'queue_cache':100,
-            'io_thread_num':20}
+            'queue_cache':200,
+            'io_thread_num':5}
 
     feat_trans_file = '../conf/final.feature_transform'
     feat_trans = FeatureTransform()

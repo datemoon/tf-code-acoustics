@@ -5,6 +5,7 @@ import tensorflow as tf
 import numpy as np
 import sys
 import os
+import logging
 
 try:
     from tensorflow_py_api import mmi,mpe
@@ -12,7 +13,7 @@ except ImportError:
     print("no mmi module")
 
 try:
-    from tf_chain_py_api import chainloss
+    from tf_chain_py_api import chainloss,chainxentloss
 except ImportError:
     print("no chainloss module")
 
@@ -63,6 +64,9 @@ class LstmModel(NnetBase):
             if layers[n][0] == nntype:
                 return True
         return False
+
+    def LastLayerIs(self, layers, nntype):
+        return self.PrevLayerIs(layers, nntype)
     
     def CreateModelGraph(self, nnet_conf = None):
         layers = []
@@ -76,6 +80,12 @@ class LstmModel(NnetBase):
                 else:
                     layers.append(['AffineTransformLayer', 
                         nnet_compoment.AffineTransformLayer(layer_opt)])
+            elif layer_opt['layer_flag'] == 'Affine2TransformLayer':
+                if self.PrevLayerIs(layers, 'Affine2TransformLayer'):
+                    layers[-1].append(nnet_compoment.Affine2TransformLayer(layer_opt))
+                else:
+                    layers.append(['Affine2TransformLayer',
+                        nnet_compoment.Affine2TransformLayer(layer_opt)])
             elif layer_opt['layer_flag'] == 'LstmLayer':
                 if self.PrevLayerIs(layers, 'LstmLayer'):
                     layers[-1].append(nnet_compoment.LstmLayer(layer_opt))
@@ -245,6 +255,11 @@ class LstmModel(NnetBase):
                 assert output_dim == layer[1].GetInputDim()
                 for mlp in layer[1:]:
                     outputs.append(mlp(outputs[-1]))
+                output_dim = layer[-1].GetOutputDim()
+            elif layer[0] == 'Affine2TransformLayer':
+                assert output_dim == layer[1].GetInputDim()
+                for mlp2 in layer[1:]:
+                    outputs.append(mlp2(outputs[-1]))
                 output_dim = layer[-1].GetOutputDim()
             # add SpliceLayer
             elif layer[0] == 'SpliceLayer':
@@ -494,13 +509,28 @@ class LstmModel(NnetBase):
                 continue
 
         if self.time_major_cf:
-            last_output = tf.reshape(outputs[-1],
-                    [-1, self.batch_size_cf, output_dim])
+            if self.LastLayerIs(layers, 'Affine2TransformLayer'):
+                last_output1 = tf.reshape(outputs[-1][0],
+                        [-1, self.batch_size_cf, output_dim])
+                last_output2 = tf.reshape(outputs[-1][1],
+                        [-1, self.batch_size_cf, output_dim])
+                last_output = [last_output1, last_output2]
+            else:
+                last_output = tf.reshape(outputs[-1],
+                        [-1, self.batch_size_cf, output_dim])
         else:
-            last_output = tf.reshape(outputs[-1],
-                    [self.batch_size_cf, -1, output_dim])
+            if self.LastLayerIs(layers, 'Affine2TransformLayer'):
+                last_output1 = tf.reshape(outputs[-1][0],
+                        [self.batch_size_cf, -1, output_dim])
+                last_output2 = tf.reshape(outputs[-1][1],
+                        [self.batch_size_cf, -1, output_dim])
+                last_output = [last_output1, last_output2]
+            else:
+                last_output = tf.reshape(outputs[-1],
+                        [self.batch_size_cf, -1, output_dim])
 
         self.output_size = output_dim
+        self.layers = layers
         return last_output, rnn_keep_state_op, rnn_state_zero_op
 
     def CreateRnnModel(self, input_feats, seq_len):
@@ -653,7 +683,11 @@ class LstmModel(NnetBase):
         last_output, rnn_keep_state_op, rnn_state_zero_op = self.CreateModel(
                 input_feats, seq_len)
         
-        last_output = last_output[-1 * frames[0]:]
+        if self.time_major_cf:
+            last_output = last_output[-1 * frames[0]:]
+        else:
+            # now don't test 
+            last_output = last_output[:][-1 * frames[0]:]
 
         with tf.name_scope('ChainLoss'):
             chain_loss = chainloss(last_output,
@@ -669,6 +703,42 @@ class LstmModel(NnetBase):
 
         return chain_mean_loss, chain_loss, None, rnn_keep_state_op, rnn_state_zero_op
 
+    def ChainXentLoss(self, input_feats,
+            indexs, in_labels, weights, statesinfo, num_states, frames,
+            label_dim,
+            den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states,
+            den_start_state = 0 ,delete_laststatesuperfinal = True,
+            l2_regularize = 0.00005, leaky_hmm_coefficient = 0.1, xent_regularize =0.025):
+        seq_len = None
+        last_output, rnn_keep_state_op, rnn_state_zero_op = self.CreateModel(
+                input_feats, seq_len)
+
+
+        if self.time_major_cf:
+            if self.LastLayerIs(self.layers, 'Affine2TransformLayer'):
+                last_output1 = last_output[0][-1 * frames[0]:]
+                last_output2 = last_output[1][-1 * frames[0]:]
+                #add softmax for ce
+                last_output2 = tf.nn.log_softmax(last_output2, axis=-1, name='log_softmax')
+                last_output = [last_output1, last_output2]
+            else:
+                pass
+        else:
+            pass
+
+        with tf.name_scope('ChainXentLoss'):
+            chain_xent_loss = chainxentloss(last_output[0], last_output[1],
+                    indexs, in_labels, weights, statesinfo, num_states,
+                    label_dim,
+                    den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states,
+                    den_start_state, delete_laststatesuperfinal,
+                    l2_regularize, leaky_hmm_coefficient, xent_regularize, 
+                    time_major = self.time_major_cf)
+
+            total_frames = 0
+            chain_xent_mean_loss = [chain_xent_loss[0], chain_xent_loss[-1]]
+
+        return chain_xent_mean_loss, chain_xent_loss, None, rnn_keep_state_op, rnn_state_zero_op
 
     #def MmiLoss(self, input_feats, labels, seq_len, lattice, old_acoustic_scale = 0.0, acoustic_scale = 0.083, time_major = True):
     def MmiLoss(self, input_feats, labels, seq_len,

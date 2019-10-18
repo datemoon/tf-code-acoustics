@@ -504,7 +504,8 @@ bool ChainXentLossDen(const int32 *indexs, const int32 *in_labels, const int32 *
 		// at this point, xent_deriv is posteriors derived from the numerator
 		// computation.  note, xent_objf has a factor of '.supervision.weight'
 		*xent_objf = TraceMatMat(xent_output, xent_deriv, kTrans);
-		std::cout << "xent_objf:" << *xent_objf << std::endl;
+		*xent_objf = *xent_objf / (*tot_weight);
+		//std::cout << "xent_objf:" << *xent_objf << std::endl;
 	}
 	//if (opts_.apply_deriv_weights && sup.deriv_weights.Dim() != 0)
 	/*if(merge_supervision.deriv_weights.Dim() != 0)
@@ -520,7 +521,6 @@ bool ChainXentLossDen(const int32 *indexs, const int32 *in_labels, const int32 *
 		xent_deriv_out.CopyFromMat(xent_deriv);
 		// if use xent add loss
 		//nnet_output_deriv.AddMat(1.0, xent_deriv);
-
 	}
 	nnet_output_deriv.Scale(-1.0);
 

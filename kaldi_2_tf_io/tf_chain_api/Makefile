@@ -19,7 +19,7 @@ CXXFLAGS += -I/usr/lib/python3.4/site-packages/tensorflow/include -D_GLIBCXX_USE
 #-DDEBUG_SPEED
 #-DDEBUG_PRINT
 
-OBJFILES = tf_chain_loss.o
+OBJFILES = tf_chain_loss.o tf_chain_xent_loss.o
 
 LIBNAME = tf_chain_api
 

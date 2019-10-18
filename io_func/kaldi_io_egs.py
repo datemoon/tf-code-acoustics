@@ -255,6 +255,9 @@ class NnetChainSupervision(object):
     def GetFst(self):
         return self.supervision.fst
 
+    def GetDerivWeights(self):
+        return self.deriv_weights
+
     def GetIndex(self):
         return self.indexes
 
@@ -414,8 +417,8 @@ def ProcessEgsFeat(feat, in_indexes, out_indexes, splice_info, offset = 0):
     start_id = abs(in_start - out_start + skip * start_numframes)
     end_id = abs(out_end) + end_numframes * skip - in_start 
     assert end_id == start_id + (total_frames-1) * skip 
-
-    ret_feat = feat[start_id : end_id + 1 : skip]
+    # add offset
+    ret_feat = feat[start_id + offset : end_id + 1 + offset : skip]
     assert len(ret_feat) == total_frames
     #print("inframes:",in_frames)
     #print("out_frames:",out_frames)
@@ -445,7 +448,10 @@ if __name__ == '__main__':
             feat = iput.GetFeat()
             isize = iput.GetSize()
             assert isize == np.shape(feat)[0]
-            feat = ProcessEgsFeat(feat, iput.GetIndex(), oput.GetIndex(),[-2,-1,0,1,2],0)
+            feat0 = ProcessEgsFeat(feat, iput.GetIndex(), oput.GetIndex(),[-2,-1,0,1,2],0)
+            feat1 = ProcessEgsFeat(feat, iput.GetIndex(), oput.GetIndex(),[-2,-1,0,1,2],1)
+            feat2 = ProcessEgsFeat(feat, iput.GetIndex(), oput.GetIndex(),[-2,-1,0,1,2],2)
+            print(feat0,feat1,feat2)
         #chain_example.Write()
     print('read NnetChainExample end')
 

@@ -1,4 +1,4 @@
 
 
-KALDIDIR=/root/kaldi/src
+KALDIDIR=/opt/kaldi/src
 

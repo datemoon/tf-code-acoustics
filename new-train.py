@@ -147,7 +147,7 @@ class TrainClass(object):
             # init global_step and learning rate decay criterion
             #self.global_step=tf.train.get_or_create_global_step()
             self.global_step=tf.Variable(0, trainable=False, name = 'global_step',dtype=tf.int64)
-            exponential_decay = False
+            exponential_decay = True 
             piecewise_constant = False
             inverse_time_decay = False
             if exponential_decay == True:
@@ -279,13 +279,23 @@ class TrainClass(object):
                 den_in_labels = tf.make_tensor_proto(den_in_labels)
                 den_weights = tf.make_tensor_proto(den_weights)
                 den_statesinfo = tf.make_tensor_proto(den_statesinfo)
-                chain_mean_loss, chain_loss, label_error_rate, rnn_keep_state_op, rnn_state_zero_op = nnet_model.ChainLoss(
-                        self.X, 
-                        self.indexs, self.in_labels, self.weights, self.statesinfo, self.num_states, self.length,
-                        label_dim,
-                        den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states, 
-                        den_start_state, delete_laststatesuperfinal,
-                        l2_regularize, leaky_hmm_coefficient, xent_regularize)
+                if 'xent' in self.criterion_cf:
+                    xent_regularize = 0.025
+                    chain_mean_loss, chain_loss, label_error_rate, rnn_keep_state_op, rnn_state_zero_op = nnet_model.ChainXentLoss(
+                            self.X, 
+                            self.indexs, self.in_labels, self.weights, self.statesinfo, self.num_states, self.length,
+                            label_dim,
+                            den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states, 
+                            den_start_state, delete_laststatesuperfinal,
+                            l2_regularize, leaky_hmm_coefficient, xent_regularize)
+                else:
+                    chain_mean_loss, chain_loss, label_error_rate, rnn_keep_state_op, rnn_state_zero_op = nnet_model.ChainLoss(
+                            self.X, 
+                            self.indexs, self.in_labels, self.weights, self.statesinfo, self.num_states, self.length,
+                            label_dim,
+                            den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states, 
+                            den_start_state, delete_laststatesuperfinal,
+                            l2_regularize, leaky_hmm_coefficient, xent_regularize)
                 mean_loss = chain_mean_loss
                 loss = chain_loss
             else:
@@ -610,9 +620,13 @@ class TrainClass(object):
                 total_curr_error_rate += 0.0
                 self.acc_label_error_rate[gpu_id] += 0.0
             print('mean_loss:',calculate_return['mean_loss'])
-
-            total_curr_mean_loss += calculate_return['mean_loss']
-            total_mean_loss += calculate_return['mean_loss']
+            
+            if type(calculate_return['mean_loss']) is list:
+                total_curr_mean_loss += calculate_return['mean_loss'][0]
+                total_mean_loss += calculate_return['mean_loss'][0]
+            else:
+                total_curr_mean_loss += calculate_return['mean_loss']
+                total_mean_loss += calculate_return['mean_loss']
 
             num_batch += 1
 
@@ -759,9 +773,9 @@ if __name__ == "__main__":
         while iter < 21:
             train_start_t = time.time()
             shuffle = False
-            if iter > 0:
+            if iter > -1:
                 shuffle = True
-            tmp_tr_err_rate = train_class.TrainLogic(device, shuffle = shuffle, train_loss = True, skip_offset = iter)
+            tmp_tr_err_rate = train_class.TrainLogic(device, shuffle = shuffle, train_loss = True, skip_offset = iter + task_index)
 
             train_end_t = time.time()
             logging.info("******train %d iter time is %f ******" % (iter, train_end_t-train_start_t))

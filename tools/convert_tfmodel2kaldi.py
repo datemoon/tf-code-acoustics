@@ -97,9 +97,9 @@ def WriteLstm(fp, w_para, lstm_input, lstm_cell_dim, lstm_proj_dim, add_proj_bia
         np_proj_weights = np.transpose( np.array(proj_weights ,dtype = np.float32))
         WriteMatrix(fp, np_proj_weights, np_proj_weights.shape[0], np_proj_weights.shape[1])
         if add_proj_bias is True:
-            assert lstm_proj_dim == np_proj_weights.shape[1]
+            assert lstm_proj_dim == np_proj_weights.shape[0]
             np_proj_bias = np.zeros(lstm_proj_dim).reshape(1,-1)
-            WriteMatrix(fp, proj_bias, proj_bias.shape[0], proj_bias.shape[1])
+            WriteMatrix(fp, np_proj_bias, np_proj_bias.shape[0], np_proj_bias.shape[1])
     except KeyError:
         print('no project parameters')
     token = EndOfComponent_token
@@ -452,7 +452,14 @@ def ConvertTfToKaldi(model_in_tf, model_out_kaldi, layer_struct):
     for key, layer_para, conf_dict in layer_struct:
         if 'lstm' in key:
             weights_para = ConvertLstmLayer(fp, key, layer_para)
-            WriteLstm(fp_out, weights_para, layer_para[0], layer_para[1], layer_para[2])
+            add_proj_bias = False
+            try :
+                if conf_dict['add_proj_bias'] is True:
+                    add_proj_bias = True
+            except KeyError:
+                print('not add proj bias')
+
+            WriteLstm(fp_out, weights_para, layer_para[0], layer_para[1], layer_para[2], add_proj_bias)
             weights.append(weights_para)
             for lstm_p in weights_para.values():
                 num_parameters += np.size(lstm_p)
@@ -509,6 +516,7 @@ if __name__ == '__main__':
                 ['tdnn6affine',[[256, 625], [ -1,0,1 ]], {}],
                 ['tdnn7affine',[[625, 625], [ -1,0,1 ]], {}],
                 ['lstmlayer3', [625, 1024, 256], {'add_proj_bias':True}],
+                #['affine2_1_1',[256, 3766], {}]
                 ['affine1',[256, 3766], {}]
                 ]
         ConvertTfToKaldi(sys.argv[1], sys.argv[2], layer_struct)

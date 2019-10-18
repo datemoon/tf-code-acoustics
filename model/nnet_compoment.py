@@ -175,8 +175,9 @@ class AffineTransformLayer(object):
     '''
     def __init__(self, conf_opt, dtype = tf.float32, 
             initializer = tf.contrib.layers.xavier_initializer(tf.float32),
-            trainable = True):
-        self.name = 'AffineTransformLayer'
+            trainable = True,
+            name = 'AffineTransformLayer'):
+        self.name = name
         self.input_dim = None
         self.output_dim = None
         self.dtype = tf.float32
@@ -188,6 +189,8 @@ class AffineTransformLayer(object):
                     self.__dict__[key] = conf_opt[key]
                 else:
                     self.__dict__[key] = eval(conf_opt[key])
+        if name != 'AffineTransformLayer':
+            self.name = name
         assert self.input_dim != None
         assert self.output_dim != None
         
@@ -207,6 +210,41 @@ class AffineTransformLayer(object):
     def __call__(self, input_feats):
         input_feats = tf.reshape(input_feats, [-1, self.input_dim])
         return tf.matmul(input_feats, self.weights) + self.bias
+
+    def GetInputDim(self):
+        return self.input_dim
+
+    def GetOutputDim(self):
+        return self.output_dim
+
+class Affine2TransformLayer(object):
+    '''
+    '''
+    def __init__(self, conf_opt, dtype = tf.float32, 
+            initializer = tf.contrib.layers.xavier_initializer(tf.float32),
+            trainable = True):
+        self.name = 'AffineTransformLayer'
+        self.input_dim = None
+        self.output_dim = None
+        self.dtype = tf.float32
+        self.initializer = tf.contrib.layers.xavier_initializer(tf.float32)
+        self.trainable = True
+        for key in self.__dict__:
+            if key in conf_opt.keys():
+                if key in strset:
+                    self.__dict__[key] = conf_opt[key]
+                else:
+                    self.__dict__[key] = eval(conf_opt[key])
+        assert self.input_dim != None
+        assert self.output_dim != None
+        self.affine1 = AffineTransformLayer(conf_opt, name=self.name+'_1')
+        self.affine2 = AffineTransformLayer(conf_opt, name=self.name+'_2')
+        
+    def __call__(self, input_feats):
+        input_feats = tf.reshape(input_feats, [-1, self.input_dim])
+        output1 = self.affine1(input_feats)
+        output2 = self.affine2(input_feats)
+        return [output1, output2]
 
     def GetInputDim(self):
         return self.input_dim
@@ -471,9 +509,16 @@ class MaxPool2d(object):
 
 
 # enum layer 
-g_layer_dict={'AffineTransformLayer':AffineTransformLayer,
+g_layer_dict={'NormalizeLayer':NormalizeLayer,
+        'ReluLayer':ReluLayer,
+        'SpliceLayer':SpliceLayer,
+        'AffineTransformLayer':AffineTransformLayer,
+        'Affine2TransformLayer':Affine2TransformLayer,
+        'TdnnLayer':TdnnLayer,
         'LstmLayer':LstmLayer,
+        'LcBLstmLayer':LcBLstmLayer,
         'BLstmLayer':BLstmLayer,
         'Cnn2d':Cnn2d,
-        'SpliceLayer':SpliceLayer
+        'MaxPool2d':MaxPool2d
         }
+

@@ -18,7 +18,7 @@ if "TENSORFLOW_SRC_PATH" not in os.environ:
             file=sys.stderr)
     sys.exit(1)
 
-lib_srcs = ['tf_chain_api/tf_chain_loss.cc']
+lib_srcs = ['tf_chain_api/tf_chain_loss.cc', 'tf_chain_api/tf_chain_xent_loss.cc']
 
 root_path = os.path.realpath(os.path.dirname(__file__))
 
@@ -58,7 +58,7 @@ if tf.__version__ >= '1.4':
 # add kaldi config
 
 # kaldi fst mkl
-kaldi_src_dir = '/root/kaldi/src/'
+kaldi_src_dir = '/opt/kaldi/src/'
 mklroot = '/opt/intel/mkl/'
 fstroot = kaldi_src_dir + '../tools/openfst-1.6.7/'
 cudalib='/usr/local/cuda/lib64/'

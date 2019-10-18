@@ -80,7 +80,7 @@ def chainxentloss(inputs, input_xent,
         inputs = array_ops.transpose(inputs, [1, 0, 2])  # (B,T,N) => (T,B,N)
         input_xent = array_ops.transpose(input_xent, [1, 0, 2])
 
-    loss, _ = _warpchain.chain_xent_loss(inputs, input_xent,
+    loss, _, _ = _warpchain.chain_xent_loss(inputs, input_xent,
             indexs, in_labels, weights, statesinfo, num_states,
             label_dim, 
             den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states,
@@ -90,7 +90,7 @@ def chainxentloss(inputs, input_xent,
     return loss
 
 @ops.RegisterGradient("ChainXentLoss")
-def _ChainXentLossGrad(op, grad_loss, _):
+def _ChainXentLossGrad(op, grad_loss, grad_xent_loss, _):
     grad = op.outputs[1]
     grad_xent = op.outputs[2]
     return [ grad, grad_xent,
