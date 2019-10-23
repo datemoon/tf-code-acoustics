@@ -6,7 +6,7 @@ from tensorflow.python.ops.nn_grad import _BroadcastMul
 lib_file = imp.find_module('chainloss', __path__)[1]
 _warpchain = tf.load_op_library(lib_file)
 
-def chainloss(inputs, 
+def chainloss(inputs, deriv_weights,
         indexs, in_labels, weights, statesinfo, num_states,
         label_dim, 
         den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states,
@@ -34,8 +34,13 @@ def chainloss(inputs,
     '''
     if not time_major:
         inputs = array_ops.transpose(inputs, [1, 0, 2])  # (B,T,N) => (T,B,N)
+    
+    #if time_major:
+    #    deriv_weights = tf.transpose(deriv_weights) #(T,B) => (B,T)
 
-    loss, _ = _warpchain.chain_loss(inputs, indexs, in_labels, weights, statesinfo, num_states,
+    loss, _ = _warpchain.chain_loss(inputs, 
+            indexs, in_labels, weights, statesinfo, num_states,
+            deriv_weights, 
             label_dim, 
             den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states,
             den_start_state, delete_laststatesuperfinal,
@@ -47,9 +52,9 @@ def chainloss(inputs,
 def _ChainLossGrad(op, grad_loss, _):
     grad = op.outputs[1]
     return [ grad,
-            None, None, None, None, None, ]
+            None, None, None, None, None, None,]
 
-def chainxentloss(inputs, input_xent,
+def chainxentloss(inputs, input_xent, deriv_weights,
         indexs, in_labels, weights, statesinfo, num_states,
         label_dim, 
         den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states,
@@ -80,8 +85,13 @@ def chainxentloss(inputs, input_xent,
         inputs = array_ops.transpose(inputs, [1, 0, 2])  # (B,T,N) => (T,B,N)
         input_xent = array_ops.transpose(input_xent, [1, 0, 2])
 
+    #if time_major:
+    #    deriv_weights = tf.transpose(deriv_weights) #(T,B) => (B,T)
+
+
     loss, _, _ = _warpchain.chain_xent_loss(inputs, input_xent,
             indexs, in_labels, weights, statesinfo, num_states,
+            deriv_weights,
             label_dim, 
             den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states,
             den_start_state, delete_laststatesuperfinal,
@@ -94,5 +104,5 @@ def _ChainXentLossGrad(op, grad_loss, grad_xent_loss, _):
     grad = op.outputs[1]
     grad_xent = op.outputs[2]
     return [ grad, grad_xent,
-            None, None, None, None, None, ]
+            None, None, None, None, None, None,]
 

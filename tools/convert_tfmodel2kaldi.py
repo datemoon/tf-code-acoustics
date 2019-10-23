@@ -516,8 +516,8 @@ if __name__ == '__main__':
                 ['tdnn6affine',[[256, 625], [ -1,0,1 ]], {}],
                 ['tdnn7affine',[[625, 625], [ -1,0,1 ]], {}],
                 ['lstmlayer3', [625, 1024, 256], {'add_proj_bias':True}],
-                #['affine2_1_1',[256, 3766], {}]
-                ['affine1',[256, 3766], {}]
+                ['affine2_1_1',[256, 3766], {}]
+                #['affine1',[256, 3766], {}]
                 ]
         ConvertTfToKaldi(sys.argv[1], sys.argv[2], layer_struct)
     else:

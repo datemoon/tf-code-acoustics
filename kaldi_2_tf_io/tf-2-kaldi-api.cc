@@ -104,6 +104,7 @@ bool ChainLoss(const int32 *indexs, const int32 *in_labels, const int32 *out_lab
 		const BaseFloat* weights, const int32* statesinfo,
 		const int32 *num_states,
 		const int32 max_num_arcs, const int32 max_num_states,
+		const BaseFloat* deriv_weights,
 		const BaseFloat supervision_weights, const int32 supervision_num_sequences, 
 		const int32 supervision_frames_per_sequence, const int32 supervision_label_dim, 
 		const BaseFloat* nnet_out,
@@ -134,6 +135,7 @@ bool ChainLoss(const int32 *indexs, const int32 *in_labels, const int32 *out_lab
 
 	bool ret = ChainLossDen(indexs, in_labels, out_labels, weights, statesinfo, num_states,
 			max_num_arcs, max_num_states,
+			deriv_weights,
 			supervision_weights, supervision_num_sequences, supervision_frames_per_sequence, supervision_label_dim,
 			nnet_out, rows, batch_size, cols,
 			den_graph_saver, 
@@ -183,6 +185,7 @@ bool ChainLossDen(const int32 *indexs, const int32 *in_labels, const int32 *out_
 		const BaseFloat* weights, const int32* statesinfo,
 		const int32 *num_states,
 		const int32 max_num_arcs, const int32 max_num_states,
+		const BaseFloat* deriv_weights,
 		const BaseFloat supervision_weights, const int32 supervision_num_sequences, 
 		const int32 supervision_frames_per_sequence, const int32 supervision_label_dim, 
 		const BaseFloat* nnet_out,
@@ -221,6 +224,7 @@ bool ChainLossDen(const int32 *indexs, const int32 *in_labels, const int32 *out_
 	std::vector<const chain::Supervision*> input_supervision_point;
 	input_supervision_point.resize(batch_size);
 	std::vector<chain::Supervision> input_supervision;
+	//std::vector<const BaseFloat*> deriv_weights_v;
 	input_supervision.resize(batch_size);
 	for(int32 i=0; i < batch_size; i++)
 	{
@@ -238,7 +242,9 @@ bool ChainLossDen(const int32 *indexs, const int32 *in_labels, const int32 *out_
 		//	<< "\nlabel_dim           :" << supervision.label_dim << std::endl;
 		//std::cout << i << " fst: " << std::endl;
 		//fst::PrintStandardFst(supervision.fst);
+		//deriv_weights_v.push_back(deriv_weights + i * rows);
 	}
+	SubVector<BaseFloat> deriv_weights_t(deriv_weights, rows * batch_size);
 	chain::Supervision output_supervision;
 	MergeSupervision(input_supervision_point,
 			&output_supervision);
@@ -329,6 +335,13 @@ bool ChainLossDen(const int32 *indexs, const int32 *in_labels, const int32 *out_
 	//if (opts_.apply_deriv_weights && sup.deriv_weights.Dim() != 0)
 	//{
 	//}
+	if(deriv_weights_t.Dim() != 0)
+	{
+		CuVector<BaseFloat> cu_deriv_weights(deriv_weights_t);
+		nnet_output_deriv.MulRowsVec(cu_deriv_weights);
+		if(use_xent)
+			xent_deriv.MulRowsVec(cu_deriv_weights);
+	}
 	if (use_xent) 
 	{
 		xent_deriv.Scale(opts.xent_regularize);
@@ -357,6 +370,7 @@ bool ChainXentLossDen(const int32 *indexs, const int32 *in_labels, const int32 *
 		const BaseFloat* weights, const int32* statesinfo,
 		const int32 *num_states,
 		const int32 max_num_arcs, const int32 max_num_states,
+		const BaseFloat* deriv_weights,
 		const BaseFloat supervision_weights, const int32 supervision_num_sequences, 
 		const int32 supervision_frames_per_sequence, const int32 supervision_label_dim, 
 		const BaseFloat* nnet_out,
@@ -421,6 +435,7 @@ bool ChainXentLossDen(const int32 *indexs, const int32 *in_labels, const int32 *
 
 	chain::Supervision merge_supervision;
 	merge_supervision.Swap(&output_supervision);
+	SubVector<BaseFloat> deriv_weights_t(deriv_weights, rows * batch_size);
 	//std::cout << "---MergeSupervision ok" << std::endl;
 	// remove eps
 	//fst::RmEpsilon(&merge_supervision.fst);
@@ -515,6 +530,13 @@ bool ChainXentLossDen(const int32 *indexs, const int32 *in_labels, const int32 *
 		if(use_xent)
 			xent_deriv.MulRowsVec(cu_deriv_weights);
 	}*/
+	if(deriv_weights_t.Dim() != 0)
+	{
+		CuVector<BaseFloat> cu_deriv_weights(deriv_weights_t);
+		nnet_output_deriv.MulRowsVec(cu_deriv_weights);
+		if(use_xent)
+			xent_deriv.MulRowsVec(cu_deriv_weights);
+	}
 	if (use_xent) 
 	{
 		xent_deriv.Scale(-1.0 * opts.xent_regularize);

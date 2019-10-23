@@ -24,6 +24,7 @@ REGISTER_OP("ChainLoss")
 	.Input("weights: float")
 	.Input("statesinfo: int32")
 	.Input("num_states: int32")
+	.Input("deriv_weights: float")
 	//.Input("supervision_weights: float")
 	//.Input("num_sequences: int32")
 	//.Input("frames_per_sequence: int32")
@@ -48,6 +49,7 @@ REGISTER_OP("ChainLoss")
 		ShapeHandle weights;
 		ShapeHandle statesinfo;
 		ShapeHandle num_states;
+		ShapeHandle deriv_weights;
 
 		// check shape
 		TF_RETURN_IF_ERROR(c->WithRank(c->input(0), 3, &inputs));
@@ -56,6 +58,7 @@ REGISTER_OP("ChainLoss")
 		TF_RETURN_IF_ERROR(c->WithRank(c->input(3), 2, &weights));
 		TF_RETURN_IF_ERROR(c->WithRank(c->input(4), 3, &statesinfo));
 		TF_RETURN_IF_ERROR(c->WithRank(c->input(5), 1, &num_states));
+		TF_RETURN_IF_ERROR(c->WithRank(c->input(6), 2, &deriv_weights));
 
 		// Get batch size from inputs and sequence_length, and update inputs
 		// with the merged batch_size since it is returned.
@@ -137,6 +140,7 @@ public:
 		const tf::Tensor* weights;    // matrix<float>
 		const tf::Tensor* statesinfo; // tensor<int, 3>
 		const tf::Tensor* num_states; // vector<int>
+		const tf::Tensor* deriv_weights; // tensor<float, 2>
 		//const tf::Tensor* supervision_weights; // float
 		//const tf::Tensor* num_sequences; // int
 		//const tf::Tensor* frames_per_sequence; // int
@@ -147,9 +151,13 @@ public:
 		OP_REQUIRES_OK(ctx, ctx->input("weights", &weights));
 		OP_REQUIRES_OK(ctx, ctx->input("statesinfo", &statesinfo));
 		OP_REQUIRES_OK(ctx, ctx->input("num_states", &num_states));
+		OP_REQUIRES_OK(ctx, ctx->input("deriv_weights", &deriv_weights));
 		
 		OP_REQUIRES(ctx, inputs->shape().dims() == 3,
 				tf::errors::InvalidArgument("inputs is not a 3-Tensor"));
+
+		OP_REQUIRES(ctx, deriv_weights->shape().dims() == 2,
+				tf::errors::InvalidArgument("deriv_weights is not a 2-Tensor"));
 
 		OP_REQUIRES(ctx, indexs->shape().dims() == 3,
 				tf::errors::InvalidArgument("indexs is not a 3-Tensor"));
@@ -203,6 +211,7 @@ public:
 		auto inputs_t = inputs->tensor<float, 3>();
 		auto objf_t = objf->vec<float>();
 		auto gradient_t = gradient->tensor<float, 3>();
+		auto deriv_weights_t = deriv_weights->tensor<float, 2>();
 
 		// gradient set zero
 		// the setZero is so slow,so I decide zet zero in hubo::MMILoss
@@ -222,6 +231,7 @@ public:
 		bool ret = ChainLossDen(indexs_t.data(), in_labels_t.data(), in_labels_t.data(), 
 				weights_t.data(), statesinfo_t.data(), num_states_t.data(),
 				max_num_arcs, max_num_states,
+				deriv_weights_t.data(),
 				supervision_weights, supervision_num_sequences, supervision_frames_per_sequence, 
 				_label_dim,
 				inputs_t.data(),

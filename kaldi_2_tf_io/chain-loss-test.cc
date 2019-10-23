@@ -137,6 +137,7 @@ int main(int argc, char *argv[])
 		BaseFloat *weights = NULL;
 		int32 *stateinfo = NULL;
 		int32 start_state = 0;
+		BaseFloat *deriv_weights = chain_eg.outputs[0].deriv_weights.Data();
 		int32 num_states = fst::ConvertKaldiLatticeToSparseLattice(chain_eg.outputs[0].supervision.fst, &indexs, &in_labels, &out_labels,
 				&weights, &stateinfo, &start_state);
 		int32 num_arc = stateinfo[2*(num_states-1)+0] + stateinfo[2*(num_states-1)+1];
@@ -151,6 +152,7 @@ int main(int argc, char *argv[])
 
 		hubo::ChainLossDen(indexs, in_labels, out_labels, weights, stateinfo, &num_states,
 				num_arc, num_states,
+				deriv_weights,
 				chain_eg.outputs[0].supervision.weight, chain_eg.outputs[0].supervision.num_sequences,
 				chain_eg.outputs[0].supervision.frames_per_sequence, chain_eg.outputs[0].supervision.label_dim,
 				nnet_output_gpu_tmp.Data(),
@@ -180,12 +182,23 @@ int main(int argc, char *argv[])
 		{
 			int32 max_num_arcs = num_arc;
 			int32 max_num_states = num_states;
-			int32 batch_size = 5;
+			int32 batch_size = 3;
 			indexs = BatchIn(indexs, max_num_arcs * 2, batch_size);
 			in_labels = BatchIn(in_labels, max_num_arcs, batch_size);
 			out_labels = BatchIn(out_labels, max_num_arcs, batch_size);
 			weights = BatchIn(weights, max_num_arcs, batch_size);
 			stateinfo = BatchIn(stateinfo, max_num_states * 2 , batch_size);
+			
+			Vector<BaseFloat> deriv_weights_t;
+			deriv_weights_t.Resize(out_frames*batch_size, kUndefined);
+			for(int32 n = 0; n < batch_size; n++)
+			{
+				for (int32 t = 0; t < out_frames; t++)
+				{
+					deriv_weights_t(t * batch_size + n) = deriv_weights[t];
+				}
+			}
+			deriv_weights = deriv_weights_t.Data();
 			int32 *batch_num_states = new int32[1];
 			batch_num_states[0] = num_states;
 			batch_num_states = BatchIn(batch_num_states, 1, batch_size);
@@ -212,7 +225,8 @@ int main(int argc, char *argv[])
 		
 			BaseFloat  objf[3];
 			hubo::ChainLossDen(indexs, in_labels, out_labels, weights, stateinfo, batch_num_states,
-					num_arc, num_states, 
+					num_arc, num_states,
+					deriv_weights,
 					chain_eg.outputs[0].supervision.weight, chain_eg.outputs[0].supervision.num_sequences,
 					chain_eg.outputs[0].supervision.frames_per_sequence, chain_eg.outputs[0].supervision.label_dim, 
 					nnet_output_gpu_batch_tmp.Data(), 

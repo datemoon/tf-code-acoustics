@@ -673,7 +673,7 @@ class LstmModel(NnetBase):
 
         return ce_mean_loss, ce_loss, label_error_rate , rnn_keep_state_op, rnn_state_zero_op
 
-    def ChainLoss(self, input_feats,
+    def ChainLoss(self, input_feats, deriv_weights,
             indexs, in_labels, weights, statesinfo, num_states, frames,
             label_dim,
             den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states,
@@ -682,7 +682,11 @@ class LstmModel(NnetBase):
         seq_len = None
         last_output, rnn_keep_state_op, rnn_state_zero_op = self.CreateModel(
                 input_feats, seq_len)
-        
+
+        # this function deriv_weights from time_major = False change major = True
+        if self.time_major_cf:
+            deriv_weights = tf.transpose(deriv_weights)
+
         if self.time_major_cf:
             last_output = last_output[-1 * frames[0]:]
         else:
@@ -690,7 +694,7 @@ class LstmModel(NnetBase):
             last_output = last_output[:][-1 * frames[0]:]
 
         with tf.name_scope('ChainLoss'):
-            chain_loss = chainloss(last_output,
+            chain_loss = chainloss(last_output, deriv_weights,
                     indexs, in_labels, weights, statesinfo, num_states,
                     label_dim,
                     den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states,
@@ -703,7 +707,7 @@ class LstmModel(NnetBase):
 
         return chain_mean_loss, chain_loss, None, rnn_keep_state_op, rnn_state_zero_op
 
-    def ChainXentLoss(self, input_feats,
+    def ChainXentLoss(self, input_feats, deriv_weights,
             indexs, in_labels, weights, statesinfo, num_states, frames,
             label_dim,
             den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states,
@@ -713,6 +717,9 @@ class LstmModel(NnetBase):
         last_output, rnn_keep_state_op, rnn_state_zero_op = self.CreateModel(
                 input_feats, seq_len)
 
+        # this function deriv_weights from time_major = False change major = True
+        if self.time_major_cf:
+            deriv_weights = tf.transpose(deriv_weights)
 
         if self.time_major_cf:
             if self.LastLayerIs(self.layers, 'Affine2TransformLayer'):
@@ -727,7 +734,7 @@ class LstmModel(NnetBase):
             pass
 
         with tf.name_scope('ChainXentLoss'):
-            chain_xent_loss = chainxentloss(last_output[0], last_output[1],
+            chain_xent_loss = chainxentloss(last_output[0], last_output[1], deriv_weights,
                     indexs, in_labels, weights, statesinfo, num_states,
                     label_dim,
                     den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states,
@@ -747,7 +754,7 @@ class LstmModel(NnetBase):
             time_major = True, drop_frames = True):
         last_output, rnn_keep_state_op, rnn_state_zero_op = self.CreateModel(
                 input_feats, seq_len)
-
+        # label it's not time major
         with tf.name_scope('MMI'):
             mmi_loss = mmi(last_output, seq_len, labels, 
                     indexs = indexs,

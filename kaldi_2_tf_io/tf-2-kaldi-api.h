@@ -49,6 +49,7 @@ private:
 * num_states       : num_states is states number, which has dimension (n)
 * max_num_arcs     : all fst the maximum arc number.
 * max_num_states   : all fst the maximum state number.
+* deriv_weights    : which has dimension (rows, n) time_major
 * supervision_weights             :
 * supervision_num_sequences       :
 * supervision_frames_per_sequence :
@@ -71,6 +72,7 @@ bool ChainLoss(const int32 *indexs, const int32 *in_labels, const int32 *out_lab
 		const BaseFloat* weights, const int32* statesinfo,
 		const int32 *num_states,
 		const int32 max_num_arcs, const int32 max_num_states,
+		const BaseFloat* deriv_weights,
 		const BaseFloat supervision_weights, const int32 supervision_num_sequences, 
 		const int32 supervision_frames_per_sequence, const int32 supervision_label_dim, 
 		const BaseFloat* nnet_out,
@@ -96,6 +98,7 @@ bool ChainLossDen(const int32 *indexs, const int32 *in_labels, const int32 *out_
 		const BaseFloat* weights, const int32* statesinfo,
 		const int32 *num_states,
 		const int32 max_num_arcs, const int32 max_num_states,
+		const BaseFloat* deriv_weights,
 		const BaseFloat supervision_weights, const int32 supervision_num_sequences, 
 		const int32 supervision_frames_per_sequence, const int32 supervision_label_dim, 
 		const BaseFloat* nnet_out,
@@ -119,6 +122,7 @@ bool ChainLossDen(const int32 *indexs, const int32 *in_labels, const int32 *out_
 * num_states       : num_states is states number, which has dimension (n)
 * max_num_arcs     : all fst the maximum arc number.
 * max_num_states   : all fst the maximum state number.
+* deriv_weights    : which has dimension (rows, n) time_major
 * supervision_weights             :
 * supervision_num_sequences       :
 * supervision_frames_per_sequence :
@@ -145,6 +149,7 @@ bool ChainXentLossDen(const int32 *indexs, const int32 *in_labels, const int32 *
 		const BaseFloat* weights, const int32* statesinfo,
 		const int32 *num_states,
 		const int32 max_num_arcs, const int32 max_num_states,
+		const BaseFloat* deriv_weights,
 		const BaseFloat supervision_weights, const int32 supervision_num_sequences, 
 		const int32 supervision_frames_per_sequence, const int32 supervision_label_dim, 
 		const BaseFloat* nnet_out,

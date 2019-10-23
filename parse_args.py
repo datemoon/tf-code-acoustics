@@ -185,6 +185,11 @@ def parse_args(args_list):
             type=float, default=1.0, 
             help='learning rate for NN training'
             ' (float, default = 1.0)')
+    
+    train_common_opt.add_argument('--l2-scale', dest='l2_scale',
+            type=float, default=0.00005, 
+            help='l2 scale for NN training'
+            ' (float, default = 0.00005)')
 
     train_common_opt.add_argument('--learning-rate-decay-steps', dest='learning_rate_decay_steps',
             type=int, default=10000, 
