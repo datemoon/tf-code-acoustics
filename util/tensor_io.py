@@ -11,6 +11,8 @@ import logging
 import tensorflow as tf
 
 def print_tensor(x, f=sys.stdout, end='\n', level=0, name=None):
+    if len(x.shape) <= 0:
+        return 
     if name:
         print(name + ' ' + str(x.shape) + ':', file=f)
 
@@ -38,6 +40,13 @@ def save_variables(variables, param, save_file):
     save_fp = open(save_file,'w')
     for key in range(len(variables)):
         print_tensor(param[key],name=variables[key].name, f=save_fp)
+    save_fp.close()
+
+def save_variables_1(param, save_file):
+    save_fp = open(save_file,'w')
+    for key in param.keys():
+        print(key)
+        print_tensor(param[key], name=key, f=save_fp)
     save_fp.close()
 
 def print_trainable_variables(sess, save_file):
