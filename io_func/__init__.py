@@ -164,3 +164,12 @@ def shuffle_across_partitions(feature_list, label_list):
         feature_list[int(j / n)][j % n] = buffer
         label_list[int(i / n)][i % n], label_list[int(j / n)][j % n] = \
             label_list[int(j / n)][j % n], label_list[int(i / n)][i % n]
+
+
+def MaskLength(length_list, max_len):
+    mask_len = []
+    for length in length_list:
+        assert length_list <= max_len
+        mask_len.append([ True for i in range(length) ] + [ False for i in range(max_len-length)])
+    return np.array(mask_len, dtype=numpy.bool)
+
