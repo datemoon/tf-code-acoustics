@@ -2,6 +2,7 @@ import imp
 import tensorflow as tf
 from tensorflow.python.framework import ops
 from tensorflow.python.ops.nn_grad import _BroadcastMul
+import time
 
 lib_file = imp.find_module('chainloss', __path__)[1]
 _warpchain = tf.load_op_library(lib_file)
@@ -33,11 +34,12 @@ def chainloss(inputs, deriv_weights,
          num_states: A 1-D Tensor of ints, one taining sequence state number (batch).
     '''
     if not time_major:
-        inputs = array_ops.transpose(inputs, [1, 0, 2])  # (B,T,N) => (T,B,N)
+        inputs = tf.transpose(inputs, [1, 0, 2])  # (B,T,N) => (T,B,N)
     
     #if time_major:
     #    deriv_weights = tf.transpose(deriv_weights) #(T,B) => (B,T)
 
+    #start = time.time()
     loss, _ = _warpchain.chain_loss(inputs, 
             indexs, in_labels, weights, statesinfo, num_states,
             deriv_weights, 
@@ -46,6 +48,8 @@ def chainloss(inputs, deriv_weights,
             den_start_state, delete_laststatesuperfinal,
             l2_regularize, leaky_hmm_coefficient, xent_regularize)
 
+    #end = time.time()
+    #print("chain_loss time:%f" % (end-start))
     return loss
 
 @ops.RegisterGradient("ChainLoss")
@@ -88,7 +92,6 @@ def chainxentloss(inputs, input_xent, deriv_weights,
     #if time_major:
     #    deriv_weights = tf.transpose(deriv_weights) #(T,B) => (B,T)
 
-
     loss, _, _ = _warpchain.chain_xent_loss(inputs, input_xent,
             indexs, in_labels, weights, statesinfo, num_states,
             deriv_weights,
@@ -96,7 +99,6 @@ def chainxentloss(inputs, input_xent, deriv_weights,
             den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states,
             den_start_state, delete_laststatesuperfinal,
             l2_regularize, leaky_hmm_coefficient, xent_regularize)
-
     return loss
 
 @ops.RegisterGradient("ChainXentLoss")

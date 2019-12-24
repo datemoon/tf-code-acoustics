@@ -23,9 +23,9 @@ class SpliceLayer(tf.keras.layers.Layer):
             self.time = 0
 
     def get_config(self):
-        config = super(SpliceLayer, self).get_config()
-        config.update({'splice':self.splice, 'time_major':self.time_major, 'splice_padding':self.splice_padding})
-        return config
+        config = {'splice':self.splice, 'time_major':self.time_major, 'splice_padding':self.splice_padding}
+        base_config = super(SpliceLayer, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
 
 
     #t1 = [[1, 2, 3], [4, 5, 6]]
@@ -134,18 +134,19 @@ class NormalizeLayer(tf.keras.layers.Layer):
 
 
     def call(self, input_feats):
-        input_feats = tf.convert_to_tensor(input_feats, dtype=self.dtype, name="input_feats")
+        #input_feats = tf.convert_to_tensor(input_feats, dtype=self.dtype, name="input_feats")
         square_sum = tf.math.reduce_sum(
                 tf.math.square(input_feats), self.axis, keepdims=True)
         x_inv_norm = tf.math.rsqrt(tf.maximum(square_sum, self.epsilon))
         x_inv_norm = tf.math.multiply(x_inv_norm, self.scale)
-        return tf.math.multiply(input_feats, x_inv_norm, name=name)
+        return tf.math.multiply(input_feats, x_inv_norm)
 
     def get_config(self):
-        config = super(NormalizeLayer, self).get_config()
-        config.update({'input_dim':self.input_dim, 'target_rms':self.target_rms, 'axis':self.axis,
-            'epsilon':self.epsilon, 'scale':self.scale})
-        return config
+        config = {'input_dim':self.input_dim, 'target_rms':self.target_rms, 'axis':self.axis,
+                'epsilon':self.epsilon, 'scale':self.scale}
+        base_config = super(NormalizeLayer, self).get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
 
 class Sigmoid(tf.keras.layers.Layer):
     """Sigmoid activation function.

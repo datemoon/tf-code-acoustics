@@ -2,7 +2,7 @@
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/types.h"
-#include "tensorflow/core/kernels/bounds_check.h"
+//#include "tensorflow/core/kernels/bounds_check.h"
 #include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/platform/macros.h"
 #include "tensorflow/core/framework/allocator.h"
@@ -195,9 +195,9 @@ public:
 		const tf::int32 max_num_states = statesinfo_shape.dim_size(1);
 
 		// check num_classes_raw less then std::numeric_limits<int>::max()
-		OP_REQUIRES(
-				ctx, tf::FastBoundsCheck(num_classes_raw, std::numeric_limits<int>::max()),
-				tf::errors::InvalidArgument("num_classes cannot exceed max int"));
+//		OP_REQUIRES(
+//				ctx, tf::FastBoundsCheck(num_classes_raw, std::numeric_limits<int>::max()),
+//				tf::errors::InvalidArgument("num_classes cannot exceed max int"));
 		const int num_classes = static_cast<const int>(num_classes_raw);
 
 		OP_REQUIRES(ctx, num_classes == _label_dim,

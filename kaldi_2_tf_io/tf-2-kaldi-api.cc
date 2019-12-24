@@ -25,14 +25,14 @@ void DenominatorGraphSaver::Init(const int32 *indexs, const int32 *in_labels,
 	fst::ConvertSparseFstToOpenFst(indexs, in_labels,
 			out_labels, weights, statesinfo, num_states, &den_fst, 
 			delete_laststatesuperfinal, den_start_state );
-	//std::cout << "---delete_laststatesuperfinal:" <<delete_laststatesuperfinal << std::endl;
+	std::cout << __FILE__  << " : " << __LINE__ <<" : delete_laststatesuperfinal:" <<delete_laststatesuperfinal << std::endl;
 	//fst::PrintStandardFst(den_fst);
 #if HAVE_CUDA==1
 	CuDevice::Instantiate().SelectGpuId("yes");
 	CuDevice::Instantiate().AllowMultithreading();
 #endif
 	_den_graph = new DenominatorGraph(den_fst, num_pdfs);
-	//std::cout << "DenominatorGraphSaver ok" << std::endl;
+	std::cout << __FILE__ <<  " : " << __LINE__ << " : DenominatorGraphSaver ok" << std::endl;
 }
 
 bool EqualDenGraph(DenominatorGraph &den_graph1, DenominatorGraph &den_graph2)
@@ -199,8 +199,10 @@ bool ChainLossDen(const int32 *indexs, const int32 *in_labels, const int32 *out_
 {
 #ifdef DEBUG_SPEED
 	struct timeval start;
+	struct timeval startall;
 	struct timeval end;
 	gettimeofday(&start, NULL);
+	gettimeofday(&startall, NULL);
 	std::cout << "l2_regularize: " << l2_regularize << " leaky_hmm_coefficient: " << leaky_hmm_coefficient
 		<< " xent_regularize: " << xent_regularize << std::endl;
 	std::cout << "---start ChainLossDen calculate" << std::endl;
@@ -350,11 +352,7 @@ bool ChainLossDen(const int32 *indexs, const int32 *in_labels, const int32 *out_
 	}
 	nnet_output_deriv.Scale(-1.0);
 
-#ifdef DEBUG_SPEED
-	gettimeofday(&end, NULL);
-	std::cout << "DEBUG_SPEED : " << __FILE__ << " : xent_deriv time:"
-		<< (end.tv_sec - start.tv_sec)+(end.tv_usec-start.tv_usec)*1.0/1e6<< std::endl;
-	std::cout << "end ChainLossDen calculate" << std::endl;
+#ifdef DEBUG_PRINT
 	std::string matrix_wspecifier("ark,t:test-chainloss.txt");
 	BaseFloatMatrixWriter matrix_writer(matrix_wspecifier);
 	Matrix<BaseFloat> _output_deriv(nnet_output_deriv);
@@ -362,6 +360,14 @@ bool ChainLossDen(const int32 *indexs, const int32 *in_labels, const int32 *out_
 	BaseFloatMatrixWriter matrix_writer_in("ark,t:nnet-output.txt");
 	Matrix<BaseFloat> nnet_o(nnet_output);
 	matrix_writer_in.Write("aaa", nnet_o);
+#endif
+#ifdef DEBUG_SPEED
+	gettimeofday(&end, NULL);
+	std::cout << "DEBUG_SPEED : " << __FILE__ << " : xent_deriv time:"
+		<< (end.tv_sec - start.tv_sec)+(end.tv_usec-start.tv_usec)*1.0/1e6<< std::endl;
+	std::cout << "DEBUG_SPEED : " << __FILE__ << " : chain loss total time:"
+		<< (end.tv_sec - startall.tv_sec)+(end.tv_usec-startall.tv_usec)*1.0/1e6<< std::endl;
+	std::cout << "end ChainLossDen calculate" << std::endl;
 #endif
 	return true;
 }
@@ -386,6 +392,7 @@ bool ChainXentLossDen(const int32 *indexs, const int32 *in_labels, const int32 *
 {
 #ifdef DEBUG_SPEED
 	struct timeval start;
+	struct timeval startall;
 	struct timeval end;
 	gettimeofday(&start, NULL);
 	std::cout << "l2_regularize: " << l2_regularize << " leaky_hmm_coefficient: " << leaky_hmm_coefficient
@@ -550,7 +557,9 @@ bool ChainXentLossDen(const int32 *indexs, const int32 *in_labels, const int32 *
 	gettimeofday(&end, NULL);
 	std::cout << "DEBUG_SPEED : " << __FILE__ << " : xent_deriv time:"
 		<< (end.tv_sec - start.tv_sec)+(end.tv_usec-start.tv_usec)*1.0/1e6<< std::endl;
-	std::cout << "end ChainLossDen calculate" << std::endl;
+	std::cout << "DEBUG_SPEED : " << __FILE__ << " : chain xent loss total time:"
+		<< (end.tv_sec - startall.tv_sec)+(end.tv_usec-startall.tv_usec)*1.0/1e6<< std::endl;
+	std::cout << "end ChainXentLossDen calculate" << std::endl;
 #endif
 	return true;
 }

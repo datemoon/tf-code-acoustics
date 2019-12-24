@@ -49,6 +49,7 @@ chain_path = './'
 
 extra_compile_args = ['-std=c++11', '-fPIC', '-D_GLIBCXX_USE_CXX11_ABI=' + TF_CXX11_ABI]
 extra_compile_args += ['-Wno-return-type']
+#extra_compile_args += ['-DDEBUG_SPEED']
 
 extra_link_args = []
 if tf.__version__ >= '1.4':
@@ -99,7 +100,7 @@ library_dirs = [chain_path] + [fstroot + '/lib'] + [cudalib]
 
 class build_tf_ext(orig_build_ext):
     def build_extensions(self):
-#        self.compiler.compiler_so.remove('-Wstrict-prototypes')
+        self.compiler.compiler_so.remove('-Wstrict-prototypes')
         orig_build_ext.build_extensions(self)
 
 ext = Extension('tf_chain_py_api.chainloss',

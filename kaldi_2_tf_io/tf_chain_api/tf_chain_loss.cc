@@ -2,7 +2,7 @@
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/types.h"
-#include "tensorflow/core/kernels/bounds_check.h"
+//#include "tensorflow/core/kernels/bounds_check.h"
 #include "tensorflow/core/platform/logging.h"
 #include "tensorflow/core/platform/macros.h"
 #include "tensorflow/core/framework/allocator.h"
@@ -29,10 +29,10 @@ REGISTER_OP("ChainLoss")
 	//.Input("num_sequences: int32")
 	//.Input("frames_per_sequence: int32")
 	.Attr("label_dim: int = 0")
-	.Attr("den_indexs: tensor = { dtype: DT_INT32 }")
-	.Attr("den_in_labels: tensor = { dtype: DT_INT32 }")
-	.Attr("den_weights: tensor = { dtype: DT_INT32 }")
-	.Attr("den_statesinfo: tensor = { dtype: DT_INT32 }")
+	.Attr("den_indexs: list(int) = []")
+	.Attr("den_in_labels: list(int) = []")
+	.Attr("den_weights: list(float) = []")
+	.Attr("den_statesinfo: list(int) = []")
 	.Attr("den_num_states: int = 0")
 	.Attr("den_start_state: int = 0")
 	.Attr("delete_laststatesuperfinal: bool = true")
@@ -84,24 +84,24 @@ public:
 	{
 		// den fst data
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("den_indexs", &_den_indexs));
-		OP_REQUIRES(ctx, _den_indexs.dtype() == tf::DT_INT32,
-				tf::errors::InvalidArgument("_den_indexs must be int32, got ",
-					tf::DataTypeString(_den_indexs.dtype())));
+//		OP_REQUIRES(ctx, _den_indexs.dtype() == tf::DT_INT32,
+//				tf::errors::InvalidArgument("_den_indexs must be int32, got ",
+//					tf::DataTypeString(_den_indexs.dtype())));
 
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("den_in_labels", &_den_in_labels));
-		OP_REQUIRES(ctx, _den_in_labels.dtype() == tf::DT_INT32,
-				tf::errors::InvalidArgument("_den_in_labels must be int32, got ",
-					tf::DataTypeString(_den_in_labels.dtype())));
+//		OP_REQUIRES(ctx, _den_in_labels.dtype() == tf::DT_INT32,
+//				tf::errors::InvalidArgument("_den_in_labels must be int32, got ",
+//					tf::DataTypeString(_den_in_labels.dtype())));
 
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("den_weights", &_den_weights));
-		OP_REQUIRES(ctx, _den_weights.dtype() == tf::DT_FLOAT,
-				tf::errors::InvalidArgument("_den_weights must be float, got ",
-					tf::DataTypeString(_den_weights.dtype())));
+//		OP_REQUIRES(ctx, _den_weights.dtype() == tf::DT_FLOAT,
+//				tf::errors::InvalidArgument("_den_weights must be float, got ",
+//					tf::DataTypeString(_den_weights.dtype())));
 
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("den_statesinfo", &_den_statesinfo));
-		OP_REQUIRES(ctx, _den_statesinfo.dtype() == tf::DT_INT32,
-				tf::errors::InvalidArgument("_den_statesinfo must be , got ",
-					tf::DataTypeString(_den_statesinfo.dtype())));
+//		OP_REQUIRES(ctx, _den_statesinfo.dtype() == tf::DT_INT32,
+//				tf::errors::InvalidArgument("_den_statesinfo must be , got ",
+//					tf::DataTypeString(_den_statesinfo.dtype())));
 
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("den_num_states", &_den_num_states));
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("den_start_state", &_den_start_state));
@@ -114,10 +114,14 @@ public:
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("leaky_hmm_coefficient", &_leaky_hmm_coefficient));
 		OP_REQUIRES_OK(ctx, ctx->GetAttr("xent_regularize", &_xent_regularize));
 
-		auto den_indexs_t = _den_indexs.matrix<int>();
-		auto den_in_labels_t = _den_in_labels.vec<int>();
-		auto den_weights_t = _den_weights.vec<float>();
-		auto den_statesinfo_t = _den_statesinfo.matrix<int>();
+//		auto den_indexs_t = _den_indexs.matrix<int>();
+//		auto den_in_labels_t = _den_in_labels.vec<int>();
+//		auto den_weights_t = _den_weights.vec<float>();
+//		auto den_statesinfo_t = _den_statesinfo.matrix<int>();
+		auto den_indexs_t = _den_indexs;
+		auto den_in_labels_t = _den_in_labels;
+		auto den_weights_t = _den_weights;
+		auto den_statesinfo_t = _den_statesinfo;
 
 		_den_graph_saver.Init(den_indexs_t.data(), den_in_labels_t.data(), 
 				den_in_labels_t.data(), den_weights_t.data(), den_statesinfo_t.data(),
@@ -187,9 +191,9 @@ public:
 		const tf::int32 max_num_states = statesinfo_shape.dim_size(1);
 
 		// check num_classes_raw less then std::numeric_limits<int>::max()
-		OP_REQUIRES(
-				ctx, tf::FastBoundsCheck(num_classes_raw, std::numeric_limits<int>::max()),
-				tf::errors::InvalidArgument("num_classes cannot exceed max int"));
+//		OP_REQUIRES(
+//				ctx, tf::FastBoundsCheck(num_classes_raw, std::numeric_limits<int>::max()),
+//				tf::errors::InvalidArgument("num_classes cannot exceed max int"));
 		const int num_classes = static_cast<const int>(num_classes_raw);
 
 		OP_REQUIRES(ctx, num_classes == _label_dim,
@@ -243,16 +247,20 @@ public:
 
 #ifdef DEBUG_SPEED
 		gettimeofday(&end, NULL);
-		std::cout << "DEBUG_SPEED : " << __FILE__ " : mmi_loss_op process data time:"
+		std::cout << "DEBUG_SPEED : " << __FILE__ " : chain_loss_op process data time:"
 			<< (end.tv_sec - start.tv_sec)+(end.tv_usec-start.tv_usec)*1.0/1e6<< std::endl;
 #endif
 
 	}
 private:
-	tf::Tensor _den_indexs;
-	tf::Tensor _den_in_labels;
-	tf::Tensor _den_weights;
-	tf::Tensor _den_statesinfo;
+//	tf::Tensor _den_indexs;
+//	tf::Tensor _den_in_labels;
+//	tf::Tensor _den_weights;
+//	tf::Tensor _den_statesinfo;
+	std::vector<tf::int32> _den_indexs;
+	std::vector<tf::int32> _den_in_labels;
+	std::vector<float> _den_weights;
+	std::vector<tf::int32> _den_statesinfo;
 	int	_den_num_states;
 	int _den_start_state;
 	int _label_dim;

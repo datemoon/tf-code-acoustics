@@ -79,10 +79,17 @@ class CommonModel(tf.keras.Model):
 
     def __init__(self, nnet_conf):
         super(CommonModel, self).__init__()
-        self.layers = []
         # analysis config and construct nnet graph
+        self.model = CreateModel(nnet_conf)
+        # get layer
+        self.layers_queue = self.model.GetLayers()
 
     def call(self, inputs):
-        pass
+        outputs = inputs
+        for layer in self.layers_queue:
+            outputs = layer(outputs)
+            #print(layer)
+            #print(outputs.shape)
+        return outputs
 
         
