@@ -92,4 +92,19 @@ class CommonModel(tf.keras.Model):
             #print(outputs.shape)
         return outputs
 
+    def SaveModelWeights(self, weights_name):
+        #config = self.get_config()
+        #weights = self.get_weights()
+        self.save_weights(weights_name)
+    
+    def ReadLoadWeights(self, weights_name):
+        self.load_weights(weights_name)
+
+    @classmethod
+    def ReStoreModel(cls, nnet_conf, weights_name):
+        model = cls(nnet_conf)
+        model.ReadLoadWeights(weights_name)
+        return model
+
+
         

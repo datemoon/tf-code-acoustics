@@ -44,7 +44,8 @@ def chainloss_fn(outputs, deriv_weights,
     return chain_loss
 
 if __name__ == '__main__':
-    path = '/search/speech/hubo/git/tf-code-acoustics/chain_source_7300/8-cegs-scp/'
+    #path = '/search/speech/hubo/git/tf-code-acoustics/chain_source_7300/8-cegs-scp/'
+    path = '/search/speech/hubo/git/tf-code-acoustics/chain_source_7300/'
     conf_dict = { 'batch_size' :64,
             'skip_offset': 0,
             'shuffle': False,
@@ -56,8 +57,8 @@ if __name__ == '__main__':
     logging.basicConfig(filename = 'test.log')
     logging.getLogger().setLevel('INFO')
     io_read = KaldiDataReadParallel()
-    #io_read.Initialize(conf_dict, scp_file=path+'cegs.1.scp',
-    io_read.Initialize(conf_dict, scp_file=path+'cegs.all.scp_0',
+    io_read.Initialize(conf_dict, scp_file=path+'cegs.1.scp',
+    #io_read.Initialize(conf_dict, scp_file=path+'cegs.all.scp_0',
             feature_transform = feat_trans, criterion = 'chain')
 
     batch_info = 10
@@ -146,7 +147,19 @@ if __name__ == '__main__':
             #print('Seen so far: %s samples' % ((batch_num + 1) * 64))
             loss_value = 0.0
 
-    #model.save('tmp.model.h5', save_format='tf')
+    
+    #config = model.get_config()
+    #weights = model.get_weights()
+    #new_model.set_weights(weights)
+    #model.save_weights('path_to_my_weights.h5')
+    model.summary()
+    model.SaveModelWeights('model/path_to_my_weights.h5-1')
+    del model
+    new_model = CommonModel.ReStoreModel(nnet_conf, 'model/path_to_my_weights.h5-1')
+    new_model.summary()
+    new_model.SaveModelWeights('model/path_to_my_weights.h5-2')
+    del new_model
+
     #new_model = keras.models.load_model('tmp.model.h5')
     print('******end*****')
 
