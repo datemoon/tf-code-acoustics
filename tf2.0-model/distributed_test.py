@@ -93,22 +93,22 @@ def TrainStep(model, inputs):
     return chain_mean_loss
 
 if __name__ == '__main__':
-    path = '/search/speech/hubo/git/tf-code-acoustics/chain_source_7300/8-cegs-scp/'
-    #path = '/search/speech/hubo/git/tf-code-acoustics/chain_source_7300/'
+    #path = '/search/speech/hubo/git/tf-code-acoustics/chain_source_7300/8-cegs-scp/'
+    path = '/search/speech/hubo/git/tf-code-acoustics/chain_source_7300/'
     conf_dict = { 'batch_size' :64,
             'skip_offset': 0,
             'skip_frame':3,
             'shuffle': False,
-            'queue_cache':3,
-            'io_thread_num':1}
+            'queue_cache':10,
+            'io_thread_num':3}
     feat_trans_file = '../conf/final.feature_transform'
     feat_trans = FeatureTransform()
     feat_trans.LoadTransform(feat_trans_file)
     logging.basicConfig(filename = 'test.log')
     logging.getLogger().setLevel('INFO')
     io_read = KaldiDataReadParallel()
-    #io_read.Initialize(conf_dict, scp_file=path+'cegs.1.scp',
-    io_read.Initialize(conf_dict, scp_file=path+'cegs.all.scp_0',
+    io_read.Initialize(conf_dict, scp_file=path+'cegs.1.scp',
+    #io_read.Initialize(conf_dict, scp_file=path+'cegs.all.scp_0',
             feature_transform = feat_trans, criterion = 'chain')
 
     batch_info = 200
@@ -146,15 +146,18 @@ if __name__ == '__main__':
     def Gen():
         while True:
             inputs = io_read.GetInput()
-            if inputs[0] is not None:
-                indexs, in_labels, weights, statesinfo, num_states = inputs[3]
-                yield(inputs[0],inputs[1],inputs[2],indexs, in_labels, weights, statesinfo, num_states)
-            else:
-                print("-----end io----")
-                break
+            if inputs[0] is None:
+                io_read.JoinInput()
+                io_read.Reset(shuffle = True)
+                print("-inputs once ok----end once io----")
+                continue
+            print("Gen input:",inputs[0].shape)
+            indexs, in_labels, weights, statesinfo, num_states = inputs[3]
+            yield(inputs[0],inputs[1],inputs[2],indexs, in_labels, weights, statesinfo, num_states)
+            #yield(1,2,3,4,5,6,7,8)
     
     #dataset = tf.data.Dataset.from_generator(Gen, output_types=(tf.float32,tf.int32,tf.int32,tf.int32,tf.int32,tf.float32,tf.int32,tf.int32),output_shapes=None,args=None)
-
+    
     num_gpu=1
     devices = ['/device:GPU:{}'.format(i) for i in range(num_gpu)]
     strategy = tf.distribute.MirroredStrategy(devices)
@@ -178,14 +181,18 @@ if __name__ == '__main__':
 
         for one_batch  in train_dist_dataset:
             print('*******************start************************')
+            #print('****one batch*******',one_batch[2],num_train_batches)
+            #time.sleep(1)
             per_replica_loss = strategy.experimental_run_v2(
                     TrainStep, args=(model, one_batch))
+            print('num_train_batches: %f per_replica_loss: %f'%(num_train_batches,per_replica_loss))
             total_loss += strategy.reduce(
                     tf.distribute.ReduceOp.SUM, per_replica_loss, axis=None)
 
             num_train_batches += 1
-
-        print("trian loss:%f" % total_loss/num_train_batches)
+            if num_train_batches % 20 == 0:
+                print("trian loss:%f" % (total_loss/num_train_batches))
+                #time.sleep(5)
 
 
 
@@ -206,5 +213,6 @@ if __name__ == '__main__':
         print('******end*****')
 
 
+    io_read.JoinInput()
 
 
