@@ -44,24 +44,25 @@ def chainloss_fn(outputs, deriv_weights,
     return chain_loss
 
 if __name__ == '__main__':
-    #path = '/search/speech/hubo/git/tf-code-acoustics/chain_source_7300/8-cegs-scp/'
-    path = '/search/speech/hubo/git/tf-code-acoustics/chain_source_7300/'
+    path = '/search/speech/hubo/git/tf-code-acoustics/chain_source_7300/8-cegs-scp/'
+    #path = '/search/speech/hubo/git/tf-code-acoustics/chain_source_7300/'
     conf_dict = { 'batch_size' :64,
             'skip_offset': 0,
+            'skip_frame':3,
             'shuffle': False,
-            'queue_cache':2,
-            'io_thread_num':2}
+            'queue_cache':10,
+            'io_thread_num':3}
     feat_trans_file = '../conf/final.feature_transform'
     feat_trans = FeatureTransform()
     feat_trans.LoadTransform(feat_trans_file)
     logging.basicConfig(filename = 'test.log')
     logging.getLogger().setLevel('INFO')
     io_read = KaldiDataReadParallel()
-    io_read.Initialize(conf_dict, scp_file=path+'cegs.1.scp',
-    #io_read.Initialize(conf_dict, scp_file=path+'cegs.all.scp_0',
+    #io_read.Initialize(conf_dict, scp_file=path+'cegs.1.scp',
+    io_read.Initialize(conf_dict, scp_file=path+'cegs.all.scp_0',
             feature_transform = feat_trans, criterion = 'chain')
 
-    batch_info = 10
+    batch_info = 200
     start = time.time()
     io_read.Reset(shuffle = False)
     batch_num = 0
@@ -92,8 +93,17 @@ if __name__ == '__main__':
     den_statesinfo = np.reshape(den_statesinfo, [-1]).tolist()
 
     loss_value = 0.0
+    
+    ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=optimizer, net=model)
+    manager = tf.train.CheckpointManager(ckpt, './model', max_to_keep=10)
+    ckpt.restore(manager.latest_checkpoint)
+    if manager.latest_checkpoint:
+        print("Restored from {}".format(manager.latest_checkpoint))
+    else:
+        print("Initializing from scratch.")
 
     while True:
+
         start1 = time.time()
         feat_mat, label, length, lat_list = io_read.GetInput()
         end1 = time.time()
@@ -136,6 +146,7 @@ if __name__ == '__main__':
         # the value of the variables to minimize the loss.
         start5 = time.time()
         optimizer.apply_gradients(zip(grads, model.trainable_weights))
+        ckpt.step.assign_add(1)
         end5 = time.time()
         
         print("io time:%f, nnet time:%f, loss time:%f, grad time:%f, apply_gradients time:%f" % (end1-start1,end2-start2,end3-start3,end4-start4,end5-start5))
@@ -146,6 +157,10 @@ if __name__ == '__main__':
             print('Training loss (for one batch) at step %s: %s' % (batch_num, float(loss_value/batch_info)))
             #print('Seen so far: %s samples' % ((batch_num + 1) * 64))
             loss_value = 0.0
+            save_path = manager.save()
+            print("Saved checkpoint for step {}: {}".format(int(ckpt.step), save_path))
+            #print("loss {:1.2f}".format(loss.numpy()))
+
 
     
     #config = model.get_config()
@@ -153,12 +168,13 @@ if __name__ == '__main__':
     #new_model.set_weights(weights)
     #model.save_weights('path_to_my_weights.h5')
     model.summary()
-    model.SaveModelWeights('model/path_to_my_weights.h5-1')
+    #model.SaveModelWeights('model/path_to_my_weights.h5-1')
+    #model.SaveModelWeights('model/path_to_my_weights.h5', save_format='h5')
     del model
-    new_model = CommonModel.ReStoreModel(nnet_conf, 'model/path_to_my_weights.h5-1')
-    new_model.summary()
-    new_model.SaveModelWeights('model/path_to_my_weights.h5-2')
-    del new_model
+    #new_model = CommonModel.ReStoreModel(nnet_conf, 'model/path_to_my_weights.h5-1')
+    #new_model.summary()
+    #new_model.SaveModelWeights('model/path_to_my_weights.h5-2')
+    #del new_model
 
     #new_model = keras.models.load_model('tmp.model.h5')
     print('******end*****')

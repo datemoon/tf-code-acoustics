@@ -100,6 +100,7 @@ class CommonModel(tf.keras.Model):
     def ReadLoadWeights(self, weights_name):
         self.load_weights(weights_name)
 
+
     @classmethod
     def ReStoreModel(cls, nnet_conf, weights_name):
         model = cls(nnet_conf)
