@@ -44,36 +44,40 @@ def chainloss_fn(outputs, deriv_weights,
     return chain_loss
 
 if __name__ == '__main__':
-    path = '/search/speech/hubo/git/tf-code-acoustics/chain_source_7300/8-cegs-scp/'
-    #path = '/search/speech/hubo/git/tf-code-acoustics/chain_source_7300/'
+    #path = '/search/speech/hubo/git/tf-code-acoustics/chain_source_7300/8-cegs-scp/'
+    path = '/search/speech/hubo/git/tf-code-acoustics/chain_source_7300/'
+    #path = './'
     conf_dict = { 'batch_size' :64,
             'skip_offset': 0,
             'skip_frame':3,
             'shuffle': False,
             'queue_cache':10,
-            'io_thread_num':3}
+            'io_thread_num':5}
     feat_trans_file = '../conf/final.feature_transform'
     feat_trans = FeatureTransform()
     feat_trans.LoadTransform(feat_trans_file)
     logging.basicConfig(filename = 'test.log')
     logging.getLogger().setLevel('INFO')
     io_read = KaldiDataReadParallel()
-    #io_read.Initialize(conf_dict, scp_file=path+'cegs.1.scp',
-    io_read.Initialize(conf_dict, scp_file=path+'cegs.all.scp_0',
+    io_read.Initialize(conf_dict, scp_file=path+'cegs.1.scp',
+    #io_read.Initialize(conf_dict, scp_file=path+'scp',
+    #io_read.Initialize(conf_dict, scp_file=path+'cegs.all.scp_0',
             feature_transform = feat_trans, criterion = 'chain')
 
-    batch_info = 200
+    batch_info = 2000
     start = time.time()
     io_read.Reset(shuffle = False)
     batch_num = 0
     model = CommonModel(nnet_conf)
     
     # Instantiate an optimizer.
-    optimizer = tf.keras.optimizers.SGD(learning_rate=1e-1)
+    optimizer = tf.keras.optimizers.SGD(learning_rate=0.1)
     # Instantiate a loss function.
-    loss_fn = tf.keras.losses.SparseCategoricalCrossentropy()
+    #loss_fn = tf.keras.losses.SparseCategoricalCrossentropy()
+    loss_fn = tf.nn.softmax_cross_entropy_with_logits
     den_fst = '../chain_source/den.fst'
     den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states, den_start_state, laststatesuperfinal = Fst2SparseMatrix(den_fst)
+    #leaky_hmm_coefficient = 0.000001
     leaky_hmm_coefficient = 0.1
     l2_regularize = 0.00005
     xent_regularize = 0.0
@@ -96,71 +100,95 @@ if __name__ == '__main__':
     
     ckpt = tf.train.Checkpoint(step=tf.Variable(1), optimizer=optimizer, net=model)
     manager = tf.train.CheckpointManager(ckpt, './model', max_to_keep=10)
-    ckpt.restore(manager.latest_checkpoint)
     if manager.latest_checkpoint:
+        ckpt.restore(manager.latest_checkpoint)
         print("Restored from {}".format(manager.latest_checkpoint))
     else:
         print("Initializing from scratch.")
+    temp_label = np.random.randint(0,3766,[34])
+    label_list = []
+    for i in range(conf_dict['batch_size']):
+        label_list.append(temp_label)
 
+    label_list = np.array(label_list).transpose([1,0])
+        
+    iter_times = 0
     while True:
 
-        start1 = time.time()
-        feat_mat, label, length, lat_list = io_read.GetInput()
-        end1 = time.time()
-        if feat_mat is None:
-            break
-        logging.info('batch number: '+str(batch_num) + ' ' + str(numpy.shape(feat_mat)))
-        logging.info("time:"+str(end1-start1))
-        batch_num += 1
-        
-        deriv_weights = label
-        indexs, in_labels, weights, statesinfo, num_states = lat_list
-        with tf.GradientTape() as tape:
-            start2 = time.time()
-            outputs = model(feat_mat)
-            end2 = time.time()
-            start3 = time.time()
-            chain_loss = chainloss(outputs, deriv_weights,
-                    indexs, in_labels, weights, statesinfo, num_states,
-                    label_dim,
-                    den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states,
-                    den_start_state, delete_laststatesuperfinal,
-                    l2_regularize, leaky_hmm_coefficient, xent_regularize,
-                    time_major = True)
-            end3 = time.time()
-            print("chain_loss time:",end3-start3)
-            chain_mean_loss = chain_loss[0]
+        while True:
+    
+            start1 = time.time()
+            feat_mat, label, length, lat_list = io_read.GetInput()
+            end1 = time.time()
+            if feat_mat is None:
+                break
+            print('batch number: '+str(batch_num) + ' ' + str(numpy.shape(feat_mat)))
+            print("time:"+str(end1-start1))
+            batch_num += 1
+            
+            deriv_weights = label
+            indexs, in_labels, weights, statesinfo, num_states = lat_list
+            with tf.GradientTape() as tape:
+                start2 = time.time()
+                outputs = model(feat_mat)
+                outputs = outputs[-1 * length:]
+                end2 = time.time()
+                start3 = time.time()
+                chain_loss = chainloss(outputs, deriv_weights,
+                        indexs, in_labels, weights, statesinfo, num_states,
+                        label_dim,
+                        den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states,
+                        den_start_state, delete_laststatesuperfinal,
+                        l2_regularize, leaky_hmm_coefficient, xent_regularize,
+                        time_major = True)
+                #ce_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=label_list ,logits=outputs, name="ce_loss")
+                #ce_mean_loss = tf.reduce_sum(ce_loss ) / (length *64)
+                end3 = time.time()
+                print("chain_loss time:",end3-start3)
+                #chain_mean_loss = ce_mean_loss
+                total_frames = chain_loss[2]
+                print("---------length:",total_frames/64, length)
+                print("---------total frames:",total_frames, length *64)
+                assert total_frames == length *64
+                chain_mean_loss = chain_loss[0]/total_frames
+                #model.summary()
+                # Compute the loss value for this minibatch.
+                #loss_value = loss_fn(label, outputs)
+    
+            # Use the gradient tape to automatically retrieve
+            # the gradients of the trainable variables with respect to the loss.
             #model.summary()
-            # Compute the loss value for this minibatch.
-            #loss_value = loss_fn(label, outputs)
-
-        # Use the gradient tape to automatically retrieve
-        # the gradients of the trainable variables with respect to the loss.
-        start4 = time.time()
-        grads = tape.gradient(chain_mean_loss, model.trainable_weights)
-        end4 = time.time()
-
-        grads, gradient_norms = tf.clip_by_global_norm(grads, 5.0, use_norm=None)
-        
-        # Run one step of gradient descent by updating
-        # the value of the variables to minimize the loss.
-        start5 = time.time()
-        optimizer.apply_gradients(zip(grads, model.trainable_weights))
-        ckpt.step.assign_add(1)
-        end5 = time.time()
-        
-        print("io time:%f, nnet time:%f, loss time:%f, grad time:%f, apply_gradients time:%f" % (end1-start1,end2-start2,end3-start3,end4-start4,end5-start5))
-        print(batch_num,chain_mean_loss)
-        loss_value += chain_mean_loss
-        # Log every 200 batches.
-        if batch_num % batch_info == 0:
-            print('Training loss (for one batch) at step %s: %s' % (batch_num, float(loss_value/batch_info)))
-            #print('Seen so far: %s samples' % ((batch_num + 1) * 64))
-            loss_value = 0.0
-            save_path = manager.save()
-            print("Saved checkpoint for step {}: {}".format(int(ckpt.step), save_path))
-            #print("loss {:1.2f}".format(loss.numpy()))
-
+            #save_path = manager.save()
+            start4 = time.time()
+            grads = tape.gradient(chain_mean_loss, model.trainable_weights)
+            end4 = time.time()
+    
+            grads, gradient_norms = tf.clip_by_global_norm(grads, 5.0, use_norm=None)
+            
+            # Run one step of gradient descent by updating
+            # the value of the variables to minimize the loss.
+            start5 = time.time()
+            optimizer.apply_gradients(zip(grads, model.trainable_weights))
+            ckpt.step.assign_add(1)
+            end5 = time.time()
+            
+            print("io time:%f, nnet time:%f, loss time:%f, grad time:%f, apply_gradients time:%f" % (end1-start1,end2-start2,end3-start3,end4-start4,end5-start5))
+            print("*******************:",batch_num,chain_mean_loss)
+            loss_value += chain_mean_loss
+            # Log every 200 batches.
+            if batch_num % (batch_info/100) == 0:
+                print('Training loss (for one batch) at step %s: %s' % (batch_num, float(loss_value/(batch_info/100))))
+                #print('Seen so far: %s samples' % ((batch_num + 1) * 64))
+                loss_value = 0.0
+                model.summary()
+            if batch_num % batch_info == 0:
+                save_path = manager.save()
+                print("Saved checkpoint for step {}: {}".format(int(ckpt.step), save_path))
+                #print("loss {:1.2f}".format(loss.numpy()))
+    
+        iter_times+=1
+        io_read.JoinInput()
+        io_read.Reset(shuffle = True, skip_offset=iter_times%3)
 
     
     #config = model.get_config()

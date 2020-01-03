@@ -31,7 +31,7 @@ class Train():
         self.model = CommonModel(nnet_conf)
         self.strategy = strategy
         # Instantiate an optimizer.
-        self.optimizer = tf.keras.optimizers.SGD(learning_rate=0.01)
+        self.optimizer = tf.keras.optimizers.SGD(learning_rate=0.1)
         den_fst = '../chain_source/den.fst'
         den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states, den_start_state, laststatesuperfinal = Fst2SparseMatrix(den_fst)
         self.leaky_hmm_coefficient = 0.1
@@ -61,6 +61,7 @@ class Train():
             start2 = time.time()
             print("-----------model start------------------")
             outputs = self.model(feat_mat)
+            outputs = outputs[-1*length:]
             print("----------end outputs:",outputs.shape)
             end2 = time.time()
             start3 = time.time()
@@ -73,7 +74,7 @@ class Train():
                     time_major = True)
             end3 = time.time()
             print("chain_loss time:",end3-start3)
-            chain_mean_loss = chain_loss[0]
+            chain_mean_loss = chain_loss[0]/chain_loss[2]
             #model.summary()
             # Compute the loss value for this minibatch.
             #loss_value = loss_fn(label, outputs)
@@ -97,7 +98,7 @@ class Train():
 
     def RunStep(self, inputs):
         per_replica_loss = self.strategy.experimental_run_v2(
-                train.TrainStep, args=(inputs,))
+                self.TrainStep, args=(inputs,))
         return per_replica_loss
 
 if __name__ == '__main__':

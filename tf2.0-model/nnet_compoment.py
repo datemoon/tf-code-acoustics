@@ -90,9 +90,13 @@ class SpliceLayer(tf.keras.layers.Layer):
                 start = start_nframe + i
                 end = end_nframe - i
                 if end == 0:
-                    concat_input = input_feats[start:]
+                    concat_input = tf.slice(input_feats, begin=[start, 0, 0], 
+                            size = [input_feats.shape[0]-start, input_feats.shape[1], input_feats.shape[2]])
+                    #concat_input = input_feats[start:]
                 else:
-                    concat_input = input_feats[start:-1*end]
+                    concat_input = tf.slice(input_feats, begin=[start, 0, 0],
+                            size = [input_feats.shape[0]-start-end, input_feats.shape[1], input_feats.shape[2]])
+                    #concat_input = input_feats[start:-1*end]
                 
                 #concat_input = input_feats[start:-1*end]
                 #elif i == 0:

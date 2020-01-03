@@ -66,7 +66,7 @@ if __name__ == '__main__':
 
 
     #dataset = KaldiDataset(io_read)
-    dataset = tf.data.Dataset.from_generator(Gen, output_types=(tf.float32,tf.int32,tf.int32,tf.int32,tf.int32,tf.float32,tf.int32,tf.int32),output_shapes=None,args=None)
+    dataset = tf.data.Dataset.from_generator(Gen, output_types=(tf.float32,tf.float32,tf.int32,tf.int32,tf.int32,tf.float32,tf.int32,tf.int32),output_shapes=None,args=None)
     
     #start_time = time.perf_counter()
     start_time = time.time()
