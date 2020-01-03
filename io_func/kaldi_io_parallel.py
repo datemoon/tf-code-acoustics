@@ -653,8 +653,10 @@ class KaldiDataReadParallel(object):
     def JoinInput(self):
         self.ClearEgsQueue()
         for i in range(self.io_thread_num):
+            logging.info('ProcessPackageInput end join')
             self.input_thread[i].join()
         self.input_thread = []
+
 
     def GetInput(self):
         # if end
@@ -664,13 +666,16 @@ class KaldiDataReadParallel(object):
                 self.io_end_times += 1
                 # end
                 if self.io_end_times == self.io_thread_num:
-                    return None, None, None, None
+                    return [None, None, None, None]
                 else:
                     continue
             else:
-                return feat,label,length,lattice
+                return [feat,label,length,lattice]
 
-
+    def ReadEnd(self):
+        if self.io_end_times == self.io_thread_num:
+            return True
+        return False
     
     # Tdnn frames features train.
     def TdnnLoadNextNstreams(self):

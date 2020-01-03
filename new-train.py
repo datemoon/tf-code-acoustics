@@ -213,8 +213,8 @@ class TrainClass(object):
 
             # sync train
             if self.use_sync_cf:
-                optimizer = tf.train.SyncReplicasOptimizer(optimizer, replicas_to_aggregate=8,
-                        total_num_replicas=8,
+                optimizer = tf.train.SyncReplicasOptimizer(optimizer, replicas_to_aggregate=32,
+                        total_num_replicas=32,
                         use_locking=True)
                 sync_replicas_hook = [optimizer.make_session_run_hook(
                         is_chief = (self.task_index_cf==0))]
@@ -279,10 +279,14 @@ class TrainClass(object):
                 #den_in_labels = tf.convert_to_tensor(den_in_labels, name='den_in_labels')
                 #den_weights = tf.convert_to_tensor(den_weights, name='den_weights')
                 #den_statesinfo = tf.convert_to_tensor(den_statesinfo, name='den_statesinfo')
-                den_indexs = tf.make_tensor_proto(den_indexs)
-                den_in_labels = tf.make_tensor_proto(den_in_labels)
-                den_weights = tf.make_tensor_proto(den_weights)
-                den_statesinfo = tf.make_tensor_proto(den_statesinfo)
+                #den_indexs = tf.make_tensor_proto(den_indexs)
+                #den_in_labels = tf.make_tensor_proto(den_in_labels)
+                #den_weights = tf.make_tensor_proto(den_weights)
+                #den_statesinfo = tf.make_tensor_proto(den_statesinfo)
+                den_indexs = np.reshape(den_indexs,[-1]).tolist()
+                den_in_labels = np.reshape(den_in_labels , [-1]).tolist()
+                den_weights = np.reshape(den_weights, [-1]).tolist()
+                den_statesinfo = np.reshape(den_statesinfo, [-1]).tolist()
                 if 'xent' in self.criterion_cf:
                     xent_regularize = 0.025
                     chain_mean_loss, chain_loss, label_error_rate, rnn_keep_state_op, rnn_state_zero_op = nnet_model.ChainXentLoss(
@@ -777,7 +781,7 @@ if __name__ == "__main__":
 
         # every five minutes start one job
         if conf_dict["use_sync"] is False:
-            wait_time = 60 * 5 * task_index 
+            wait_time = 60 * 1 * task_index 
             time.sleep(wait_time)
         while iter < 21:
             train_start_t = time.time()
