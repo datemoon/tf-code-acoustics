@@ -43,7 +43,7 @@ def chainloss_fn(outputs, deriv_weights,
     return chain_loss
 
 if __name__ == '__main__':
-    path = '/search/speech/hubo/git/tf-code-acoustics/chain_source_7300/'
+    path = './'
     conf_dict = { 'batch_size' :64,
             'skip_offset': 0,
             'shuffle': False,
@@ -55,7 +55,7 @@ if __name__ == '__main__':
     logging.basicConfig(filename = 'test.log')
     logging.getLogger().setLevel('INFO')
     io_read = KaldiDataReadParallel()
-    io_read.Initialize(conf_dict, scp_file=path+'cegs.1.scp',
+    io_read.Initialize(conf_dict, scp_file=path+'scp',
             feature_transform = feat_trans, criterion = 'chain')
 
     start = time.time()
@@ -85,7 +85,10 @@ if __name__ == '__main__':
         
         deriv_weights = label
         indexs, in_labels, weights, statesinfo, num_states = lat_list
-        outputs = np.random.rand(50* 64*3766).reshape(50, 64, 3766)
+        outputs = np.random.rand(34* 64*3766).reshape(34, 64, 3766)
+        feat = feat_mat.reshape(-1,355)
+        outputs = np.hstack((feat,feat,feat,feat,feat,feat,feat,feat,feat,feat,feat)).reshape((46,64,-1))
+        outputs = outputs[0:] = outputs[0:length,:,0:label_dim]
         start3 = time.time()
         chain_loss = chainloss(outputs, deriv_weights,
                     indexs, in_labels, weights, statesinfo, num_states,

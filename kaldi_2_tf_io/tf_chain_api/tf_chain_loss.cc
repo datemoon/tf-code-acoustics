@@ -9,6 +9,7 @@
 #include "tensorflow/core/framework/shape_inference.h"
 
 #include <sys/time.h>
+#include <iostream>
 
 #include "tf-2-kaldi-api.h"
 
@@ -122,6 +123,12 @@ public:
 		auto den_in_labels_t = _den_in_labels;
 		auto den_weights_t = _den_weights;
 		auto den_statesinfo_t = _den_statesinfo;
+
+		std::cout << __FILE__  << ": " << __LINE__ << ": " << "chainloss info :" 
+			<< " l2_regularize: "  << _l2_regularize 
+			<< " leaky_hmm_coefficient: " << _leaky_hmm_coefficient
+			<< " xent_regularize: " << _xent_regularize 
+			<< " label_dim: " << _label_dim << std::endl;
 
 		_den_graph_saver.Init(den_indexs_t.data(), den_in_labels_t.data(), 
 				den_in_labels_t.data(), den_weights_t.data(), den_statesinfo_t.data(),

@@ -310,13 +310,13 @@ bool ChainLossDen(const int32 *indexs, const int32 *in_labels, const int32 *out_
 			tot_objf, tot_l2_term, tot_weight,
 			&nnet_output_deriv, 
 			(use_xent ? &xent_deriv : NULL));
-	*tot_objf = *tot_objf / (*tot_weight);
+	//*tot_objf = *tot_objf / (*tot_weight);
 	// loss nnet_output_deriv
 #ifdef DEBUG_SPEED
 	gettimeofday(&end, NULL);
 	std::cout << "DEBUG_SPEED : " << __FILE__ << " : chain loss time:"
 		<< (end.tv_sec - start.tv_sec)+(end.tv_usec-start.tv_usec)*1.0/1e6<< std::endl;
-	std::cout << "tot_objf:" << *tot_objf
+	std::cout << "tot_objf/tot_weight:" << *tot_objf/(*tot_weight)
 		<< "\ntot_l2_term:" << *tot_l2_term
 		<< "\ntot_weight:" << *tot_weight << std::endl;
 	gettimeofday(&start, NULL);

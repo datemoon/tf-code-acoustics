@@ -28,7 +28,8 @@ import tensorflow as tf
 
 
 if __name__ == '__main__':
-    path = '/search/speech/hubo/git/tf-code-acoustics/chain_source_7300/8-cegs-scp/'
+    #path = '/search/speech/hubo/git/tf-code-acoustics/chain_source_7300/8-cegs-scp/'
+    path = './'
     conf_dict = { 'batch_size' :64,
             'skip_offset': 0,
             'shuffle': False,
@@ -41,7 +42,7 @@ if __name__ == '__main__':
     logging.getLogger().setLevel('INFO')
     io_read = KaldiDataReadParallel()
     #io_read.Initialize(conf_dict, scp_file=path+'cegs.1.scp',
-    io_read.Initialize(conf_dict, scp_file=path+'cegs.all.scp_0',
+    io_read.Initialize(conf_dict, scp_file=path+'scp',
             feature_transform = feat_trans, criterion = 'chain')
 
     batch_info = 10
@@ -79,7 +80,7 @@ if __name__ == '__main__':
                 den_indexs, den_in_labels, den_weights, den_statesinfo, den_num_states,den_start_state, delete_laststatesuperfinal,
                 l2_regularize, leaky_hmm_coefficient, xent_regularize, time_major=True)
     
-        outputs = np.random.rand(50* 64*3766).reshape(50, 64, 3766)
+        #outputs = np.random.rand(50* 64*3766).reshape(50, 64, 3766)
         
     
         sess =  tf.Session() 
@@ -92,6 +93,10 @@ if __name__ == '__main__':
             logging.info('batch number: '+str(batch_num) + ' ' + str(numpy.shape(feat_mat)))
             logging.info("time:"+str(end1-start1))
             batch_num += 1
+            outputs = np.random.rand(34* 64*3766).reshape(34, 64, 3766)
+            feat = feat_mat.reshape(-1,355)
+            outputs = np.hstack((feat,feat,feat,feat,feat,feat,feat,feat,feat,feat,feat)).reshape((46,64,-1))
+            outputs = outputs[0:] = outputs[0:length,:,0:label_dim]
             
             deriv_weights = label
             indexs, in_labels, weights, statesinfo, num_states = lat_list
@@ -104,6 +109,7 @@ if __name__ == '__main__':
             print("------------------chain_loss time:",end3-start3)
     
         print('******end*****')
+        io_read.Join()
     
     
     
