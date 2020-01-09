@@ -703,7 +703,7 @@ class LstmModel(NnetBase):
                     time_major = self.time_major_cf)
 
             total_frames = 0
-            chain_mean_loss = chain_loss[0]
+            chain_mean_loss = chain_loss[0]/chain_loss[2]
 
         return chain_mean_loss, chain_loss, None, rnn_keep_state_op, rnn_state_zero_op
 
