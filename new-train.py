@@ -370,6 +370,10 @@ class TrainClass(object):
                     inter_op_parallelism_threads=self.num_threads_cf,
                     allow_soft_placement=True,
                     log_device_placement=False,gpu_options=gpu_options)
+            sess_config = tf.ConfigProto(intra_op_parallelism_threads=2,
+                    inter_op_parallelism_threads=5,
+                    allow_soft_placement=True,
+                    log_device_placement=False,gpu_options=gpu_options)
             if self.reset_global_step_cf and self.task_index_cf == 0:
                 non_train_variables = [self.global_step] + tf.local_variables()
             else:
@@ -379,7 +383,7 @@ class TrainClass(object):
             local_init_op = tf.report_uninitialized_variables(var_list=non_train_variables)
 
             # add saver hook
-            self.saver = tf.train.Saver(max_to_keep=50, sharded=True, allow_empty=True)
+            self.saver = tf.train.Saver(max_to_keep=50, sharded=False, allow_empty=False)
             scaffold = tf.train.Scaffold(init_op = None,
                     init_feed_dict = None,
                     init_fn = None,
@@ -403,7 +407,7 @@ class TrainClass(object):
                     config=sess_config,
                     stop_grace_period_secs=120,
                     log_step_count_steps=100,
-                    max_wait_secs=7200,
+                    max_wait_secs=600,
                     save_checkpoint_steps=self.steps_per_checkpoint_cf)
           #          summary_dir = self.checkpoint_dir_cf + "_summary_dir")
             #self.sess = tf_debug.LocalCLIDebugWrapperSession(self.sess)
