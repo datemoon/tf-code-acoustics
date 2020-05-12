@@ -1,8 +1,9 @@
 # kaldi commit 317cad43b46c61ba698d0314afdc41dae991d7b3
 
-export LD_LIBRARY_PATH=$(python3 -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_compile_flags()))')
 
+export TENSORFLOW_SRC_PATH=$(python3 -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_link_flags()))')
 
+rm -rf build
 configure hubo.mk
 
 make
