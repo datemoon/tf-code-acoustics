@@ -1,0 +1,22 @@
+
+# lcblstn 7300h tensorflow工具与原搜狗工具 8gpu
+#          8000     IOS      ND      NOS
+#sogou     13.39    4.56     11.28   20.75
+#tf        13.45    4.54     11.46   20.84
+#          -0.0045  0.0044   -0.016  -0.0043
+
+
+# blstm 7300h smbr experiment 8gpu
+#          8000     IOS      ND      NOS
+#base      12.29   4.26      10.28   18.21
+#dt        11.75   4.02      9.5     17.5
+#          0.044   0.061     0.075   0.038
+
+# chain model 7300 tensorflow 和 kaldi对比实验 8gpu
+#                 8000     IOS      ND      NOS
+#kaldi-NG         12.6                      17.8
+#kaldi-SGD        13.7                      18.9
+#tf-SGD           13.4                      18.7
+#kaldi-SGD/NG     0.87                      0.62
+#tf-SGD/NG        0.63                      0.51
+#tf-SGD/kaldi-SGD -0.22                     -0.11

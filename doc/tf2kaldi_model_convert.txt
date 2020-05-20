@@ -1,0 +1,4 @@
+
+进入tool目录，使用print-tf-model-to-txt.py将tf模型转成文本格式
+使用convert_tfmodel2kaldi.py 将文本格式的tf模型，转换为kaldi格式即可
+其中convert_tfmodel2kaldi.py 需要给出layer_struct，主要提供网络名称和形状具体详见代码。

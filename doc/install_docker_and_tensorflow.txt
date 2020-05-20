@@ -1,0 +1,5 @@
+# see the link forinstallattion method(http://eva.sogou-inc.com/html/quick_start/docker.html).
+
+# down load tensorflow 1.9 image
+sudo docker run --runtime=nvidia --net=host -d -it -P --privileged  -v /search/speech:/search/speech --name tf_kaldi_py3 10.142.104.73:8043/dlp/tf_centos7:1.9_kaldi_py35 /bin/bash
+

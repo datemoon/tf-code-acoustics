@@ -1,0 +1,64 @@
+# train options.
+--batch_size                  : default(10)
+--num_frames_batch            : default(20)  如果需要切分整句话，这个参数提供切分大小
+--time_major                  : default(True) 输入特征的第一个维度是否是时间轴，暂时建议True，False没有测试
+
+--learning-rate               : default(0.1) 初始学习率
+--learning-rate-decay-steps   : default(40000) 指数学习率下降batch数
+--learning-rate-decay-rate    : default(0.96) 指数学习率下降基数
+
+--reset-global-step           : default(True) 继续训练模型是否重置全局步数
+--criterion                   : default(ce) 训练准则和数据处理方法 包括("ce","ctc","chain","chain,xent","cnn","mmi","smbr","mpfe","whole")
+
+--steps_per_checkpoint        : default(60000) 每多少batch存一次模型
+--checkpoint_dir              : 训练保存目录
+
+# paramter updata options.
+--use-normal                  : default(False) 训练是否加l2 normal
+--l2-scale                    : default(0.01) 参数正则化 
+--use-clip                    : default(False) 是否使用梯度限制
+--use-sgd                     : default(False) 是否使用随机梯度
+--optimizer                   : default(GD) 优化器选项(GD,Adam,...)
+--grad_clip                   : default(5.0) 模型梯度更新绝对值最大限制
+--use-sync                    : default(False) 是否使用同步，
+
+# model options
+--nnet_conf                   : 网络配置文件
+--init-scale                  : default(0.01) 模型初始化参数
+--state_is_tuple              : default(True) 隐层状态保存类型
+
+# machine options.
+--ps-hosts                    : ps
+--worker_hosts                : worker
+--job-name                    : (ps|worker)
+--task-index                  : 任务索引，从0开始，必须唯一，0是master
+
+# data options.
+--tr-scp                      : 训练数据的scp文件
+--tr-label                    : 训练标注文件
+--lat-scp-file                : 区分训练的lattice scp文件
+--ali-map-file                : 区分训练，lattice ali map file 代替kaldi区分训练的final.mdl
+--silence-phones              : mpfe训练的静音序列
+--class-frame-counts          : pdf先验文件，与kaldi保持一致
+--den-fst                     : chain model训练的分母fst文件
+--io-thread-num               : io读队列进程数
+--max-egs-kind                : chain model训练，最多egs长度种类
+--label-dim                   : 神经网络输出分类数
+
+# io options.
+--queue_cache                 : defalut(100) io缓存队列大小
+--max_input_seq_length        : default(2000) 训练语音最大特征长度
+--max_target_seq_length       : default(2000) 训练语音最大标注长度
+--skip_frame                  : default(1) 跳帧
+--skip_offset                 : default(0) 跳帧偏移量
+--tdnn-start-frames           : default(0)  tdnn训练提前计算开始需要多看几帧
+--tdnn-end-frames             : default(0) tdnn训练提前计算结束需要多看几帧
+--feature-transfile           : default(None) 特征拼帧配置文件
+--shuffle                     : 训练数据是否打乱
+
+--log_file                    : 日志文件
+--log_level                   : default(DEBUG) 日志选项
+
+# config file
+--config                      : 训练配置参数文件
+

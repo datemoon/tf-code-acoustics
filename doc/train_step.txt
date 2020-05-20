@@ -1,0 +1,39 @@
+# 如果按照install_docker_and_tensorflow.txt安装好环境和下载镜像，或者平台组已经帮你准备好环境，那么接下来开始训练准备。
+# chain model 训练步骤
+1.安装tf chain loss api，运行脚本如下：
+./install_loss_api.sh
+2.准备训练数据，训练数据是kaldi训练chain model格式的egs的ark和scp文件，不过与kaldi有区别，
+由于python版本读fst不支持压缩格式的fst，所以这里修改了chain-supervision.cc文件，
+需要将这个文件替换原本的kaldi同名文件，然后编译打包生成egs即可使用。
+在这里使用的是scp文件，通过scp文件找到ark文件，而不直接读取ark文件，所以生成时候一并生成。
+数据准备ok
+3.开始配置训练参数和选项：
+具体详见脚本tdnn-lstm-run.sh，需要提供scp文件和den.fst，conf/final.feature_transform，具体参数对应提供数据进行修改即可。
+4.运行脚本
+
+测试样例可运行，如下，其中提供了所有资源和初始化参数，具体可以根据需求去调参
+./tdnn-lstm-run.sh test
+在outdir目录查看日志
+
+
+
+
+# lc-blstm ce model 训练步骤
+1.准备训练数据，参考kaldi，提供label和features，格式与kaldi一致，其中features提供scp，支持压缩格式features。
+2.修改--criterion参数为ce，--tr-label，--tr-scp设置label和scp文件。
+3.运行脚本
+
+测试样例可运行，如下,其中提供了所有资源和初始化参数，具体可以根据需求去调参
+./lcblstm-run.sh test
+在outdir目录查看日志
+
+
+
+
+# lc-blstm smbr model 训练步骤
+1.准备训练数据，参考kaldi，提供label和features、lattice，格式与kaldi一致，其中features和lattice提供scp，支持压缩格式features。
+2.修改--criterion参数，设置数据参数
+3,。运行脚本
+
+测试样例可运行，如下,其中提供了所有资源和初始化参数，具体可以根据需求去调参
+./dt-lcblstm-run.sh test
